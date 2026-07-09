@@ -1,0 +1,229 @@
+"use client";
+
+import * as React from "react";
+import { Pause, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { ASSET_TYPES, type RecurringRule } from "@/lib/types";
+import { addRule, deleteRule, toggleRule, updateRule } from "@/app/actions";
+import { fmtVND } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+
+type ActionResult = { ok: boolean; message: string };
+
+function RuleForm({
+  action,
+  instruments,
+  rule,
+  onDone,
+}: {
+  action: (fd: FormData) => Promise<ActionResult>;
+  instruments: string[];
+  rule?: RecurringRule;
+  onDone?: () => void;
+}) {
+  const [pending, startTransition] = React.useTransition();
+  const formRef = React.useRef<HTMLFormElement>(null);
+  const today = new Date().toLocaleDateString("sv-SE");
+
+  return (
+    <form
+      ref={formRef}
+      action={(fd) =>
+        startTransition(async () => {
+          const res = await action(fd);
+          if (res.ok) {
+            toast.success(res.message);
+            if (!rule) formRef.current?.reset();
+            onDone?.();
+          } else toast.error(res.message);
+        })
+      }
+      className="grid gap-4 sm:grid-cols-2"
+    >
+      <div className="grid gap-2">
+        <Label htmlFor="r-instrument">Instrument</Label>
+        <Input
+          id="r-instrument"
+          name="instrument"
+          list="instrument-names-rule"
+          defaultValue={rule?.instrument}
+          required
+        />
+        <datalist id="instrument-names-rule">
+          {instruments.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="r-type">Asset type</Label>
+        <Select name="asset_type" defaultValue={rule?.asset_type ?? "Funds"}>
+          <SelectTrigger id="r-type" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ASSET_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="r-amount">Amount (VND)</Label>
+        <Input
+          id="r-amount"
+          name="amount"
+          type="number"
+          min="1"
+          step="1"
+          defaultValue={rule?.amount}
+          required
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="r-freq">Frequency</Label>
+        <Select name="freq" defaultValue={rule?.freq ?? "weekly"}>
+          <SelectTrigger id="r-freq" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="weekly">Weekly</SelectItem>
+            <SelectItem value="monthly">Monthly</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="r-start">Start date (anchor)</Label>
+        <Input
+          id="r-start"
+          name="start_date"
+          type="date"
+          defaultValue={rule?.start_date ?? today}
+          required
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="r-note">Note (optional)</Label>
+        <Input id="r-note" name="note" defaultValue={rule?.note ?? undefined} />
+      </div>
+      <div className="sm:col-span-2">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving…" : rule ? "Update rule" : "Add rule"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function RuleRow({
+  rule,
+  nextDue,
+  instruments,
+}: {
+  rule: RecurringRule;
+  nextDue: string | null;
+  instruments: string[];
+}) {
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [pending, startTransition] = React.useTransition();
+
+  const run = (fn: () => Promise<ActionResult>) =>
+    startTransition(async () => {
+      const res = await fn();
+      if (res.ok) toast.success(res.message);
+      else toast.error(res.message);
+    });
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
+      <div className="min-w-40 flex-1">
+        <div className="flex items-center gap-2 font-medium">
+          {rule.instrument}
+          {!rule.active && <Badge variant="secondary">paused</Badge>}
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {fmtVND(rule.amount)} · {rule.freq} · since {rule.start_date}
+          {nextDue && ` · next ${nextDue}`}
+        </div>
+      </div>
+      <div className="flex gap-1">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={rule.active ? "Pause rule" : "Resume rule"}
+          disabled={pending}
+          onClick={() => run(() => toggleRule(rule.id))}
+        >
+          {rule.active ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+        </Button>
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogTrigger
+            render={<Button variant="ghost" size="icon-sm" aria-label="Edit rule" />}
+          >
+            <Pencil className="size-3.5" />
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Edit rule</DialogTitle>
+            </DialogHeader>
+            <RuleForm
+              action={(fd) => updateRule(rule.id, fd)}
+              instruments={instruments}
+              rule={rule}
+              onDone={() => setEditOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Delete rule"
+          disabled={pending}
+          onClick={() => {
+            if (!confirm(`Delete the ${rule.freq} rule for ${rule.instrument}? Already-created transactions stay.`))
+              return;
+            run(() => deleteRule(rule.id));
+          }}
+        >
+          <Trash2 className="size-3.5 text-destructive" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function RecurringManager({
+  rules,
+  instruments,
+}: {
+  rules: { rule: RecurringRule; nextDue: string | null }[];
+  instruments: string[];
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {rules.length === 0 && (
+        <p className="text-sm text-muted-foreground">No rules yet.</p>
+      )}
+      {rules.map(({ rule, nextDue }) => (
+        <RuleRow key={rule.id} rule={rule} nextDue={nextDue} instruments={instruments} />
+      ))}
+      <Separator className="my-2" />
+      <div>
+        <h3 className="mb-3 flex items-center gap-1.5 text-sm font-medium">
+          <Plus className="size-3.5" /> New rule
+        </h3>
+        <RuleForm action={addRule} instruments={instruments} />
+      </div>
+    </div>
+  );
+}

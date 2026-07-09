@@ -20,6 +20,9 @@
 # production
 /build
 
+# financial data — back up via Export CSV
+/data/
+
 # misc
 .DS_Store
 *.pem
