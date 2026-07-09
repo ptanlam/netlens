@@ -8,6 +8,7 @@ import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RefreshPricesButton } from "@/components/refresh-prices";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -115,10 +116,11 @@ export function HoldingsForm({
           ))}
         </TableBody>
       </Table>
-      <div className="mt-4">
+      <div className="mt-4 flex items-center justify-between">
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : "Save holdings"}
         </Button>
+        <RefreshPricesButton />
       </div>
     </form>
   );

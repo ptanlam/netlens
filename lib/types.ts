@@ -2,7 +2,10 @@
 
 export const ASSET_TYPES = ["Funds", "Stocks", "Crypto", "Real Estate"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
-export const PRICE_SOURCES = ["manual", "coingecko", "yahoo", "fmarket", "vcbf"] as const;
+export const PRICE_SOURCES = ["manual", "coingecko", "yahoo", "fmarket"] as const;
+
+export const INTEREST_TYPES = ["simple", "compound"] as const;
+export type InterestType = (typeof INTEREST_TYPES)[number];
 
 export interface Tx {
   id: number;
@@ -40,8 +43,32 @@ export interface RecurringRule {
   created_at: string;
 }
 
+export interface Saving {
+  id: number;
+  bank: string | null;
+  principal: number;
+  rate: number;
+  start_date: string;
+  term_months: number;
+  interest_type: InterestType;
+  note: string | null;
+  created_at: string;
+}
+
+export interface Debt {
+  id: number;
+  lender: string | null;
+  principal: number;
+  rate: number;
+  start_date: string;
+  term_months: number;
+  interest_type: InterestType;
+  note: string | null;
+  created_at: string;
+}
+
 export interface Payload {
-  years: Record<string, { totals: number[]; breakdown: Record<string, number>[] }>;
+  contributions: { date: string; asset_type: string; amount: number }[];
   portfolio: { name: string; value: number; type: string; live: boolean; cost: number; pnl: number }[];
   portfolioTotal: number;
   investedTotal: number;

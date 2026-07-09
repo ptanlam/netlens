@@ -1,5 +1,6 @@
 import { connection } from "next/server";
-import { Download } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import * as db from "@/lib/db";
 import { fmtVND } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -11,10 +12,17 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { TxRowActions } from "@/components/tx-row-actions";
+import { AddTxDialog } from "@/components/add-tx-dialog";
 import { PendingUnitsCard } from "@/components/pending-units";
 import { cn } from "@/lib/utils";
 
-export default async function TransactionsPage() {
+const PAGE_SIZE = 20;
+
+export default async function TransactionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await connection();
   db.materializeRecurring();
   const txs = db.allTransactions();
@@ -30,6 +38,15 @@ export default async function TransactionsPage() {
     };
   });
 
+  const totalPages = Math.max(1, Math.ceil(txs.length / PAGE_SIZE));
+  const requested = Number((await searchParams).page);
+  const page = Math.min(
+    Math.max(Number.isFinite(requested) ? Math.trunc(requested) : 1, 1),
+    totalPages,
+  );
+  const start = (page - 1) * PAGE_SIZE;
+  const pageTxs = txs.slice(start, start + PAGE_SIZE);
+
   return (
     <div className="flex flex-col gap-6">
       {pending.length > 0 && <PendingUnitsCard pending={pending} />}
@@ -40,14 +57,18 @@ export default async function TransactionsPage() {
             <CardTitle>Transactions</CardTitle>
             <CardDescription>{txs.length} recorded — full history</CardDescription>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            render={<a href="/export.csv" download />}
-          >
-            <Download className="size-3.5" />
-            Export CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<a href="/export.csv" download />}
+            >
+              <Download className="size-3.5" />
+              Export CSV
+            </Button>
+            <AddTxDialog instruments={instruments} />
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -63,7 +84,7 @@ export default async function TransactionsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {txs.map((tx) => (
+              {pageTxs.map((tx) => (
                 <TableRow key={tx.id}>
                   <TableCell className="whitespace-nowrap tabular-nums">{tx.date}</TableCell>
                   <TableCell>
@@ -91,6 +112,49 @@ export default async function TransactionsPage() {
               ))}
             </TableBody>
           </Table>
+
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between border-t pt-4 text-sm text-muted-foreground">
+              <span className="tabular-nums">
+                {start + 1}–{start + pageTxs.length} of {txs.length}
+              </span>
+              <div className="flex items-center gap-3">
+                {page > 1 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link href={`/transactions?page=${page - 1}`} />}
+                  >
+                    <ChevronLeft className="size-3.5" />
+                    Previous
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" disabled>
+                    <ChevronLeft className="size-3.5" />
+                    Previous
+                  </Button>
+                )}
+                <span className="tabular-nums">Page {page} of {totalPages}</span>
+                {page < totalPages ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link href={`/transactions?page=${page + 1}`} />}
+                  >
+                    Next
+                    <ChevronRight className="size-3.5" />
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" disabled>
+                    Next
+                    <ChevronRight className="size-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

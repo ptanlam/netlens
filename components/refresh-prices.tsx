@@ -11,6 +11,7 @@ export function RefreshPricesButton() {
   const [pending, startTransition] = React.useTransition();
   return (
     <Button
+      type="button"
       size="sm"
       variant="outline"
       disabled={pending}

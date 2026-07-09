@@ -5,10 +5,10 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
-import type { Instrument, Payload, RecurringRule, Tx } from "./types";
+import type { Debt, Instrument, Payload, RecurringRule, Saving, Tx } from "./types";
 
 export { ASSET_TYPES, PRICE_SOURCES } from "./types";
-export type { AssetType, Instrument, Payload, RecurringRule, Tx } from "./types";
+export type { AssetType, Debt, Instrument, Payload, RecurringRule, Saving, Tx } from "./types";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS transactions (
@@ -53,6 +53,30 @@ CREATE TABLE IF NOT EXISTS price_history (
   date       TEXT NOT NULL,
   price      REAL NOT NULL,
   PRIMARY KEY (instrument, date)
+);
+
+CREATE TABLE IF NOT EXISTS savings (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  bank          TEXT,
+  principal     INTEGER NOT NULL,
+  rate          REAL    NOT NULL,
+  start_date    TEXT    NOT NULL,
+  term_months   INTEGER NOT NULL,
+  interest_type TEXT    NOT NULL DEFAULT 'simple',
+  note          TEXT,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS debts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  lender        TEXT,
+  principal     INTEGER NOT NULL,
+  rate          REAL    NOT NULL,
+  start_date    TEXT    NOT NULL,
+  term_months   INTEGER NOT NULL,
+  interest_type TEXT    NOT NULL DEFAULT 'simple',
+  note          TEXT,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -119,6 +143,82 @@ export function allTransactions(): Tx[] {
   return getDb()
     .prepare("SELECT * FROM transactions ORDER BY date DESC, id DESC")
     .all() as Tx[];
+}
+
+// ---------- savings (term deposits) ----------
+
+export function listSavings(): Saving[] {
+  return getDb()
+    .prepare("SELECT * FROM savings ORDER BY start_date DESC, id DESC")
+    .all() as Saving[];
+}
+
+export function getSaving(id: number): Saving | undefined {
+  return getDb().prepare("SELECT * FROM savings WHERE id=?").get(id) as Saving | undefined;
+}
+
+export function addSaving(
+  bank: string | null, principal: number, rate: number, startDate: string,
+  termMonths: number, interestType: string, note: string | null = null,
+) {
+  getDb()
+    .prepare(
+      "INSERT INTO savings(bank, principal, rate, start_date, term_months, interest_type, note) VALUES (?,?,?,?,?,?,?)",
+    )
+    .run(bank, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, note);
+}
+
+export function updateSaving(
+  id: number, bank: string | null, principal: number, rate: number, startDate: string,
+  termMonths: number, interestType: string, note: string | null,
+) {
+  getDb()
+    .prepare(
+      "UPDATE savings SET bank=?, principal=?, rate=?, start_date=?, term_months=?, interest_type=?, note=? WHERE id=?",
+    )
+    .run(bank, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, note, id);
+}
+
+export function deleteSaving(id: number) {
+  getDb().prepare("DELETE FROM savings WHERE id=?").run(id);
+}
+
+// ---------- debts (loans) ----------
+
+export function listDebts(): Debt[] {
+  return getDb()
+    .prepare("SELECT * FROM debts ORDER BY start_date DESC, id DESC")
+    .all() as Debt[];
+}
+
+export function getDebt(id: number): Debt | undefined {
+  return getDb().prepare("SELECT * FROM debts WHERE id=?").get(id) as Debt | undefined;
+}
+
+export function addDebt(
+  lender: string | null, principal: number, rate: number, startDate: string,
+  termMonths: number, interestType: string, note: string | null = null,
+) {
+  getDb()
+    .prepare(
+      "INSERT INTO debts(lender, principal, rate, start_date, term_months, interest_type, note) VALUES (?,?,?,?,?,?,?)",
+    )
+    .run(lender, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, note);
+}
+
+export function updateDebt(
+  id: number, lender: string | null, principal: number, rate: number, startDate: string,
+  termMonths: number, interestType: string, note: string | null,
+) {
+  getDb()
+    .prepare(
+      "UPDATE debts SET lender=?, principal=?, rate=?, start_date=?, term_months=?, interest_type=?, note=? WHERE id=?",
+    )
+    .run(lender, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, note, id);
+}
+
+export function deleteDebt(id: number) {
+  getDb().prepare("DELETE FROM debts WHERE id=?").run(id);
 }
 
 // ---------- instruments ----------
@@ -359,29 +459,9 @@ export function metaSet(key: string, value: string) {
 
 export function buildPayload(): Payload {
   const db = getDb();
-  const monthly: Record<string, Record<number, Record<string, number>>> = {};
   const txRows = db
-    .prepare("SELECT date, asset_type, amount FROM transactions")
+    .prepare("SELECT date, asset_type, amount FROM transactions ORDER BY date, id")
     .all() as { date: string; asset_type: string; amount: number }[];
-  for (const r of txRows) {
-    const year = r.date.slice(0, 4);
-    const month = Number(r.date.slice(5, 7));
-    monthly[year] ??= {};
-    monthly[year][month] ??= {};
-    monthly[year][month][r.asset_type] = (monthly[year][month][r.asset_type] ?? 0) + r.amount;
-  }
-
-  const years: Payload["years"] = {};
-  for (const year of Object.keys(monthly).sort()) {
-    const totals: number[] = [];
-    const breakdown: Record<string, number>[] = [];
-    for (let m = 1; m <= 12; m++) {
-      const cats = monthly[year][m] ?? {};
-      totals.push(Object.values(cats).reduce((a, b) => a + b, 0));
-      breakdown.push(cats);
-    }
-    years[year] = { totals, breakdown };
-  }
 
   const costByInstrument: Record<string, number> = {};
   for (const r of db
@@ -415,7 +495,7 @@ export function buildPayload(): Payload {
     .get() as { m: string | null }).m;
 
   return {
-    years, portfolio, portfolioTotal, investedTotal,
+    contributions: txRows, portfolio, portfolioTotal, investedTotal,
     pnl: portfolioTotal - investedTotal,
     allocation: Object.entries(alloc)
       .map(([type, value]) => ({ type, value }))

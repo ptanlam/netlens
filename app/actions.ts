@@ -18,7 +18,7 @@ function str(v: FormDataEntryValue | null): string {
 }
 
 function revalidateAll() {
-  for (const p of ["/", "/transactions", "/holdings", "/recurring"]) revalidatePath(p);
+  for (const p of ["/", "/transactions", "/holdings", "/recurring", "/savings", "/debts"]) revalidatePath(p);
 }
 
 // ---------- transactions ----------
@@ -67,6 +67,129 @@ export async function setTxQty(id: number, quantity: number, addToHoldings: bool
   const ok = db.setTransactionQuantity(id, quantity, addToHoldings);
   revalidateAll();
   return { ok, message: ok ? "Units saved." : "Not found." };
+}
+
+// ---------- savings (term deposits) ----------
+
+type ParsedSaving = {
+  bank: string | null;
+  principal: number;
+  rate: number;
+  start_date: string;
+  term_months: number;
+  interest_type: "simple" | "compound";
+  note: string | null;
+};
+
+function parseSaving(fd: FormData): { ok: true; value: ParsedSaving } | { ok: false; message: string } {
+  const principal = num(fd.get("principal"));
+  const rate = num(fd.get("rate"));
+  const term = num(fd.get("term_months"));
+  if (principal == null || principal <= 0)
+    return { ok: false, message: "A positive principal is required." };
+  if (rate == null || rate < 0)
+    return { ok: false, message: "A valid interest rate is required." };
+  if (term == null || term <= 0)
+    return { ok: false, message: "A positive term (months) is required." };
+  return {
+    ok: true,
+    value: {
+      bank: str(fd.get("bank")) || null,
+      principal,
+      rate,
+      start_date: str(fd.get("start_date")) || db.todayIso(),
+      term_months: term,
+      interest_type: fd.get("interest_type") === "compound" ? "compound" : "simple",
+      note: str(fd.get("note")) || null,
+    },
+  };
+}
+
+export async function addSaving(fd: FormData) {
+  const p = parseSaving(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  const s = p.value;
+  db.addSaving(s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.note);
+  revalidateAll();
+  return { ok: true, message: "Deposit saved." };
+}
+
+export async function updateSaving(id: number, fd: FormData) {
+  if (!db.getSaving(id)) return { ok: false, message: "Not found." };
+  const p = parseSaving(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  const s = p.value;
+  db.updateSaving(id, s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.note);
+  revalidateAll();
+  return { ok: true, message: "Deposit updated." };
+}
+
+export async function deleteSaving(id: number) {
+  db.deleteSaving(id);
+  revalidateAll();
+  return { ok: true, message: "Deposit deleted." };
+}
+
+// ---------- debts (loans) ----------
+
+type ParsedDebt = {
+  lender: string | null;
+  principal: number;
+  rate: number;
+  start_date: string;
+  term_months: number;
+  interest_type: "simple" | "compound";
+  note: string | null;
+};
+
+function parseDebt(fd: FormData): { ok: true; value: ParsedDebt } | { ok: false; message: string } {
+  const principal = num(fd.get("principal"));
+  const rate = num(fd.get("rate"));
+  const revolving = str(fd.get("revolving")) !== "";
+  const term = revolving ? 0 : num(fd.get("term_months"));
+  if (principal == null || principal <= 0)
+    return { ok: false, message: "A positive principal is required." };
+  if (rate == null || rate < 0)
+    return { ok: false, message: "A valid interest rate is required." };
+  if (!revolving && (term == null || term <= 0))
+    return { ok: false, message: "A positive term (months) is required, or mark it revolving." };
+  return {
+    ok: true,
+    value: {
+      lender: str(fd.get("lender")) || null,
+      principal,
+      rate,
+      start_date: str(fd.get("start_date")) || db.todayIso(),
+      term_months: term ?? 0,
+      interest_type: fd.get("interest_type") === "compound" ? "compound" : "simple",
+      note: str(fd.get("note")) || null,
+    },
+  };
+}
+
+export async function addDebt(fd: FormData) {
+  const p = parseDebt(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  const d = p.value;
+  db.addDebt(d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.note);
+  revalidateAll();
+  return { ok: true, message: "Debt saved." };
+}
+
+export async function updateDebt(id: number, fd: FormData) {
+  if (!db.getDebt(id)) return { ok: false, message: "Not found." };
+  const p = parseDebt(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  const d = p.value;
+  db.updateDebt(id, d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.note);
+  revalidateAll();
+  return { ok: true, message: "Debt updated." };
+}
+
+export async function deleteDebt(id: number) {
+  db.deleteDebt(id);
+  revalidateAll();
+  return { ok: true, message: "Debt deleted." };
 }
 
 // ---------- holdings ----------

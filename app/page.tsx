@@ -6,9 +6,10 @@ import { fmtVND } from "@/lib/format";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { DashboardCharts } from "@/components/dashboard-charts";
-import { PnlChart } from "@/components/pnl-chart";
+import { NetWorthPanel } from "@/components/net-worth";
 import { RefreshPricesButton } from "@/components/refresh-prices";
 import { cn } from "@/lib/utils";
+import { summarize, currentValue } from "@/lib/savings";
 
 export default async function Dashboard() {
   await connection();
@@ -16,17 +17,26 @@ export default async function Dashboard() {
   const payload = db.buildPayload();
   const pending = db.pendingFundUnits();
 
+  const savingsValue = summarize(db.listSavings()).currentValue;
+  const debtsValue = db.listDebts().reduce((a, d) => a + currentValue(d), 0);
+
   const pnlPct = payload.investedTotal
     ? (payload.pnl / payload.investedTotal) * 100
     : 0;
 
   return (
     <div className="flex flex-col gap-6">
+      <NetWorthPanel
+        investments={payload.portfolioTotal}
+        savings={savingsValue}
+        debts={debtsValue}
+      />
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Card>
           <CardContent>
             <div className="text-sm text-muted-foreground">Portfolio value</div>
-            <div className="mt-1 text-3xl font-semibold tracking-tight">
+            <div className="mt-1 text-lg font-semibold tracking-tight tabular-nums sm:text-2xl lg:text-3xl">
               {fmtVND(payload.portfolioTotal)}
             </div>
           </CardContent>
@@ -34,7 +44,7 @@ export default async function Dashboard() {
         <Card>
           <CardContent>
             <div className="text-sm text-muted-foreground">Total invested</div>
-            <div className="mt-1 text-3xl font-semibold tracking-tight">
+            <div className="mt-1 text-lg font-semibold tracking-tight tabular-nums sm:text-2xl lg:text-3xl">
               {fmtVND(payload.investedTotal)}
             </div>
           </CardContent>
@@ -44,7 +54,7 @@ export default async function Dashboard() {
             <div className="text-sm text-muted-foreground">Unrealized P&L</div>
             <div
               className={cn(
-                "mt-1 text-3xl font-semibold tracking-tight",
+                "mt-1 text-lg font-semibold tracking-tight tabular-nums sm:text-2xl lg:text-3xl",
                 payload.pnl >= 0
                   ? "text-(--chart-positive)"
                   : "text-(--chart-negative)",
@@ -89,8 +99,6 @@ export default async function Dashboard() {
           </AlertDescription>
         </Alert>
       )}
-
-      <PnlChart />
 
       <DashboardCharts payload={payload} />
     </div>
