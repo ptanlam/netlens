@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { Menu, Moon, Sun } from "lucide-react";
+import { Menu, Monitor, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -18,17 +18,24 @@ const LINKS = [
   { href: "/recurring", label: "Recurring" },
 ];
 
+const THEMES = ["system", "light", "dark"] as const;
+
 function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
+
+  const current = (theme ?? "system") as (typeof THEMES)[number];
+  const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
+  const Icon = current === "light" ? Sun : current === "dark" ? Moon : Monitor;
+
   return (
     <Button
       variant="ghost"
       size="icon"
-      aria-label="Toggle theme"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+      aria-label={`Theme: ${current}. Switch to ${next}.`}
+      title={`Theme: ${current}`}
+      onClick={() => setTheme(next)}
     >
-      <Sun className="size-4 dark:hidden" />
-      <Moon className="size-4 hidden dark:block" />
+      <Icon className="size-4" />
     </Button>
   );
 }

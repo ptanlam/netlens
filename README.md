@@ -23,17 +23,26 @@ npm run build && npm start
 
 ## Pages
 
-- `/` — dashboard: portfolio / invested / P&L stat cards, P&L-over-time chart
-  (Daily/Weekly/Monthly/Yearly), invested-per-month stacked bars, cumulative
-  line, allocation donut, holdings bar chart, refresh-prices button
-- `/transactions` — full history with edit dialog, delete, CSV export, and the
-  "Awaiting fund units" (T+1/T+2) confirmation section
-- `/holdings` — per-instrument valuation: asset type, price source, symbol,
-  quantity, manual value
+- `/` — dashboard: **net worth** panel (investments + savings − debts), portfolio /
+  invested / P&L stat cards, a **date-range picker** (Year to date, This year, Last 12
+  months, All time, Custom) driving invested-per-month, cumulative, and P&L-over-time
+  charts, plus a live allocation donut, holdings bars, and P&L-by-holding
+- `/transactions` — full history (paginated) with an **Add-transaction dialog**, edit
+  dialog, delete, CSV export, and the "Awaiting fund units" (T+1/T+2) section
+- `/holdings` — per-instrument valuation: asset type, price source, symbol, quantity,
+  manual value; Refresh-prices and Save buttons
+- `/savings` — term deposits: principal, interest rate, term, estimated current &
+  maturity value
+- `/debts` — loans and **revolving credit cards**: principal/balance, rate, term (or
+  revolving), estimated amount owed
 - `/recurring` — auto-DCA rules (weekly/monthly, pause/resume, backfilled on load)
-- `/add` — record a buy/sell with instrument autocomplete
 - `/login` — password sign-in (only when `APP_PASSWORD` is set; enforced by `proxy.ts`)
 - `GET /export.csv`, `GET /api/pnl-history`, `GET /healthz`
+
+## Contributing / agents
+
+Start with [`AGENTS.md`](AGENTS.md) and the [`docs/`](docs/) folder
+(architecture, the add-a-feature recipe, conventions, and the run/verify workflow).
 
 ## Live prices
 

@@ -59,6 +59,74 @@ export function isMatured(s: Pick<Accruing, "start_date" | "term_months">, today
   return today.getTime() >= Date.parse(maturityDate(s) + "T00:00:00Z");
 }
 
+/** A repayment against a debt. */
+export interface Payment {
+  date: string;
+  amount: number;
+}
+
+/** True if any payment was recorded in the current calendar month. */
+export function paidThisMonth(payments: Payment[], today = new Date()): boolean {
+  const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  return payments.some((p) => p.date.slice(0, 7) === key);
+}
+
+/**
+ * Amount still owed today using the declining-balance method: interest accrues on the
+ * outstanding balance between payments, each payment reduces the balance (floored at 0).
+ * Fixed-term debts stop accruing interest at maturity; revolving debts accrue to today.
+ */
+export function owed(d: Accruing, payments: Payment[] = [], today = new Date()): number {
+  const start = Date.parse(d.start_date + "T00:00:00Z");
+  const cap = isRevolving(d) ? Infinity : Date.parse(maturityDate(d) + "T00:00:00Z");
+
+  const events = payments
+    .map((p) => ({ t: Date.parse(p.date + "T00:00:00Z"), amt: p.amount }))
+    .filter((e) => !Number.isNaN(e.t))
+    .sort((a, b) => a.t - b.t);
+
+  let balance = d.principal;
+  let cursor = start;
+  const grow = (from: number, to: number) => {
+    if (to > from) balance = accrue(balance, d.rate, (to - from) / DAY_MS / 365, d.interest_type);
+  };
+
+  for (const e of events) {
+    grow(cursor, Math.min(e.t, cap));
+    cursor = Math.max(cursor, e.t);
+    balance = Math.max(0, balance - e.amt);
+  }
+  grow(cursor, Math.min(Math.max(today.getTime(), start), cap));
+  return Math.max(0, balance);
+}
+
+/**
+ * Amount owed on a debt, respecting its `kind`:
+ * - `fixed`    — interest accrues on the ORIGINAL principal to maturity; payments only
+ *   reduce the balance (early payment does NOT reduce interest).
+ * - `flexible` — fixed term, reducing-balance: interest is recomputed on the remaining
+ *   balance after each payment (early payment saves interest).
+ * - `credit`   — open-ended credit account (monthly payment required): reducing-balance,
+ *   never matures.
+ */
+export function debtOwed(
+  d: Accruing & { kind?: string },
+  payments: Payment[] = [],
+  today = new Date(),
+): number {
+  if (d.kind === "fixed" && !isRevolving(d)) {
+    const start = Date.parse(d.start_date + "T00:00:00Z");
+    const end = Math.min(Math.max(today.getTime(), start), Date.parse(maturityDate(d) + "T00:00:00Z"));
+    const gross = accrue(d.principal, d.rate, (end - start) / DAY_MS / 365, d.interest_type);
+    const nowMs = today.getTime();
+    const paid = payments
+      .filter((p) => Date.parse(p.date + "T00:00:00Z") <= nowMs)
+      .reduce((a, p) => a + p.amount, 0);
+    return Math.max(0, gross - paid);
+  }
+  return owed(d, payments, today);
+}
+
 export interface AccruingSummary {
   principal: number;
   currentValue: number;

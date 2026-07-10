@@ -9,7 +9,7 @@ import { DashboardCharts } from "@/components/dashboard-charts";
 import { NetWorthPanel } from "@/components/net-worth";
 import { RefreshPricesButton } from "@/components/refresh-prices";
 import { cn } from "@/lib/utils";
-import { summarize, currentValue } from "@/lib/savings";
+import { summarize, debtOwed, type Payment } from "@/lib/savings";
 
 export default async function Dashboard() {
   await connection();
@@ -18,7 +18,14 @@ export default async function Dashboard() {
   const pending = db.pendingFundUnits();
 
   const savingsValue = summarize(db.listSavings()).currentValue;
-  const debtsValue = db.listDebts().reduce((a, d) => a + currentValue(d), 0);
+  const debtPayments = db.listDebtPayments();
+  const paymentsByDebt = new Map<number, Payment[]>();
+  for (const p of debtPayments) {
+    const list = paymentsByDebt.get(p.debt_id) ?? [];
+    list.push(p);
+    paymentsByDebt.set(p.debt_id, list);
+  }
+  const debtsValue = db.listDebts().reduce((a, d) => a + debtOwed(d, paymentsByDebt.get(d.id) ?? []), 0);
 
   const pnlPct = payload.investedTotal
     ? (payload.pnl / payload.investedTotal) * 100

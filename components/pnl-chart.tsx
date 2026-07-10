@@ -34,7 +34,7 @@ function bucketOf(date: string, b: Bucket): string {
 export function PnlChart({ from, to }: { from: string; to: string }) {
   const [series, setSeries] = React.useState<PnlPoint[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [bucket, setBucket] = React.useState<Bucket>("Weekly");
+  const [bucket, setBucket] = React.useState<Bucket>("Daily");
 
   React.useEffect(() => {
     let alive = true;

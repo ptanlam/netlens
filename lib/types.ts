@@ -7,6 +7,9 @@ export const PRICE_SOURCES = ["manual", "coingecko", "yahoo", "fmarket"] as cons
 export const INTEREST_TYPES = ["simple", "compound"] as const;
 export type InterestType = (typeof INTEREST_TYPES)[number];
 
+export const DEBT_KINDS = ["fixed", "flexible", "credit"] as const;
+export type DebtKind = (typeof DEBT_KINDS)[number];
+
 export interface Tx {
   id: number;
   date: string;
@@ -63,6 +66,17 @@ export interface Debt {
   start_date: string;
   term_months: number;
   interest_type: InterestType;
+  kind: DebtKind;
+  monthly_payment: number | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface DebtPayment {
+  id: number;
+  debt_id: number;
+  date: string;
+  amount: number;
   note: string | null;
   created_at: string;
 }

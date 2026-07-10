@@ -8,21 +8,23 @@ import { DebtsManager } from "@/components/debts-manager";
 export default async function DebtsPage() {
   await connection();
   const debts = db.listDebts();
+  const payments = db.listDebtPayments();
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <Card>
         <CardHeader>
           <CardTitle>Debts</CardTitle>
           <CardDescription>
-            Track loans and credit-card balances with interest. For a fixed-term loan,
-            enter the term; for a credit card, tick <em>Revolving</em> to leave it
-            open-ended. The estimated amount owed accrues interest (a gross estimate that
-            doesn&apos;t account for repayments).
+            Track loans and credit accounts. Choose a <em>type</em>: <em>Fixed</em>
+            {" "}(interest on the original amount), <em>Flexible</em> (interest recomputed
+            on the remaining balance, so paying early saves interest), or <em>Credit</em>
+            {" "}(a card/line with a required monthly payment — the app flags any credit
+            account you haven&apos;t paid this month). Record repayments with the wallet button.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DebtsManager debts={debts} />
+          <DebtsManager debts={debts} payments={payments} />
         </CardContent>
       </Card>
     </div>

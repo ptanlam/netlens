@@ -5,10 +5,10 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
-import type { Debt, Instrument, Payload, RecurringRule, Saving, Tx } from "./types";
+import type { Debt, DebtPayment, Instrument, Payload, RecurringRule, Saving, Tx } from "./types";
 
 export { ASSET_TYPES, PRICE_SOURCES } from "./types";
-export type { AssetType, Debt, Instrument, Payload, RecurringRule, Saving, Tx } from "./types";
+export type { AssetType, Debt, DebtPayment, Instrument, Payload, RecurringRule, Saving, Tx } from "./types";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS transactions (
@@ -68,16 +68,28 @@ CREATE TABLE IF NOT EXISTS savings (
 );
 
 CREATE TABLE IF NOT EXISTS debts (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  lender        TEXT,
-  principal     INTEGER NOT NULL,
-  rate          REAL    NOT NULL,
-  start_date    TEXT    NOT NULL,
-  term_months   INTEGER NOT NULL,
-  interest_type TEXT    NOT NULL DEFAULT 'simple',
-  note          TEXT,
-  created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  lender          TEXT,
+  principal       INTEGER NOT NULL,
+  rate            REAL    NOT NULL,
+  start_date      TEXT    NOT NULL,
+  term_months     INTEGER NOT NULL,
+  interest_type   TEXT    NOT NULL DEFAULT 'simple',
+  kind            TEXT    NOT NULL DEFAULT 'fixed',
+  monthly_payment INTEGER,
+  note            TEXT,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS debt_payments (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  debt_id    INTEGER NOT NULL,
+  date       TEXT    NOT NULL,
+  amount     INTEGER NOT NULL,
+  note       TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id);
 
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
@@ -95,7 +107,18 @@ export function getDb(): Database.Database {
   _db = new Database(dbPath);
   _db.pragma("journal_mode = WAL");
   _db.exec(SCHEMA);
+  migrate(_db);
   return _db;
+}
+
+/** Idempotent column additions for tables that predate a new column. */
+function migrate(db: Database.Database) {
+  const hasColumn = (table: string, col: string) =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
+  if (!hasColumn("debts", "kind"))
+    db.exec("ALTER TABLE debts ADD COLUMN kind TEXT NOT NULL DEFAULT 'fixed'");
+  if (!hasColumn("debts", "monthly_payment"))
+    db.exec("ALTER TABLE debts ADD COLUMN monthly_payment INTEGER");
 }
 
 export function todayIso(): string {
@@ -197,28 +220,51 @@ export function getDebt(id: number): Debt | undefined {
 
 export function addDebt(
   lender: string | null, principal: number, rate: number, startDate: string,
-  termMonths: number, interestType: string, note: string | null = null,
+  termMonths: number, interestType: string, kind: string,
+  monthlyPayment: number | null, note: string | null = null,
 ) {
   getDb()
     .prepare(
-      "INSERT INTO debts(lender, principal, rate, start_date, term_months, interest_type, note) VALUES (?,?,?,?,?,?,?)",
+      "INSERT INTO debts(lender, principal, rate, start_date, term_months, interest_type, kind, monthly_payment, note) VALUES (?,?,?,?,?,?,?,?,?)",
     )
-    .run(lender, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, note);
+    .run(lender, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, kind,
+      monthlyPayment == null ? null : Math.round(monthlyPayment), note);
 }
 
 export function updateDebt(
   id: number, lender: string | null, principal: number, rate: number, startDate: string,
-  termMonths: number, interestType: string, note: string | null,
+  termMonths: number, interestType: string, kind: string,
+  monthlyPayment: number | null, note: string | null,
 ) {
   getDb()
     .prepare(
-      "UPDATE debts SET lender=?, principal=?, rate=?, start_date=?, term_months=?, interest_type=?, note=? WHERE id=?",
+      "UPDATE debts SET lender=?, principal=?, rate=?, start_date=?, term_months=?, interest_type=?, kind=?, monthly_payment=?, note=? WHERE id=?",
     )
-    .run(lender, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, note, id);
+    .run(lender, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, kind,
+      monthlyPayment == null ? null : Math.round(monthlyPayment), note, id);
 }
 
 export function deleteDebt(id: number) {
-  getDb().prepare("DELETE FROM debts WHERE id=?").run(id);
+  const db = getDb();
+  db.prepare("DELETE FROM debt_payments WHERE debt_id=?").run(id);
+  db.prepare("DELETE FROM debts WHERE id=?").run(id);
+}
+
+export function listDebtPayments(debtId?: number): DebtPayment[] {
+  const db = getDb();
+  if (debtId != null)
+    return db.prepare("SELECT * FROM debt_payments WHERE debt_id=? ORDER BY date, id").all(debtId) as DebtPayment[];
+  return db.prepare("SELECT * FROM debt_payments ORDER BY date, id").all() as DebtPayment[];
+}
+
+export function addDebtPayment(debtId: number, date: string, amount: number, note: string | null = null) {
+  getDb()
+    .prepare("INSERT INTO debt_payments(debt_id, date, amount, note) VALUES (?,?,?,?)")
+    .run(debtId, date, Math.round(amount), note);
+}
+
+export function deleteDebtPayment(id: number) {
+  getDb().prepare("DELETE FROM debt_payments WHERE id=?").run(id);
 }
 
 // ---------- instruments ----------

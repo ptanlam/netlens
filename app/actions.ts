@@ -139,20 +139,27 @@ type ParsedDebt = {
   start_date: string;
   term_months: number;
   interest_type: "simple" | "compound";
+  kind: "fixed" | "flexible" | "credit";
+  monthly_payment: number | null;
   note: string | null;
 };
 
 function parseDebt(fd: FormData): { ok: true; value: ParsedDebt } | { ok: false; message: string } {
   const principal = num(fd.get("principal"));
   const rate = num(fd.get("rate"));
-  const revolving = str(fd.get("revolving")) !== "";
-  const term = revolving ? 0 : num(fd.get("term_months"));
+  const kindRaw = str(fd.get("kind"));
+  const kind = kindRaw === "flexible" ? "flexible" : kindRaw === "credit" ? "credit" : "fixed";
+  const openEnded = kind === "credit";
+  const term = openEnded ? 0 : num(fd.get("term_months"));
+  const monthly = num(fd.get("monthly_payment"));
   if (principal == null || principal <= 0)
     return { ok: false, message: "A positive principal is required." };
   if (rate == null || rate < 0)
     return { ok: false, message: "A valid interest rate is required." };
-  if (!revolving && (term == null || term <= 0))
-    return { ok: false, message: "A positive term (months) is required, or mark it revolving." };
+  if (!openEnded && (term == null || term <= 0))
+    return { ok: false, message: "A positive term (months) is required for a fixed/flexible debt." };
+  if (openEnded && (monthly == null || monthly <= 0))
+    return { ok: false, message: "A monthly payment amount is required for a credit debt." };
   return {
     ok: true,
     value: {
@@ -162,6 +169,8 @@ function parseDebt(fd: FormData): { ok: true; value: ParsedDebt } | { ok: false;
       start_date: str(fd.get("start_date")) || db.todayIso(),
       term_months: term ?? 0,
       interest_type: fd.get("interest_type") === "compound" ? "compound" : "simple",
+      kind,
+      monthly_payment: openEnded ? monthly : null,
       note: str(fd.get("note")) || null,
     },
   };
@@ -171,7 +180,7 @@ export async function addDebt(fd: FormData) {
   const p = parseDebt(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const d = p.value;
-  db.addDebt(d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.note);
+  db.addDebt(d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.kind, d.monthly_payment, d.note);
   revalidateAll();
   return { ok: true, message: "Debt saved." };
 }
@@ -181,7 +190,7 @@ export async function updateDebt(id: number, fd: FormData) {
   const p = parseDebt(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const d = p.value;
-  db.updateDebt(id, d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.note);
+  db.updateDebt(id, d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.kind, d.monthly_payment, d.note);
   revalidateAll();
   return { ok: true, message: "Debt updated." };
 }
@@ -190,6 +199,22 @@ export async function deleteDebt(id: number) {
   db.deleteDebt(id);
   revalidateAll();
   return { ok: true, message: "Debt deleted." };
+}
+
+export async function addDebtPayment(debtId: number, fd: FormData) {
+  if (!db.getDebt(debtId)) return { ok: false, message: "Debt not found." };
+  const amount = num(fd.get("amount"));
+  if (amount == null || amount <= 0)
+    return { ok: false, message: "A positive payment amount is required." };
+  db.addDebtPayment(debtId, str(fd.get("date")) || db.todayIso(), amount, str(fd.get("note")) || null);
+  revalidateAll();
+  return { ok: true, message: "Payment recorded." };
+}
+
+export async function deleteDebtPayment(id: number) {
+  db.deleteDebtPayment(id);
+  revalidateAll();
+  return { ok: true, message: "Payment deleted." };
 }
 
 // ---------- holdings ----------

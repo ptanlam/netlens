@@ -1,0 +1,66 @@
+# Conventions & gotchas
+
+## Money
+- Stored as **whole-VND integers**. Transaction amounts are **signed**: `+` = money in
+  (buy/contribute), `−` = money out (sell/withdraw).
+- Format for display with `lib/format.ts`:
+  - `fmtVND(1234567)` → `₫1.234.567` (de-DE style `.` thousands; handles negatives).
+  - `fmtTr(40_000_000)` → `40tr` (chart axis short form; `tr` = triệu = million).
+- Round on write (`Math.round`) so the DB never stores fractional VND.
+
+## Dates
+- ISO `YYYY-MM-DD` strings everywhere. Local "today": `new Date().toLocaleDateString("sv-SE")`.
+- Server-side default: `db.todayIso()`.
+- Month keys are `date.slice(0,7)`; comparisons use plain string `<=`/`>=` (ISO sorts lexically).
+
+## UI stack & components
+- Reuse `components/ui/*` (Button, Card, Dialog, Select, Input, Label, Checkbox,
+  Table, Badge, Separator, Chart, Sonner). These wrap **@base-ui/react** — do not pull
+  in Radix or other primitive libs.
+- **All data tables use TanStack Table** (`@tanstack/react-table`) via the shared
+  `components/data-table.tsx` (`<DataTable columns={} data={} />`; supports sortable
+  headers, optional client `pageSize`, and per-column `meta.align`). See
+  `debts-manager.tsx` / `transactions-table.tsx` for column-def examples; even the
+  editable holdings form renders through it (sorting disabled, input names keyed by a
+  stable row index). Do not hand-roll `<table>` markup.
+- Charts: **Recharts** via the `ChartContainer`/`ChartTooltip` wrappers in
+  `components/ui/chart.tsx`. Set `isAnimationActive={false}` (matches existing charts).
+- Toasts: `sonner` (`toast.success` / `toast.error`), configured in `app/layout.tsx`.
+- Theme: `next-themes`, `class` attribute, system default. The nav's theme button cycles
+  System → Light → Dark. Colors come from CSS vars in `app/globals.css`.
+
+## Colors
+- Asset types have fixed slots: `TYPE_COLORS` in `dashboard-charts.tsx`
+  (Funds=chart-1, Stocks=chart-2, Crypto=chart-3, Real Estate=chart-4). Color follows
+  the entity, never its rank.
+- Gains/losses: `text-(--chart-positive)` / `text-(--chart-negative)` (Tailwind v4
+  arbitrary-property syntax). Debts/owed amounts render negative-colored.
+
+## Responsive / mobile
+- The app is used on a phone. Verify at 390px wide.
+- Long currency values clip in 2–3 column card grids — use responsive sizes like
+  `text-lg sm:text-2xl lg:text-3xl` + `tabular-nums`, not a fixed `text-3xl`.
+- Summary card rows: stack on mobile, one row on desktop (`grid-cols-1 sm:grid-cols-3`).
+- Nav is a horizontal bar on desktop and a hamburger **side-drawer** on mobile
+  (`components/nav.tsx`). Both are driven by the single `LINKS` array.
+
+## Next.js 16 specifics (this is not older Next)
+- `params` and `searchParams` in page props are **Promises** — `await` them.
+- Server Components by default; add `"use client"` only where you need state/effects.
+- Server Actions live in `app/actions.ts` (`"use server"`); a client form can call them
+  directly via `<form action={…}>` or by importing the function.
+- When unsure about an API, read `node_modules/next/dist/docs/`.
+
+## TypeScript / React Compiler lint
+- `npm run lint` runs ESLint incl. `react-hooks/*`. The **immutability** rule forbids
+  mutating a captured variable after render — e.g. `let s=0; xs.map(x => s+=x)` inside a
+  `useMemo`. Use `reduce`, or `xs.map((_,i)=> xs.slice(0,i+1).reduce(...))`.
+- Prefer discriminated unions (`{ok:true,value} | {ok:false,message}`) over
+  `{ error?: … }` — the latter widens `message` to `string | undefined` and breaks
+  action prop types.
+
+## Data safety
+- `data/investments.db` is **real, git-ignored financial data**. Don't commit it.
+- If you must exercise a mutation to verify, insert then **delete** the test row, or run
+  the dev server against a scratch DB: `DB_PATH=/tmp/test.db npm run dev`.
+- "Export CSV" (`/export.csv`) is the user's backup path.
