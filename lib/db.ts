@@ -339,6 +339,18 @@ export function holdingValue(row: Instrument): number {
   return row.manual_value ?? 0;
 }
 
+/** True if any transaction or recurring rule references this holding. */
+export function instrumentInUse(name: string): boolean {
+  const db = getDb();
+  const tx = db.prepare("SELECT 1 FROM transactions WHERE instrument=? LIMIT 1").get(name);
+  const rule = db.prepare("SELECT 1 FROM recurring_rules WHERE instrument=? LIMIT 1").get(name);
+  return Boolean(tx || rule);
+}
+
+export function deleteInstrument(name: string) {
+  getDb().prepare("DELETE FROM instruments WHERE name=?").run(name);
+}
+
 // ---------- recurring rules (auto-DCA) ----------
 
 export function addRecurring(

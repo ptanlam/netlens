@@ -11,11 +11,9 @@ import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
-  { href: "/transactions", label: "Transactions" },
-  { href: "/holdings", label: "Holdings" },
+  { href: "/investments", label: "Investments" },
   { href: "/savings", label: "Savings" },
   { href: "/debts", label: "Debts" },
-  { href: "/recurring", label: "Recurring" },
 ];
 
 const THEMES = ["system", "light", "dark"] as const;

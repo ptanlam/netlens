@@ -77,8 +77,8 @@ export default async function Dashboard() {
             unit confirmation
           </AlertTitle>
           <AlertDescription>
-            <Link href="/transactions" className="underline underline-offset-2">
-              Enter the confirmed units on the transactions page
+            <Link href="/investments" className="underline underline-offset-2">
+              Enter the confirmed units on the investment page
             </Link>{" "}
             so live valuation stays accurate.
           </AlertDescription>

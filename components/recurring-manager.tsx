@@ -21,7 +21,7 @@ import { type InstrumentOption } from "@/components/tx-form";
 
 type ActionResult = { ok: boolean; message: string };
 
-function RuleForm({
+export function RuleForm({
   action,
   instruments,
   rule,
@@ -217,25 +217,31 @@ function RuleRow({
 export function RecurringManager({
   rules,
   instruments,
+  showAddForm = true,
 }: {
   rules: { rule: RecurringRule; nextDue: string | null }[];
   instruments: InstrumentOption[];
+  showAddForm?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3">
       {rules.length === 0 && (
-        <p className="text-sm text-muted-foreground">No rules yet.</p>
+        <p className="text-sm text-muted-foreground">No recurring rules yet.</p>
       )}
       {rules.map(({ rule, nextDue }) => (
         <RuleRow key={rule.id} rule={rule} nextDue={nextDue} instruments={instruments} />
       ))}
-      <Separator className="my-2" />
-      <div>
-        <h3 className="mb-3 flex items-center gap-1.5 text-sm font-medium">
-          <Plus className="size-3.5" /> New rule
-        </h3>
-        <RuleForm action={addRule} instruments={instruments} />
-      </div>
+      {showAddForm && (
+        <>
+          <Separator className="my-2" />
+          <div>
+            <h3 className="mb-3 flex items-center gap-1.5 text-sm font-medium">
+              <Plus className="size-3.5" /> New rule
+            </h3>
+            <RuleForm action={addRule} instruments={instruments} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

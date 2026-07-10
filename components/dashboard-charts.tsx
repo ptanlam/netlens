@@ -6,7 +6,7 @@ import {
   XAxis, YAxis,
 } from "recharts";
 import { CalendarRange, Coins, Trophy } from "lucide-react";
-import type { Payload } from "@/lib/types";
+import type { Payload, PnlPoint } from "@/lib/types";
 import { fmtTr, fmtVND, MONTHS } from "@/lib/format";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { vndRow } from "@/components/vnd-tooltip";
 import { PnlChart } from "@/components/pnl-chart";
+import { NetValueChart } from "@/components/net-value-chart";
 import { cn } from "@/lib/utils";
 
 /** Fixed slot per asset type — color follows the entity, never its rank. */
@@ -91,6 +92,18 @@ export function DashboardCharts({ payload }: { payload: Payload }) {
   const [preset, setPreset] = React.useState<Preset>("Year to date");
   const [from, setFrom] = React.useState(() => presetRange("Year to date", minDate).from);
   const [to, setTo] = React.useState(() => presetRange("Year to date", minDate).to);
+
+  // Daily value/invested/P&L series — fetched once and shared by the time-series charts.
+  const [series, setSeries] = React.useState<PnlPoint[] | null>(null);
+  const [seriesError, setSeriesError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/pnl-history")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: { series: PnlPoint[] }) => alive && setSeries(d.series))
+      .catch((e: Error) => alive && setSeriesError(e.message));
+    return () => { alive = false; };
+  }, []);
 
   function applyPreset(p: Preset) {
     setPreset(p);
@@ -221,7 +234,7 @@ export function DashboardCharts({ payload }: { payload: Payload }) {
         />
       </div>
 
-      <PnlChart from={from} to={to} />
+      <PnlChart from={from} to={to} series={series} error={seriesError} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -294,6 +307,8 @@ export function DashboardCharts({ payload }: { payload: Payload }) {
           </CardContent>
         </Card>
       </div>
+
+      <NetValueChart from={from} to={to} series={series} error={seriesError} />
 
       <div className="mt-2 space-y-1 border-t pt-6">
         <h2 className="text-lg font-semibold tracking-tight">Current portfolio</h2>

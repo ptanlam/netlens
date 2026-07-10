@@ -18,7 +18,7 @@ function str(v: FormDataEntryValue | null): string {
 }
 
 function revalidateAll() {
-  for (const p of ["/", "/transactions", "/holdings", "/recurring", "/savings", "/debts"]) revalidatePath(p);
+  for (const p of ["/", "/investments", "/savings", "/debts"]) revalidatePath(p);
 }
 
 // ---------- transactions ----------
@@ -242,6 +242,28 @@ export async function addHolding(fd: FormData) {
   );
   revalidateAll();
   return { ok: true, message: "Holding added." };
+}
+
+export async function updateHolding(name: string, fd: FormData) {
+  if (!db.getInstrument(name)) return { ok: false, message: "Holding not found." };
+  db.updateInstrumentFields(
+    name,
+    str(fd.get("asset_type")) || "Funds",
+    str(fd.get("price_source")) || "manual",
+    str(fd.get("symbol")) || null,
+    num(fd.get("quantity")),
+    num(fd.get("manual_value")),
+  );
+  revalidateAll();
+  return { ok: true, message: "Holding updated." };
+}
+
+export async function deleteHolding(name: string) {
+  if (db.instrumentInUse(name))
+    return { ok: false, message: "Remove its transactions and recurring rules first." };
+  db.deleteInstrument(name);
+  revalidateAll();
+  return { ok: true, message: "Holding deleted." };
 }
 
 export async function saveHoldings(fd: FormData) {
