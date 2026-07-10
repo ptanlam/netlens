@@ -84,7 +84,7 @@ export function Nav() {
         <div className="sm:hidden">
           <MobileNav pathname={pathname} />
         </div>
-        <span className="mr-3 text-sm font-semibold tracking-tight">Investments</span>
+        <span className="mr-3 text-sm font-semibold tracking-tight">Personal Finance</span>
         <nav className="hidden flex-1 items-center gap-1 sm:flex">
           {LINKS.map((l) => (
             <Link
