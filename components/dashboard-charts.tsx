@@ -6,7 +6,7 @@ import {
   XAxis, YAxis,
 } from "recharts";
 import { CalendarRange, Coins, Trophy } from "lucide-react";
-import type { Payload, PnlPoint } from "@/lib/types";
+import type { HoldingPnlPoint, Payload, PnlPoint } from "@/lib/types";
 import { fmtTr, fmtVND, MONTHS } from "@/lib/format";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { vndRow } from "@/components/vnd-tooltip";
 import { PnlChart } from "@/components/pnl-chart";
+import { PnlCalendar } from "@/components/pnl-calendar";
 import { NetValueChart } from "@/components/net-value-chart";
 import { cn } from "@/lib/utils";
 
@@ -95,12 +96,17 @@ export function DashboardCharts({ payload }: { payload: Payload }) {
 
   // Daily value/invested/P&L series — fetched once and shared by the time-series charts.
   const [series, setSeries] = React.useState<PnlPoint[] | null>(null);
+  const [holdingSeries, setHoldingSeries] = React.useState<HoldingPnlPoint[] | null>(null);
   const [seriesError, setSeriesError] = React.useState<string | null>(null);
   React.useEffect(() => {
     let alive = true;
     fetch("/api/pnl-history")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: { series: PnlPoint[] }) => alive && setSeries(d.series))
+      .then((d: { series: PnlPoint[]; holdings: HoldingPnlPoint[] }) => {
+        if (!alive) return;
+        setSeries(d.series);
+        setHoldingSeries(d.holdings);
+      })
       .catch((e: Error) => alive && setSeriesError(e.message));
     return () => { alive = false; };
   }, []);
@@ -235,6 +241,8 @@ export function DashboardCharts({ payload }: { payload: Payload }) {
       </div>
 
       <PnlChart from={from} to={to} series={series} error={seriesError} />
+
+      <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

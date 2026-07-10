@@ -98,3 +98,17 @@ export interface PnlPoint {
   value: number;
   pnl: number;
 }
+
+/** One holding's contribution to a single day's P&L move. */
+export interface HoldingDayPnl {
+  name: string;
+  type: string;
+  value: number; // holding value at end of day (rounded VND)
+  pnl: number;   // day-over-day P&L change for this holding (value move net of contributions)
+}
+
+/** Per-holding breakdown of a single day, sums to that day's total P&L move. */
+export interface HoldingPnlPoint {
+  date: string;
+  holdings: HoldingDayPnl[];
+}

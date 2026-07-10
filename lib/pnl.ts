@@ -5,9 +5,9 @@
  * to current holdings so the last point matches the live P&L card.
  */
 import { getDb, listInstruments, priceHistoryByInstrument, todayIso } from "./db";
-import type { PnlPoint } from "./types";
+import type { HoldingPnlPoint, PnlPoint } from "./types";
 
-export type { PnlPoint } from "./types";
+export type { HoldingPnlPoint, PnlPoint } from "./types";
 
 function priceLookup(points: [string, number][]) {
   const dates = points.map((p) => p[0]);
@@ -23,23 +23,29 @@ function priceLookup(points: [string, number][]) {
   };
 }
 
-export function buildDailySeries(): PnlPoint[] {
+/**
+ * Core daily reconstruction. Produces both the aggregate P&L series and a
+ * per-holding breakdown of each day's move; the breakdown for a day sums (up to
+ * rounding) to that day's aggregate P&L delta.
+ */
+export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] } {
   const db = getDb();
   const txs = db
     .prepare("SELECT date, instrument, amount, quantity FROM transactions ORDER BY date, id")
     .all() as { date: string; instrument: string; amount: number; quantity: number | null }[];
-  if (!txs.length) return [];
+  if (!txs.length) return { series: [], holdings: [] };
 
   const history = priceHistoryByInstrument();
 
   interface Tracked {
+    type: string;
     priceAt: (d: string) => number;
     events: [string, number][];
     offset: number;
     first: string;
   }
   const tracked: Record<string, Tracked> = {};
-  const manual: { value: number; first: string }[] = [];
+  const manual: { name: string; type: string; value: number; first: string }[] = [];
 
   for (const inst of listInstruments()) {
     const instTxs = txs.filter((t) => t.instrument === inst.name);
@@ -56,18 +62,21 @@ export function buildDailySeries(): PnlPoint[] {
         totalUnits += units;
       }
       const qtyNow = inst.quantity != null ? inst.quantity : totalUnits;
-      tracked[inst.name] = { priceAt, events, offset: qtyNow - totalUnits, first };
+      tracked[inst.name] = { type: inst.asset_type, priceAt, events, offset: qtyNow - totalUnits, first };
     } else {
-      manual.push({ value: inst.manual_value ?? 0, first });
+      manual.push({ name: inst.name, type: inst.asset_type, value: inst.manual_value ?? 0, first });
     }
   }
 
   const series: PnlPoint[] = [];
+  const holdings: HoldingPnlPoint[] = [];
   const end = todayIso();
   let txI = 0, invested = 0;
   const cursors: Record<string, number> = {};
   const cumUnits: Record<string, number> = {};
-  for (const name of Object.keys(tracked)) { cursors[name] = 0; cumUnits[name] = 0; }
+  const prevValue: Record<string, number> = {}; // rounded per-holding value, previous day
+  for (const name of Object.keys(tracked)) { cursors[name] = 0; cumUnits[name] = 0; prevValue[name] = 0; }
+  for (const m of manual) prevValue[m.name] = 0;
 
   const [sy, sm, sd] = txs[0].date.split("-").map(Number);
   const day = new Date(sy, sm - 1, sd);
@@ -75,23 +84,50 @@ export function buildDailySeries(): PnlPoint[] {
     const ds = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
     if (ds > end) break;
 
-    while (txI < txs.length && txs[txI].date <= ds) { invested += txs[txI].amount; txI += 1; }
+    // Contributions landing exactly on this day, per instrument (txs are
+    // consumed on the first day ds >= tx.date, i.e. on ds === tx.date).
+    const contribToday: Record<string, number> = {};
+    while (txI < txs.length && txs[txI].date <= ds) {
+      invested += txs[txI].amount;
+      contribToday[txs[txI].instrument] = (contribToday[txs[txI].instrument] ?? 0) + txs[txI].amount;
+      txI += 1;
+    }
 
     let value = 0;
+    const dayHoldings: HoldingPnlPoint["holdings"] = [];
     for (const [name, tr] of Object.entries(tracked)) {
       while (cursors[name] < tr.events.length && tr.events[cursors[name]][0] <= ds) {
         cumUnits[name] += tr.events[cursors[name]][1];
         cursors[name] += 1;
       }
+      let raw = 0;
       if (ds >= tr.first) {
         const units = Math.max(tr.offset + cumUnits[name], 0);
-        if (units) value += units * tr.priceAt(ds);
+        if (units) raw = units * tr.priceAt(ds);
       }
+      value += raw;
+      const v = Math.round(raw);
+      const pnl = v - prevValue[name] - (contribToday[name] ?? 0);
+      if (v !== 0 || pnl !== 0)
+        dayHoldings.push({ name, type: tr.type, value: v, pnl });
+      prevValue[name] = v;
     }
-    for (const m of manual) if (ds >= m.first) value += m.value;
+    for (const m of manual) {
+      const v = ds >= m.first ? m.value : 0;
+      value += v;
+      const pnl = v - prevValue[m.name] - (contribToday[m.name] ?? 0);
+      if (v !== 0 || pnl !== 0)
+        dayHoldings.push({ name: m.name, type: m.type, value: v, pnl });
+      prevValue[m.name] = v;
+    }
 
     series.push({ date: ds, invested, value: Math.round(value), pnl: Math.round(value) - invested });
+    holdings.push({ date: ds, holdings: dayHoldings });
     day.setDate(day.getDate() + 1);
   }
-  return series;
+  return { series, holdings };
+}
+
+export function buildDailySeries(): PnlPoint[] {
+  return buildDaily().series;
 }
