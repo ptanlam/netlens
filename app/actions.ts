@@ -345,3 +345,9 @@ export async function login(fd: FormData) {
   });
   redirect("/");
 }
+
+export async function logout() {
+  const jar = await cookies();
+  jar.delete(COOKIE_NAME);
+  redirect("/login");
+}

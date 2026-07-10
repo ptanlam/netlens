@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { Menu, Monitor, Moon, Sun } from "lucide-react";
+import { Menu, Monitor, Moon, Sun, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { logout } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -76,8 +77,19 @@ function MobileNav({ pathname }: { pathname: string }) {
   );
 }
 
-export function Nav() {
+function LogoutButton() {
+  return (
+    <form action={logout}>
+      <Button variant="ghost" size="icon" type="submit" aria-label="Sign out" title="Sign out">
+        <LogOut className="size-4" />
+      </Button>
+    </form>
+  );
+}
+
+export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   const pathname = usePathname();
+  if (pathname === "/login") return null;
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-12 w-full max-w-6xl items-center gap-1 px-4 sm:px-6">
@@ -103,6 +115,7 @@ export function Nav() {
         </nav>
         <div className="flex-1 sm:hidden" />
         <ThemeToggle />
+        {authEnabled && <LogoutButton />}
       </div>
     </header>
   );

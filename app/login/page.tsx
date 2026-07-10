@@ -5,7 +5,7 @@ import {
 
 export default function LoginPage() {
   return (
-    <div className="flex flex-1 items-center justify-center py-16">
+    <div className="flex min-h-[calc(100dvh-3rem)] items-center justify-center py-16">
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Sign in</CardTitle>

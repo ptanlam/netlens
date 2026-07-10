@@ -5,6 +5,7 @@ services:
       - '3000:3000'
     environment:
       - DB_PATH=/app/data/investments.db
+      - APP_PASSWORD=changeme
     volumes:
       - app-data:/app/data
     restart: unless-stopped
