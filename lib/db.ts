@@ -466,7 +466,9 @@ export function pendingFundUnits(days = 14): Tx[] {
   const cutoff = isoOf(new Date(Date.now() - days * 86400000));
   return getDb()
     .prepare(
-      "SELECT * FROM transactions WHERE asset_type='Funds' AND quantity IS NULL AND date >= ? ORDER BY date DESC, id DESC",
+      // amount > 0 only: a sale isn't "awaiting units", and confirming one would
+      // add units to the holding rather than remove them.
+      "SELECT * FROM transactions WHERE asset_type='Funds' AND quantity IS NULL AND amount > 0 AND date >= ? ORDER BY date DESC, id DESC",
     )
     .all(cutoff) as Tx[];
 }

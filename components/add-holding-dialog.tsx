@@ -5,6 +5,7 @@ import { Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { ASSET_TYPES, PRICE_SOURCES, type Instrument } from "@/lib/types";
 import { addHolding, updateHolding } from "@/app/actions";
+import { fmtVND } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
@@ -34,6 +35,12 @@ function HoldingForm({
   const [source, setSource] = React.useState(holding?.price_source ?? "manual");
   const formRef = React.useRef<HTMLFormElement>(null);
   const priced = source !== "manual";
+  // Same condition as db.holdingValue(): manual_value is only consulted when one of
+  // these is missing. Non-null means manual_value is inert right now.
+  const liveValue =
+    holding?.quantity != null && holding?.last_price != null
+      ? Math.round(holding.quantity * holding.last_price)
+      : null;
 
   return (
     <form
@@ -98,10 +105,27 @@ function HoldingForm({
         <Input id="h-qty" name="quantity" type="number" step="any" defaultValue={holding?.quantity ?? undefined} placeholder="units / shares / coins" />
       </div>
       <div className="grid gap-2 sm:col-span-2">
-        <Label htmlFor="h-manual">
-          Manual value (VND){priced ? " — used until a live price is fetched" : ""}
-        </Label>
+        <Label htmlFor="h-manual">{priced ? "Fallback value (VND)" : "Value (VND)"}</Label>
         <Input id="h-manual" name="manual_value" type="number" step="1" defaultValue={holding?.manual_value ?? undefined} placeholder="10000000" />
+        <p className="text-xs text-muted-foreground">
+          {!priced ? (
+            "No live price for this holding — it is worth exactly what you enter here."
+          ) : liveValue != null ? (
+            <>
+              Currently <span className="font-medium">ignored</span>: a live price is active, so this
+              holding is valued at <span className="font-mono">{fmtVND(liveValue)}</span> (quantity ×
+              last price). It is only used if the price feed stops returning a price.
+            </>
+          ) : holding ? (
+            <>
+              <span className="font-medium">In use right now</span>: this holding has no{" "}
+              {holding.last_price == null ? "live price" : "quantity"} yet, so it is valued at this
+              amount. A live price takes over once quantity × last price are both known.
+            </>
+          ) : (
+            "Used until the first live price is fetched, and whenever a live price is unavailable."
+          )}
+        </p>
       </div>
       <div className="sm:col-span-2">
         <Button type="submit" disabled={pending}>
@@ -145,7 +169,8 @@ export function EditHoldingDialog({ holding }: { holding: Instrument }) {
         <DialogHeader>
           <DialogTitle>Edit holding</DialogTitle>
           <DialogDescription>
-            Update how {holding.name} is valued — price source, symbol, quantity or manual value.
+            Update how {holding.name} is valued — price source, symbol, quantity, or the value used
+            when no live price is available.
           </DialogDescription>
         </DialogHeader>
         <HoldingForm

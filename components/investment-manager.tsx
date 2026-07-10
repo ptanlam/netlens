@@ -124,6 +124,9 @@ function HoldingCard({ holding, txs, rules }: { holding: HoldingView; txs: Tx[];
   const { inst, value, pnl, cost, live } = holding;
   const option: InstrumentOption = { name: inst.name, asset_type: inst.asset_type };
   const pnlPct = cost ? (pnl / cost) * 100 : 0;
+  // Configured for a live price, but holdingValue() is falling back to manual_value —
+  // i.e. the feed never populated, or quantity was cleared. Otherwise invisible.
+  const usesFallback = inst.price_source !== "manual" && !live;
 
   return (
     <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
@@ -141,6 +144,15 @@ function HoldingCard({ holding, txs, rules }: { holding: HoldingView; txs: Tx[];
             {live && (
               <Badge variant="outline" className="border-transparent bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">
                 live
+              </Badge>
+            )}
+            {usesFallback && (
+              <Badge
+                variant="outline"
+                title={`No live price from ${inst.price_source} — showing the fallback value instead.`}
+                className="border-transparent bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+              >
+                fallback value
               </Badge>
             )}
           </div>
@@ -169,6 +181,12 @@ function HoldingCard({ holding, txs, rules }: { holding: HoldingView; txs: Tx[];
             <span>Source: {inst.price_source}</span>
             {inst.symbol && <span>Symbol: {inst.symbol}</span>}
             <span>Cost: {fmtVND(cost)}</span>
+            {usesFallback && (
+              <span className="text-amber-700 dark:text-amber-300">
+                No {inst.price_source} price{inst.quantity == null ? " or quantity" : ""} yet —
+                valued at the fallback value. Try “Refresh prices”.
+              </span>
+            )}
             <div className="ml-auto flex items-center gap-1">
               <EditHoldingDialog holding={inst} />
               <DeleteHoldingButton name={inst.name} />
@@ -246,7 +264,7 @@ export function InvestmentManager({
         <StatCard
           tone={totalPnl >= 0 ? "emerald" : "rose"}
           icon={totalPnl >= 0 ? TrendingUp : TrendingDown}
-          label="Unrealized P&L"
+          label="Total P&L"
           value={`${totalPnl >= 0 ? "+" : ""}${fmtVND(totalPnl)}`}
           valueClassName={totalPnl >= 0 ? "text-(--chart-positive)" : "text-(--chart-negative)"}
           sub={`${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`}

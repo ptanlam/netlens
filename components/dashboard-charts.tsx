@@ -431,7 +431,7 @@ export function DashboardCharts({ payload }: { payload: Payload }) {
       <Card>
         <CardHeader>
           <CardTitle>Profit &amp; loss by holding</CardTitle>
-          <CardDescription>Unrealized gain / loss per position</CardDescription>
+          <CardDescription>Total gain / loss per position, net of any proceeds</CardDescription>
         </CardHeader>
         <CardContent>
           {pnlByHolding.length === 0 ? (

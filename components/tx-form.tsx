@@ -117,7 +117,7 @@ export function TxForm({
           name="quantity"
           type="number"
           step="any"
-          defaultValue={tx?.quantity ?? undefined}
+          defaultValue={tx?.quantity != null ? Math.abs(tx.quantity) : undefined}
           placeholder="units / shares / coins"
         />
       </div>

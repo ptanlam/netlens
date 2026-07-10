@@ -54,7 +54,7 @@ export default async function Dashboard() {
         <StatCard
           tone={payload.pnl >= 0 ? "emerald" : "rose"}
           icon={payload.pnl >= 0 ? TrendingUp : TrendingDown}
-          label="Unrealized P&L"
+          label="Total P&L"
           value={`${payload.pnl >= 0 ? "+" : ""}${fmtVND(payload.pnl)}`}
           valueClassName={payload.pnl >= 0 ? "text-(--chart-positive)" : "text-(--chart-negative)"}
           sub={`${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`}

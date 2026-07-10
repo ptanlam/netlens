@@ -23,16 +23,30 @@ function revalidateAll() {
 
 // ---------- transactions ----------
 
+/** The form always submits positive numbers and a separate buy/sell direction.
+ *  BOTH amount and quantity must carry the sign: `lib/pnl.ts` reads `tx.quantity`
+ *  straight through as signed units, so an unsigned sell quantity would be counted
+ *  as *buying* those units. */
+function signedTx(fd: FormData): { amount: number; quantity: number | null } | null {
+  const amountRaw = num(fd.get("amount"));
+  if (amountRaw == null || amountRaw <= 0) return null;
+  const sell = fd.get("direction") === "sell";
+  const qtyRaw = num(fd.get("quantity"));
+  return {
+    amount: sell ? -Math.abs(amountRaw) : Math.abs(amountRaw),
+    quantity: qtyRaw == null ? null : sell ? -Math.abs(qtyRaw) : Math.abs(qtyRaw),
+  };
+}
+
 export async function addTx(fd: FormData) {
   const instrument = str(fd.get("instrument"));
-  const amountRaw = num(fd.get("amount"));
-  if (!instrument || amountRaw == null || amountRaw <= 0)
+  const signed = signedTx(fd);
+  if (!instrument || !signed)
     return { ok: false, message: "Instrument and a positive amount are required." };
-  const amount = fd.get("direction") === "sell" ? -Math.abs(amountRaw) : Math.abs(amountRaw);
   db.addTransaction(
     str(fd.get("date")) || db.todayIso(),
     str(fd.get("asset_type")) || "Funds",
-    instrument, amount, num(fd.get("quantity")),
+    instrument, signed.amount, signed.quantity,
     str(fd.get("note")) || null,
   );
   revalidateAll();
@@ -42,15 +56,14 @@ export async function addTx(fd: FormData) {
 export async function updateTx(id: number, fd: FormData) {
   if (!db.getTransaction(id)) return { ok: false, message: "Not found." };
   const instrument = str(fd.get("instrument"));
-  const amountRaw = num(fd.get("amount"));
-  if (!instrument || amountRaw == null || amountRaw <= 0)
+  const signed = signedTx(fd);
+  if (!instrument || !signed)
     return { ok: false, message: "Instrument and a positive amount are required." };
-  const amount = fd.get("direction") === "sell" ? -Math.abs(amountRaw) : Math.abs(amountRaw);
   db.updateTransaction(
     id,
     str(fd.get("date")) || db.todayIso(),
     str(fd.get("asset_type")) || "Funds",
-    instrument, amount, num(fd.get("quantity")),
+    instrument, signed.amount, signed.quantity,
     str(fd.get("note")) || null,
   );
   revalidateAll();
