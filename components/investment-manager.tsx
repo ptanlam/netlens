@@ -152,6 +152,28 @@ function HoldingCard({ holding, txs, rules }: { holding: HoldingView; txs: Tx[];
   );
 }
 
+type HoldingGroup = {
+  type: string;
+  holdings: HoldingView[];
+  value: number;
+  cost: number;
+  pnl: number;
+};
+
+function groupByType(holdings: HoldingView[]): HoldingGroup[] {
+  const byType = new Map<string, HoldingView[]>();
+  for (const h of holdings) {
+    const list = byType.get(h.inst.asset_type);
+    if (list) list.push(h);
+    else byType.set(h.inst.asset_type, [h]);
+  }
+  return Array.from(byType, ([type, hs]) => {
+    const value = hs.reduce((a, h) => a + h.value, 0);
+    const cost = hs.reduce((a, h) => a + h.cost, 0);
+    return { type, holdings: hs, value, cost, pnl: value - cost };
+  }).sort((a, b) => b.value - a.value || a.type.localeCompare(b.type));
+}
+
 export function InvestmentManager({
   holdings,
   txsByInstrument,
@@ -166,6 +188,7 @@ export function InvestmentManager({
   const totalPnl = totalValue - totalCost;
   const pnlPct = totalCost ? (totalPnl / totalCost) * 100 : 0;
   const options: InstrumentOption[] = holdings.map((h) => ({ name: h.inst.name, asset_type: h.inst.asset_type }));
+  const groups = groupByType(holdings);
 
   return (
     <div className="flex flex-col gap-6">
@@ -201,14 +224,35 @@ export function InvestmentManager({
       {holdings.length === 0 ? (
         <p className="text-sm text-muted-foreground">No holdings yet — add one to start tracking.</p>
       ) : (
-        <div className="flex flex-col gap-3">
-          {holdings.map((h) => (
-            <HoldingCard
-              key={h.inst.name}
-              holding={h}
-              txs={txsByInstrument[h.inst.name] ?? []}
-              rules={rulesByInstrument[h.inst.name] ?? []}
-            />
+        <div className="flex flex-col gap-6">
+          {groups.map((group) => (
+            <section key={group.type} className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b pb-2">
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-sm font-semibold">{group.type}</h3>
+                  <span className="text-xs text-muted-foreground">
+                    {group.holdings.length} holding{group.holdings.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2 font-mono text-sm tabular-nums">
+                  <span className="font-semibold">{fmtVND(group.value)}</span>
+                  <span className={cn("text-xs", group.pnl >= 0 ? "text-(--chart-positive)" : "text-(--chart-negative)")}>
+                    {group.pnl >= 0 ? "+" : ""}
+                    {fmtVND(group.pnl)}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                {group.holdings.map((h) => (
+                  <HoldingCard
+                    key={h.inst.name}
+                    holding={h}
+                    txs={txsByInstrument[h.inst.name] ?? []}
+                    rules={rulesByInstrument[h.inst.name] ?? []}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
