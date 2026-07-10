@@ -6,7 +6,7 @@ import { fmtVND } from "@/lib/format";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { NetWorthPanel } from "@/components/net-worth";
-import { RefreshPricesButton } from "@/components/refresh-prices";
+import { RefreshPricesControls } from "@/components/refresh-prices";
 import { StatCard } from "@/components/stat-card";
 import { summarize, debtOwed, type Payment } from "@/lib/savings";
 
@@ -65,7 +65,7 @@ export default async function Dashboard() {
           label="Live prices"
           sub={payload.pricesAsOf ? `as of ${payload.pricesAsOf.replace("T", " ")}` : "never fetched"}
         >
-          <RefreshPricesButton />
+          <RefreshPricesControls showTimestamp={false} />
         </StatCard>
       </div>
 

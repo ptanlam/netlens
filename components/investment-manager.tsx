@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import {
-  ChevronDown, Download, Landmark, Layers, Trash2, TrendingDown, TrendingUp, Wallet,
+  ChevronDown, ChevronLeft, ChevronRight, Download, Landmark, Layers, Trash2,
+  TrendingDown, TrendingUp, Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Instrument, RecurringRule, Tx } from "@/lib/types";
@@ -17,6 +18,7 @@ import { AddRecurringDialog } from "@/components/add-recurring-dialog";
 import { TxRowActions } from "@/components/tx-row-actions";
 import { type InstrumentOption } from "@/components/tx-form";
 import { RecurringManager } from "@/components/recurring-manager";
+import { RefreshPricesControls } from "@/components/refresh-prices";
 import { cn } from "@/lib/utils";
 
 export interface HoldingView {
@@ -64,6 +66,56 @@ function TxRow({ tx, option }: { tx: Tx; option: InstrumentOption }) {
       <span className="flex-1 truncate text-muted-foreground">{tx.note}</span>
       <TxRowActions tx={tx} instruments={[option]} />
     </div>
+  );
+}
+
+const TX_PAGE_SIZE = 10;
+
+/** Client-side paging: the page's transactions are already fully loaded, so there's
+ *  nothing to fetch. `page` is clamped rather than stored so deleting the last row on
+ *  the last page falls back to a valid page instead of showing an empty list. */
+function TxList({ txs, option }: { txs: Tx[]; option: InstrumentOption }) {
+  const [page, setPage] = React.useState(0);
+
+  const pageCount = Math.max(1, Math.ceil(txs.length / TX_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const start = safePage * TX_PAGE_SIZE;
+  const visible = txs.slice(start, start + TX_PAGE_SIZE);
+
+  return (
+    <>
+      <div className="rounded-lg border bg-card px-3">
+        {visible.map((tx) => (
+          <TxRow key={tx.id} tx={tx} option={option} />
+        ))}
+      </div>
+      {pageCount > 1 && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+          <span className="tabular-nums">
+            Page {safePage + 1} of {pageCount} · {txs.length} tx
+            {txs.length === 1 ? "" : "s"}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(safePage - 1)}
+              disabled={safePage === 0}
+            >
+              <ChevronLeft className="size-3.5" /> Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(safePage + 1)}
+              disabled={safePage >= pageCount - 1}
+            >
+              Next <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -124,9 +176,9 @@ function HoldingCard({ holding, txs, rules }: { holding: HoldingView; txs: Tx[];
           </div>
 
           <section className="mb-5">
-            <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-medium">Transactions</h4>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <AddTxDialog instruments={[option]} />
                 <AddRecurringDialog instruments={[option]} />
               </div>
@@ -134,11 +186,7 @@ function HoldingCard({ holding, txs, rules }: { holding: HoldingView; txs: Tx[];
             {txs.length === 0 ? (
               <p className="text-sm text-muted-foreground">No transactions yet.</p>
             ) : (
-              <div className="rounded-lg border bg-card px-3">
-                {txs.map((tx) => (
-                  <TxRow key={tx.id} tx={tx} option={option} />
-                ))}
-              </div>
+              <TxList txs={txs} option={option} />
             )}
           </section>
 
@@ -210,7 +258,8 @@ export function InvestmentManager({
         <p className="text-sm text-muted-foreground">
           Expand a holding to manage its transactions and recurring rules.
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <RefreshPricesControls />
           <Button variant="outline" size="sm" nativeButton={false} render={<a href="/export.csv" download />}>
             <Download className="size-3.5" />
             Export CSV
