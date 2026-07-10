@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Landmark, LineChart, Pencil, Plus, Trash2, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { INTEREST_TYPES, type Saving } from "@/lib/types";
 import { addSaving, deleteSaving, updateSaving } from "@/app/actions";
@@ -9,7 +9,7 @@ import { fmtVND } from "@/lib/format";
 import { currentValue, isMatured, maturityDate, maturityValue, summarize } from "@/lib/savings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { StatCard } from "@/components/stat-card";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -209,35 +209,25 @@ export function SavingsManager({ savings }: { savings: Saving[] }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Total principal</div>
-            <div className="mt-1 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">
-              {fmtVND(s.principal)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Current est. value</div>
-            <div className="mt-1 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">
-              {fmtVND(s.currentValue)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Est. interest earned</div>
-            <div
-              className={
-                "mt-1 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl " +
-                (s.interest >= 0 ? "text-(--chart-positive)" : "text-(--chart-negative)")
-              }
-            >
-              {s.interest >= 0 ? "+" : ""}{fmtVND(s.interest)}
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          tone="sky"
+          icon={Landmark}
+          label="Total principal"
+          value={fmtVND(s.principal)}
+        />
+        <StatCard
+          tone="violet"
+          icon={LineChart}
+          label="Current est. value"
+          value={fmtVND(s.currentValue)}
+        />
+        <StatCard
+          tone="emerald"
+          icon={TrendingUp}
+          label="Est. interest earned"
+          value={`${s.interest >= 0 ? "+" : ""}${fmtVND(s.interest)}`}
+          valueClassName={s.interest >= 0 ? "text-(--chart-positive)" : "text-(--chart-negative)"}
+        />
       </div>
 
       <div className="flex flex-col gap-3">

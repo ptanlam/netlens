@@ -13,7 +13,7 @@ export default async function TransactionsPage() {
   await connection();
   db.materializeRecurring();
   const txs = db.allTransactions();
-  const instruments = db.instrumentNames();
+  const instruments = db.listInstruments().map((i) => ({ name: i.name, asset_type: i.asset_type }));
   const pending = db.pendingFundUnits().map((tx) => {
     const inst = db.getInstrument(tx.instrument);
     return {

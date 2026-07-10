@@ -263,6 +263,15 @@ export function addDebtPayment(debtId: number, date: string, amount: number, not
     .run(debtId, date, Math.round(amount), note);
 }
 
+export function updateDebtPayment(
+  id: number, date: string, amount: number, note: string | null = null,
+): boolean {
+  const info = getDb()
+    .prepare("UPDATE debt_payments SET date=?, amount=?, note=? WHERE id=?")
+    .run(date, Math.round(amount), note, id);
+  return info.changes > 0;
+}
+
 export function deleteDebtPayment(id: number) {
   getDb().prepare("DELETE FROM debt_payments WHERE id=?").run(id);
 }
@@ -275,6 +284,19 @@ export function ensureInstrument(name: string, assetType: string) {
       "INSERT INTO instruments(name, asset_type, updated_at) VALUES (?,?,?) ON CONFLICT(name) DO NOTHING",
     )
     .run(name, assetType, nowIso());
+}
+
+/** Create a managed holding. Returns false if one with that name already exists. */
+export function addInstrument(
+  name: string, assetType: string, priceSource: string,
+  symbol: string | null, quantity: number | null, manualValue: number | null,
+): boolean {
+  const info = getDb()
+    .prepare(
+      "INSERT INTO instruments(name, asset_type, price_source, symbol, quantity, manual_value, updated_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(name) DO NOTHING",
+    )
+    .run(name.trim(), assetType, priceSource, symbol || null, quantity, manualValue, nowIso());
+  return info.changes > 0;
 }
 
 export function listInstruments(): Instrument[] {

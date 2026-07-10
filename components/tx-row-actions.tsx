@@ -10,9 +10,9 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { TxForm } from "@/components/tx-form";
+import { TxForm, type InstrumentOption } from "@/components/tx-form";
 
-export function TxRowActions({ tx, instruments }: { tx: Tx; instruments: string[] }) {
+export function TxRowActions({ tx, instruments }: { tx: Tx; instruments: InstrumentOption[] }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 

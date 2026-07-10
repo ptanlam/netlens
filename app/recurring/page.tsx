@@ -12,7 +12,7 @@ export default async function RecurringPage() {
     rule,
     nextDue: rule.active ? db.ruleNextDue(rule) : null,
   }));
-  const instruments = db.instrumentNames();
+  const instruments = db.listInstruments().map((i) => ({ name: i.name, asset_type: i.asset_type }));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">

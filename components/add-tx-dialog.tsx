@@ -8,9 +8,9 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { TxForm } from "@/components/tx-form";
+import { TxForm, type InstrumentOption } from "@/components/tx-form";
 
-export function AddTxDialog({ instruments }: { instruments: string[] }) {
+export function AddTxDialog({ instruments }: { instruments: InstrumentOption[] }) {
   const [open, setOpen] = React.useState(false);
 
   return (

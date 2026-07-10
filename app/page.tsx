@@ -1,14 +1,13 @@
 import { connection } from "next/server";
 import Link from "next/link";
-import { TriangleAlert } from "lucide-react";
+import { Activity, Landmark, TrendingDown, TrendingUp, TriangleAlert, Wallet } from "lucide-react";
 import * as db from "@/lib/db";
 import { fmtVND } from "@/lib/format";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent } from "@/components/ui/card";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { NetWorthPanel } from "@/components/net-worth";
 import { RefreshPricesButton } from "@/components/refresh-prices";
-import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/stat-card";
 import { summarize, debtOwed, type Payment } from "@/lib/savings";
 
 export default async function Dashboard() {
@@ -40,55 +39,34 @@ export default async function Dashboard() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Portfolio value</div>
-            <div className="mt-1 text-lg font-semibold tracking-tight tabular-nums sm:text-2xl lg:text-3xl">
-              {fmtVND(payload.portfolioTotal)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Total invested</div>
-            <div className="mt-1 text-lg font-semibold tracking-tight tabular-nums sm:text-2xl lg:text-3xl">
-              {fmtVND(payload.investedTotal)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Unrealized P&L</div>
-            <div
-              className={cn(
-                "mt-1 text-lg font-semibold tracking-tight tabular-nums sm:text-2xl lg:text-3xl",
-                payload.pnl >= 0
-                  ? "text-(--chart-positive)"
-                  : "text-(--chart-negative)",
-              )}
-            >
-              {payload.pnl >= 0 ? "+" : ""}
-              {fmtVND(payload.pnl)}
-            </div>
-            <div className="mt-0.5 text-sm text-muted-foreground">
-              {pnlPct >= 0 ? "+" : ""}
-              {pnlPct.toFixed(1)}% of invested
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex h-full flex-col justify-between gap-2">
-            <div>
-              <div className="text-sm text-muted-foreground">Live prices</div>
-              <div className="mt-1 text-sm">
-                {payload.pricesAsOf
-                  ? `as of ${payload.pricesAsOf.replace("T", " ")}`
-                  : "never fetched"}
-              </div>
-            </div>
-            <RefreshPricesButton />
-          </CardContent>
-        </Card>
+        <StatCard
+          tone="violet"
+          icon={Wallet}
+          label="Portfolio value"
+          value={fmtVND(payload.portfolioTotal)}
+        />
+        <StatCard
+          tone="sky"
+          icon={Landmark}
+          label="Total invested"
+          value={fmtVND(payload.investedTotal)}
+        />
+        <StatCard
+          tone={payload.pnl >= 0 ? "emerald" : "rose"}
+          icon={payload.pnl >= 0 ? TrendingUp : TrendingDown}
+          label="Unrealized P&L"
+          value={`${payload.pnl >= 0 ? "+" : ""}${fmtVND(payload.pnl)}`}
+          valueClassName={payload.pnl >= 0 ? "text-(--chart-positive)" : "text-(--chart-negative)"}
+          sub={`${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`}
+        />
+        <StatCard
+          tone="amber"
+          icon={Activity}
+          label="Live prices"
+          sub={payload.pricesAsOf ? `as of ${payload.pricesAsOf.replace("T", " ")}` : "never fetched"}
+        >
+          <RefreshPricesButton />
+        </StatCard>
       </div>
 
       {pending.length > 0 && (

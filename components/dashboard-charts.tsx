@@ -5,11 +5,13 @@ import {
   Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart,
   XAxis, YAxis,
 } from "recharts";
+import { CalendarRange, Coins, Trophy } from "lucide-react";
 import type { Payload } from "@/lib/types";
 import { fmtTr, fmtVND, MONTHS } from "@/lib/format";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
+import { StatCard } from "@/components/stat-card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -209,30 +211,14 @@ export function DashboardCharts({ payload }: { payload: Payload }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Total invested</div>
-            <div className="mt-1 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">
-              {fmtVND(summary.total)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Monthly average</div>
-            <div className="mt-1 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">
-              {fmtVND(summary.avg)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Best month</div>
-            <div className="mt-1 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">
-              {summary.bestMonth} · {fmtVND(summary.bestValue)}
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard tone="teal" icon={Coins} label="Total invested" value={fmtVND(summary.total)} />
+        <StatCard tone="blue" icon={CalendarRange} label="Monthly average" value={fmtVND(summary.avg)} />
+        <StatCard
+          tone="amber"
+          icon={Trophy}
+          label="Best month"
+          value={`${summary.bestMonth} · ${fmtVND(summary.bestValue)}`}
+        />
       </div>
 
       <PnlChart from={from} to={to} />

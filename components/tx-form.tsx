@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { ASSET_TYPES, type Tx } from "@/lib/types";
+import type { Tx } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,9 @@ import {
 
 export type ActionResult = { ok: boolean; message: string };
 
+/** A managed holding the transaction can be tied to. */
+export type InstrumentOption = { name: string; asset_type: string };
+
 export function TxForm({
   action,
   instruments,
@@ -20,7 +23,7 @@ export function TxForm({
   onDone,
 }: {
   action: (fd: FormData) => Promise<ActionResult>;
-  instruments: string[];
+  instruments: InstrumentOption[];
   tx?: Tx;
   submitLabel?: string;
   onDone?: () => void;
@@ -28,6 +31,12 @@ export function TxForm({
   const [pending, startTransition] = React.useTransition();
   const formRef = React.useRef<HTMLFormElement>(null);
   const today = new Date().toLocaleDateString("sv-SE");
+
+  const [instrument, setInstrument] = React.useState(tx?.instrument ?? instruments[0]?.name ?? "");
+  // Asset type is inherited from the chosen holding — a transaction can't drift from it.
+  const assetType =
+    instruments.find((i) => i.name === instrument)?.asset_type ?? tx?.asset_type ?? "Funds";
+  const noHoldings = instruments.length === 0;
 
   return (
     <form
@@ -37,7 +46,10 @@ export function TxForm({
           const res = await action(fd);
           if (res.ok) {
             toast.success(res.message);
-            if (!tx) formRef.current?.reset();
+            if (!tx) {
+              formRef.current?.reset();
+              setInstrument(instruments[0]?.name ?? "");
+            }
             onDone?.();
           } else toast.error(res.message);
         })
@@ -61,33 +73,29 @@ export function TxForm({
         </Select>
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="asset_type">Asset type</Label>
-        <Select name="asset_type" defaultValue={tx?.asset_type ?? "Funds"}>
-          <SelectTrigger id="asset_type" className="w-full">
-            <SelectValue />
+        <Label htmlFor="instrument">Holding</Label>
+        <Select
+          name="instrument"
+          value={instrument}
+          onValueChange={(v) => v != null && setInstrument(v as string)}
+          disabled={noHoldings}
+        >
+          <SelectTrigger id="instrument" className="w-full">
+            <SelectValue placeholder="Select a holding" />
           </SelectTrigger>
           <SelectContent>
-            {ASSET_TYPES.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
+            {instruments.map((i) => (
+              <SelectItem key={i.name} value={i.name}>{i.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="instrument">Instrument</Label>
-        <Input
-          id="instrument"
-          name="instrument"
-          list="instrument-names"
-          defaultValue={tx?.instrument}
-          placeholder="e.g. VCBF-TBF"
-          required
-        />
-        <datalist id="instrument-names">
-          {instruments.map((n) => (
-            <option key={n} value={n} />
-          ))}
-        </datalist>
+        <Label>Asset type</Label>
+        <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
+          {assetType}
+        </div>
+        <input type="hidden" name="asset_type" value={assetType} />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="amount">Amount (VND)</Label>
@@ -117,8 +125,13 @@ export function TxForm({
         <Label htmlFor="note">Note (optional)</Label>
         <Input id="note" name="note" defaultValue={tx?.note ?? undefined} />
       </div>
+      {noHoldings && (
+        <p className="text-sm text-muted-foreground sm:col-span-2">
+          No holdings yet — add one on the Holdings page first, then it can be traded here.
+        </p>
+      )}
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || noHoldings || !instrument}>
           {pending ? "Saving…" : submitLabel}
         </Button>
       </div>

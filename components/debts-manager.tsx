@@ -2,21 +2,21 @@
 
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Pencil, Plus, TriangleAlert, Trash2, Wallet } from "lucide-react";
+import { BadgeCheck, CreditCard, Flame, Pencil, Plus, TriangleAlert, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import {
   DEBT_KINDS, INTEREST_TYPES, type Debt, type DebtKind, type DebtPayment,
 } from "@/lib/types";
 import {
-  addDebt, addDebtPayment, deleteDebt, deleteDebtPayment, updateDebt,
+  addDebt, addDebtPayment, deleteDebt, deleteDebtPayment, updateDebt, updateDebtPayment,
 } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { debtOwed, isMatured, isRevolving, maturityDate, paidThisMonth } from "@/lib/savings";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { DataTable } from "@/components/data-table";
+import { StatCard } from "@/components/stat-card";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -217,6 +217,63 @@ function EditDebtDialog({ debt }: { debt: Debt }) {
   );
 }
 
+function PaymentRow({ payment }: { payment: DebtPayment }) {
+  const [editing, setEditing] = React.useState(false);
+  const [pending, startTransition] = React.useTransition();
+
+  const run = (fn: () => Promise<ActionResult>, after?: () => void) =>
+    startTransition(async () => {
+      const res = await fn();
+      if (res.ok) {
+        toast.success(res.message);
+        after?.();
+      } else toast.error(res.message);
+    });
+
+  if (editing) {
+    return (
+      <form
+        action={(fd) => run(() => updateDebtPayment(payment.id, fd), () => setEditing(false))}
+        className="flex flex-wrap items-center gap-2 border-b py-1.5 last:border-0"
+      >
+        <Input name="date" type="date" defaultValue={payment.date} className="h-8 w-[9.5rem]" required />
+        <Input name="amount" type="number" min="1" step="1" defaultValue={payment.amount} className="h-8 w-32" required />
+        <Input name="note" defaultValue={payment.note ?? ""} placeholder="Note" className="h-8 min-w-24 flex-1" />
+        <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 border-b py-1.5 text-sm last:border-0">
+      <span className="tabular-nums text-muted-foreground">{payment.date}</span>
+      <span className="font-mono font-medium tabular-nums text-(--chart-positive)">
+        −{fmtVND(payment.amount)}
+      </span>
+      <span className="flex-1 truncate text-muted-foreground">{payment.note}</span>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Edit payment"
+        disabled={pending}
+        onClick={() => setEditing(true)}
+      >
+        <Pencil className="size-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Delete payment"
+        disabled={pending}
+        onClick={() => run(() => deleteDebtPayment(payment.id))}
+      >
+        <Trash2 className="size-3.5 text-destructive" />
+      </Button>
+    </div>
+  );
+}
+
 function PaymentDialog({ debt, payments }: { debt: Debt; payments: DebtPayment[] }) {
   const [pending, startTransition] = React.useTransition();
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -290,24 +347,7 @@ function PaymentDialog({ debt, payments }: { debt: Debt; payments: DebtPayment[]
           {history.length === 0 ? (
             <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
           ) : (
-            history.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 border-b py-1.5 text-sm last:border-0">
-                <span className="tabular-nums text-muted-foreground">{p.date}</span>
-                <span className="font-mono font-medium tabular-nums text-(--chart-positive)">
-                  −{fmtVND(p.amount)}
-                </span>
-                <span className="flex-1 truncate text-muted-foreground">{p.note}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Delete payment"
-                  disabled={pending}
-                  onClick={() => run(() => deleteDebtPayment(p.id))}
-                >
-                  <Trash2 className="size-3.5 text-destructive" />
-                </Button>
-              </div>
-            ))
+            history.map((p) => <PaymentRow key={p.id} payment={p} />)
           )}
         </div>
       </DialogContent>
@@ -384,24 +424,6 @@ const columns: ColumnDef<DebtRow>[] = [
       ) : (
         <span className="tabular-nums">{maturityDate(row.original.debt)}</span>
       ),
-  },
-  {
-    id: "month",
-    header: "This month",
-    enableSorting: false,
-    cell: ({ row }) => {
-      const r = row.original;
-      if (!r.isCredit) return <span className="text-muted-foreground">—</span>;
-      return r.paidThisMonth ? (
-        <Badge variant="outline" className="border-transparent bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">
-          Paid
-        </Badge>
-      ) : (
-        <Badge variant="outline" className="border-transparent bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">
-          Due{r.debt.monthly_payment ? ` · ${fmtVND(r.debt.monthly_payment)}` : ""}
-        </Badge>
-      );
-    },
   },
   {
     id: "owed",
@@ -507,30 +529,26 @@ export function DebtsManager({
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Currently owed</div>
-            <div className="mt-1 text-xl font-semibold tracking-tight tabular-nums text-(--chart-negative) sm:text-2xl">
-              {fmtVND(owedSum)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Total paid</div>
-            <div className="mt-1 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">
-              {fmtVND(paidSum)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Est. interest accrued</div>
-            <div className="mt-1 text-xl font-semibold tracking-tight tabular-nums text-(--chart-negative) sm:text-2xl">
-              +{fmtVND(interest)}
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          tone="rose"
+          icon={CreditCard}
+          label="Currently owed"
+          value={fmtVND(owedSum)}
+          valueClassName="text-(--chart-negative)"
+        />
+        <StatCard
+          tone="emerald"
+          icon={BadgeCheck}
+          label="Total paid"
+          value={fmtVND(paidSum)}
+        />
+        <StatCard
+          tone="amber"
+          icon={Flame}
+          label="Est. interest accrued"
+          value={`+${fmtVND(interest)}`}
+          valueClassName="text-(--chart-negative)"
+        />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -211,6 +211,15 @@ export async function addDebtPayment(debtId: number, fd: FormData) {
   return { ok: true, message: "Payment recorded." };
 }
 
+export async function updateDebtPayment(id: number, fd: FormData) {
+  const amount = num(fd.get("amount"));
+  if (amount == null || amount <= 0)
+    return { ok: false, message: "A positive payment amount is required." };
+  const ok = db.updateDebtPayment(id, str(fd.get("date")) || db.todayIso(), amount, str(fd.get("note")) || null);
+  revalidateAll();
+  return { ok, message: ok ? "Payment updated." : "Payment not found." };
+}
+
 export async function deleteDebtPayment(id: number) {
   db.deleteDebtPayment(id);
   revalidateAll();
@@ -218,6 +227,22 @@ export async function deleteDebtPayment(id: number) {
 }
 
 // ---------- holdings ----------
+
+export async function addHolding(fd: FormData) {
+  const name = str(fd.get("name"));
+  if (!name) return { ok: false, message: "A holding name is required." };
+  if (db.getInstrument(name)) return { ok: false, message: `"${name}" already exists.` };
+  db.addInstrument(
+    name,
+    str(fd.get("asset_type")) || "Funds",
+    str(fd.get("price_source")) || "manual",
+    str(fd.get("symbol")) || null,
+    num(fd.get("quantity")),
+    num(fd.get("manual_value")),
+  );
+  revalidateAll();
+  return { ok: true, message: "Holding added." };
+}
 
 export async function saveHoldings(fd: FormData) {
   const rows = Number(fd.get("rows") ?? 0);

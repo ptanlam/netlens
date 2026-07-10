@@ -7,6 +7,7 @@ import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table";
 import { TxRowActions } from "@/components/tx-row-actions";
+import type { InstrumentOption } from "@/components/tx-form";
 import { cn } from "@/lib/utils";
 
 export function TransactionsTable({
@@ -14,7 +15,7 @@ export function TransactionsTable({
   instruments,
 }: {
   transactions: Tx[];
-  instruments: string[];
+  instruments: InstrumentOption[];
 }) {
   const columns = React.useMemo<ColumnDef<Tx>[]>(
     () => [

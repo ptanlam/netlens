@@ -106,24 +106,34 @@ export function owed(d: Accruing, payments: Payment[] = [], today = new Date()):
  *   reduce the balance (early payment does NOT reduce interest).
  * - `flexible` — fixed term, reducing-balance: interest is recomputed on the remaining
  *   balance after each payment (early payment saves interest).
- * - `credit`   — open-ended credit account (monthly payment required): reducing-balance,
- *   never matures.
+ * - `credit`   — open-ended card/line: the entered principal IS the current statement
+ *   balance, reduced by payments. It does NOT accrue interest against wall-clock time
+ *   (the balance is a snapshot you refresh from your statement), so the figure stays
+ *   put; what's due each period is the fixed `monthly_payment`, shown separately.
  */
 export function debtOwed(
   d: Accruing & { kind?: string },
   payments: Payment[] = [],
   today = new Date(),
 ): number {
-  if (d.kind === "fixed" && !isRevolving(d)) {
-    const start = Date.parse(d.start_date + "T00:00:00Z");
-    const end = Math.min(Math.max(today.getTime(), start), Date.parse(maturityDate(d) + "T00:00:00Z"));
-    const gross = accrue(d.principal, d.rate, (end - start) / DAY_MS / 365, d.interest_type);
-    const nowMs = today.getTime();
-    const paid = payments
+  const nowMs = today.getTime();
+  const paidToDate = () =>
+    payments
       .filter((p) => Date.parse(p.date + "T00:00:00Z") <= nowMs)
       .reduce((a, p) => a + p.amount, 0);
-    return Math.max(0, gross - paid);
+
+  // Credit / revolving: outstanding balance is a snapshot, not a compounding curve.
+  if (d.kind === "credit" || isRevolving(d)) {
+    return Math.max(0, d.principal - paidToDate());
   }
+
+  if (d.kind === "fixed") {
+    const start = Date.parse(d.start_date + "T00:00:00Z");
+    const end = Math.min(Math.max(nowMs, start), Date.parse(maturityDate(d) + "T00:00:00Z"));
+    const gross = accrue(d.principal, d.rate, (end - start) / DAY_MS / 365, d.interest_type);
+    return Math.max(0, gross - paidToDate());
+  }
+
   return owed(d, payments, today);
 }
 
