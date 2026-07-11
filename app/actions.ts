@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import * as db from "@/lib/db";
-import { refreshAll } from "@/lib/prices";
+import { refreshAll, testPriceSource as runPriceSourceTest } from "@/lib/prices";
 import { authToken, COOKIE_NAME } from "@/lib/auth";
 
 function num(v: FormDataEntryValue | null): number | null {
@@ -18,7 +18,7 @@ function str(v: FormDataEntryValue | null): string {
 }
 
 function revalidateAll() {
-  for (const p of ["/", "/investments", "/savings", "/debts"]) revalidatePath(p);
+  for (const p of ["/", "/investments", "/savings", "/debts", "/sources"]) revalidatePath(p);
 }
 
 // ---------- transactions ----------
@@ -304,6 +304,78 @@ export async function refreshPrices() {
     ok: errors.length === 0,
     message: `Updated ${updated} price(s).` + (errors.length ? ` ${errors.length} failed.` : ""),
   };
+}
+
+// ---------- price sources ----------
+
+/** Build a source config from the form fields, minus key validation (which only the
+ *  save paths enforce — the test path doesn't care about the key). */
+function priceSourceFields(fd: FormData, key: string, builtin: number): db.PriceSource | { error: string } {
+  const url = str(fd.get("url"));
+  if (!url) return { error: "A request URL is required." };
+  const nullable = (name: string) => str(fd.get(name)) || null;
+  return {
+    key,
+    label: str(fd.get("label")) || key,
+    kind: fd.get("kind") === "html" ? "html" : "json",
+    method: fd.get("method") === "POST" ? "POST" : "GET",
+    url,
+    body: nullable("body"),
+    batch: fd.get("batch") === "on" || fd.get("batch") === "1" ? 1 : 0,
+    rows_path: nullable("rows_path"),
+    key_field: nullable("key_field"),
+    price_field: nullable("price_field"),
+    price_path: nullable("price_path"),
+    price_regex: nullable("price_regex"),
+    history_strategy: str(fd.get("history_strategy")) || "none",
+    builtin,
+    created_at: null,
+  };
+}
+
+/** Shared validation + field parsing for add/update. */
+function priceSourceFromForm(fd: FormData, builtin: number): db.PriceSource | { error: string } {
+  const key = str(fd.get("key")).toLowerCase();
+  if (!/^[a-z0-9_-]+$/.test(key)) return { error: "Key must be lowercase letters, numbers, - or _." };
+  if (key === db.MANUAL_SOURCE) return { error: `"${db.MANUAL_SOURCE}" is reserved.` };
+  return priceSourceFields(fd, key, builtin);
+}
+
+export async function addPriceSource(fd: FormData) {
+  const parsed = priceSourceFromForm(fd, 0);
+  if ("error" in parsed) return { ok: false, message: parsed.error };
+  if (db.getPriceSource(parsed.key)) return { ok: false, message: `"${parsed.key}" already exists.` };
+  db.savePriceSource(parsed);
+  revalidateAll();
+  return { ok: true, message: "Price source added." };
+}
+
+export async function updatePriceSource(key: string, fd: FormData) {
+  const current = db.getPriceSource(key);
+  if (!current) return { ok: false, message: "Price source not found." };
+  const parsed = priceSourceFromForm(fd, current.builtin);
+  if ("error" in parsed) return { ok: false, message: parsed.error };
+  if (parsed.key !== key) return { ok: false, message: "The key cannot be changed." };
+  db.savePriceSource(parsed);
+  revalidateAll();
+  return { ok: true, message: "Price source updated." };
+}
+
+export async function deletePriceSource(key: string) {
+  const current = db.getPriceSource(key);
+  if (!current) return { ok: false, message: "Price source not found." };
+  if (db.priceSourceInUse(key))
+    return { ok: false, message: "A holding still uses this source — reassign it first." };
+  db.deletePriceSource(key);
+  revalidateAll();
+  return { ok: true, message: "Price source deleted." };
+}
+
+/** Dry-run the (possibly unsaved) config in the form against a sample symbol. */
+export async function testPriceSource(fd: FormData) {
+  const parsed = priceSourceFields(fd, str(fd.get("key")) || "test", 0);
+  if ("error" in parsed) return { ok: false, message: parsed.error };
+  return runPriceSourceTest(parsed, str(fd.get("test_symbol")));
 }
 
 // ---------- recurring rules ----------

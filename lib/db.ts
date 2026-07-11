@@ -5,10 +5,10 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
-import type { Debt, DebtPayment, Instrument, Payload, RecurringRule, Saving, Tx } from "./types";
+import type { Debt, DebtPayment, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
 
-export { ASSET_TYPES, PRICE_SOURCES } from "./types";
-export type { AssetType, Debt, DebtPayment, Instrument, Payload, RecurringRule, Saving, Tx } from "./types";
+export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
+export type { AssetType, Debt, DebtPayment, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS transactions (
@@ -95,6 +95,24 @@ CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS price_sources (
+  key              TEXT PRIMARY KEY,
+  label            TEXT NOT NULL,
+  kind             TEXT NOT NULL DEFAULT 'json',
+  method           TEXT NOT NULL DEFAULT 'GET',
+  url              TEXT NOT NULL,
+  body             TEXT,
+  batch            INTEGER NOT NULL DEFAULT 0,
+  rows_path        TEXT,
+  key_field        TEXT,
+  price_field      TEXT,
+  price_path       TEXT,
+  price_regex      TEXT,
+  history_strategy TEXT NOT NULL DEFAULT 'none',
+  builtin          INTEGER NOT NULL DEFAULT 0,
+  created_at       TEXT
+);
 `;
 
 let _db: Database.Database | null = null;
@@ -108,7 +126,58 @@ export function getDb(): Database.Database {
   _db.pragma("journal_mode = WAL");
   _db.exec(SCHEMA);
   migrate(_db);
+  seedPriceSources(_db);
   return _db;
+}
+
+/** The four price feeds ported from the Flask app, expressed as generic configs.
+ *  INSERT OR IGNORE so existing DBs gain them and user edits are never clobbered. */
+const BUILTIN_PRICE_SOURCES: PriceSource[] = [
+  {
+    key: "coingecko", label: "CoinGecko (crypto → VND)", kind: "json", method: "GET",
+    url: "https://api.coingecko.com/api/v3/simple/price?ids={symbols}&vs_currencies=vnd",
+    body: null, batch: 1, rows_path: "", key_field: null, price_field: "vnd",
+    price_path: null, price_regex: null, history_strategy: "coingecko", builtin: 1, created_at: null,
+  },
+  {
+    key: "yahoo", label: "Yahoo Finance (ticker)", kind: "json", method: "GET",
+    url: "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d",
+    body: null, batch: 0, rows_path: null, key_field: null, price_field: null,
+    price_path: "chart.result.0.meta.regularMarketPrice", price_regex: null,
+    history_strategy: "yahoo", builtin: 1, created_at: null,
+  },
+  {
+    key: "fmarket", label: "fmarket.vn (fund NAV)", kind: "json", method: "POST",
+    url: "https://api.fmarket.vn/res/products/filter",
+    body: '{"types":["NEW_FUND","TRADING_FUND"],"page":1,"pageSize":100}',
+    batch: 1, rows_path: "data.rows", key_field: "shortName", price_field: "nav",
+    price_path: null, price_regex: null, history_strategy: "fmarket", builtin: 1, created_at: null,
+  },
+  {
+    key: "vcbf", label: "VCBF-TBF (scraped)", kind: "html", method: "GET",
+    url: "https://www.vcbf.com/quy-mo/cac-quy-mo/quy-dau-tu-can-bang-chien-luoc-vcbf/",
+    body: null, batch: 0, rows_path: null, key_field: null, price_field: null,
+    price_path: null, price_regex: '"tbf_data"\\s*:\\s*\\{.*?"price"\\s*:\\s*"([\\d.,]+)"',
+    history_strategy: "fmarket", builtin: 1, created_at: null,
+  },
+];
+
+function seedPriceSources(db: Database.Database) {
+  // Seed exactly once. After that, built-ins are ordinary rows the user may delete —
+  // re-seeding would resurrect them on every restart, so the flag guards against that.
+  const seeded = db.prepare("SELECT 1 FROM meta WHERE key='price_sources_seeded'").get();
+  if (seeded) return;
+  const stmt = db.prepare(
+    `INSERT OR IGNORE INTO price_sources
+       (key, label, kind, method, url, body, batch, rows_path, key_field,
+        price_field, price_path, price_regex, history_strategy, builtin, created_at)
+     VALUES
+       (@key, @label, @kind, @method, @url, @body, @batch, @rows_path, @key_field,
+        @price_field, @price_path, @price_regex, @history_strategy, @builtin, @created_at)`,
+  );
+  const now = new Date().toISOString().slice(0, 19);
+  for (const s of BUILTIN_PRICE_SOURCES) stmt.run({ ...s, created_at: now });
+  db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('price_sources_seeded', ?)").run(now);
 }
 
 /** Idempotent column additions for tables that predate a new column. */
@@ -502,6 +571,52 @@ export function setTransactionQuantity(
         .run(quantity, nowIso(), tx.instrument);
   }
   return true;
+}
+
+// ---------- price sources (user-defined price feeds) ----------
+
+const PRICE_SOURCE_COLS =
+  "key, label, kind, method, url, body, batch, rows_path, key_field, price_field, price_path, price_regex, history_strategy, builtin, created_at";
+
+export function listPriceSources(): PriceSource[] {
+  return getDb()
+    .prepare(`SELECT ${PRICE_SOURCE_COLS} FROM price_sources ORDER BY builtin DESC, key`)
+    .all() as PriceSource[];
+}
+
+export function getPriceSource(key: string): PriceSource | undefined {
+  return getDb()
+    .prepare(`SELECT ${PRICE_SOURCE_COLS} FROM price_sources WHERE key=?`)
+    .get(key) as PriceSource | undefined;
+}
+
+/** Upsert a price source. `builtin` is never changed on an existing row. */
+export function savePriceSource(s: Omit<PriceSource, "created_at">): void {
+  getDb()
+    .prepare(
+      `INSERT INTO price_sources
+         (key, label, kind, method, url, body, batch, rows_path, key_field,
+          price_field, price_path, price_regex, history_strategy, builtin, created_at)
+       VALUES
+         (@key, @label, @kind, @method, @url, @body, @batch, @rows_path, @key_field,
+          @price_field, @price_path, @price_regex, @history_strategy, @builtin, @created_at)
+       ON CONFLICT(key) DO UPDATE SET
+         label=@label, kind=@kind, method=@method, url=@url, body=@body, batch=@batch,
+         rows_path=@rows_path, key_field=@key_field, price_field=@price_field,
+         price_path=@price_path, price_regex=@price_regex, history_strategy=@history_strategy`,
+    )
+    .run({ ...s, created_at: nowIso() });
+}
+
+/** True if any instrument currently uses this source key. */
+export function priceSourceInUse(key: string): boolean {
+  return Boolean(
+    getDb().prepare("SELECT 1 FROM instruments WHERE price_source=? LIMIT 1").get(key),
+  );
+}
+
+export function deletePriceSource(key: string): void {
+  getDb().prepare("DELETE FROM price_sources WHERE key=?").run(key);
 }
 
 // ---------- price history + meta ----------

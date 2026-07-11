@@ -2,7 +2,37 @@
 
 export const ASSET_TYPES = ["Funds", "Stocks", "Crypto", "Real Estate"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
-export const PRICE_SOURCES = ["manual", "coingecko", "yahoo", "fmarket"] as const;
+/** The always-present, no-fetch source. Every other source is user-defined in the DB. */
+export const MANUAL_SOURCE = "manual";
+
+export type PriceSourceKind = "json" | "html";
+export type HistoryStrategy = "none" | "yahoo" | "coingecko" | "fmarket";
+
+/**
+ * A user-defined price feed, stored in the DB and driving `lib/prices.ts`.
+ * `kind`:  'json' extracts a number via dot-paths; 'html' via a regex capture group.
+ * `batch`: 1 = a single request returns prices for many instruments (matched by
+ *          `symbol ?? name`); 0 = one request per instrument, with `{symbol}` in the URL.
+ * URL/body templates support `{symbol}` (per-instrument) and `{symbols}` (batch, the
+ * comma-joined sorted symbols).
+ */
+export interface PriceSource {
+  key: string;                  // stable id stored on instruments.price_source
+  label: string;
+  kind: PriceSourceKind;
+  method: "GET" | "POST";
+  url: string;
+  body: string | null;          // POST body template (JSON string)
+  batch: number;                // 0 | 1
+  rows_path: string | null;     // batch json: dot-path to the rows array/object ("" = root)
+  key_field: string | null;     // batch json: field in each row matching the instrument symbol
+  price_field: string | null;   // batch json: field holding the price value
+  price_path: string | null;    // single json: dot-path to the price value
+  price_regex: string | null;   // html: regex with one capture group
+  history_strategy: string;     // HistoryStrategy — which built-in history fetcher to use
+  builtin: number;              // 1 = seeded, protected from deletion
+  created_at: string | null;
+}
 
 export const INTEREST_TYPES = ["simple", "compound"] as const;
 export type InterestType = (typeof INTEREST_TYPES)[number];

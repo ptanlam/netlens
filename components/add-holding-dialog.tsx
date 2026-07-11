@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { ASSET_TYPES, PRICE_SOURCES, type Instrument } from "@/lib/types";
+import { ASSET_TYPES, MANUAL_SOURCE, type Instrument } from "@/lib/types";
 import { addHolding, updateHolding } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -25,16 +25,18 @@ function HoldingForm({
   action,
   submitLabel,
   onDone,
+  sources,
 }: {
   holding?: Instrument;
   action: (fd: FormData) => Promise<ActionResult>;
   submitLabel: string;
   onDone?: () => void;
+  sources: string[];
 }) {
   const [pending, startTransition] = React.useTransition();
-  const [source, setSource] = React.useState(holding?.price_source ?? "manual");
+  const [source, setSource] = React.useState(holding?.price_source ?? MANUAL_SOURCE);
   const formRef = React.useRef<HTMLFormElement>(null);
-  const priced = source !== "manual";
+  const priced = source !== MANUAL_SOURCE;
   // Same condition as db.holdingValue(): manual_value is only consulted when one of
   // these is missing. Non-null means manual_value is inert right now.
   const liveValue =
@@ -52,7 +54,7 @@ function HoldingForm({
             toast.success(res.message);
             if (!holding) {
               formRef.current?.reset();
-              setSource("manual");
+              setSource(MANUAL_SOURCE);
             }
             onDone?.();
           } else toast.error(res.message);
@@ -90,7 +92,7 @@ function HoldingForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PRICE_SOURCES.map((s) => (
+            {sources.map((s) => (
               <SelectItem key={s} value={s}>{s}</SelectItem>
             ))}
           </SelectContent>
@@ -136,7 +138,7 @@ function HoldingForm({
   );
 }
 
-export function AddHoldingDialog() {
+export function AddHoldingDialog({ sources }: { sources: string[] }) {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -152,13 +154,13 @@ export function AddHoldingDialog() {
             or leave it manual and enter a value.
           </DialogDescription>
         </DialogHeader>
-        <HoldingForm action={addHolding} submitLabel="Add holding" onDone={() => setOpen(false)} />
+        <HoldingForm action={addHolding} submitLabel="Add holding" onDone={() => setOpen(false)} sources={sources} />
       </DialogContent>
     </Dialog>
   );
 }
 
-export function EditHoldingDialog({ holding }: { holding: Instrument }) {
+export function EditHoldingDialog({ holding, sources }: { holding: Instrument; sources: string[] }) {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -178,6 +180,7 @@ export function EditHoldingDialog({ holding }: { holding: Instrument }) {
           action={(fd) => updateHolding(holding.name, fd)}
           submitLabel="Update holding"
           onDone={() => setOpen(false)}
+          sources={sources}
         />
       </DialogContent>
     </Dialog>

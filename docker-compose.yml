@@ -6,6 +6,7 @@ services:
     environment:
       - DB_PATH=/app/data/investments.db
       - APP_PASSWORD=changeme
+      - TZ=Asia/Ho_Chi_Minh
     volumes:
       - app-data:/app/data
     restart: unless-stopped

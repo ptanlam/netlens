@@ -119,7 +119,7 @@ function TxList({ txs, option }: { txs: Tx[]; option: InstrumentOption }) {
   );
 }
 
-function HoldingCard({ holding, txs, rules }: { holding: HoldingView; txs: Tx[]; rules: RuleView[] }) {
+function HoldingCard({ holding, txs, rules, sourceKeys }: { holding: HoldingView; txs: Tx[]; rules: RuleView[]; sourceKeys: string[] }) {
   const [open, setOpen] = React.useState(false);
   const { inst, value, pnl, cost, live } = holding;
   const option: InstrumentOption = { name: inst.name, asset_type: inst.asset_type };
@@ -188,7 +188,7 @@ function HoldingCard({ holding, txs, rules }: { holding: HoldingView; txs: Tx[];
               </span>
             )}
             <div className="ml-auto flex items-center gap-1">
-              <EditHoldingDialog holding={inst} />
+              <EditHoldingDialog holding={inst} sources={sourceKeys} />
               <DeleteHoldingButton name={inst.name} />
             </div>
           </div>
@@ -244,10 +244,12 @@ export function InvestmentManager({
   holdings,
   txsByInstrument,
   rulesByInstrument,
+  sourceKeys,
 }: {
   holdings: HoldingView[];
   txsByInstrument: Record<string, Tx[]>;
   rulesByInstrument: Record<string, RuleView[]>;
+  sourceKeys: string[];
 }) {
   const totalValue = holdings.reduce((a, h) => a + h.value, 0);
   const totalCost = holdings.reduce((a, h) => a + h.cost, 0);
@@ -284,7 +286,7 @@ export function InvestmentManager({
           </Button>
           <AddRecurringDialog instruments={options} />
           <AddTxDialog instruments={options} />
-          <AddHoldingDialog />
+          <AddHoldingDialog sources={sourceKeys} />
         </div>
       </div>
 
@@ -316,6 +318,7 @@ export function InvestmentManager({
                     holding={h}
                     txs={txsByInstrument[h.inst.name] ?? []}
                     rules={rulesByInstrument[h.inst.name] ?? []}
+                    sourceKeys={sourceKeys}
                   />
                 ))}
               </div>

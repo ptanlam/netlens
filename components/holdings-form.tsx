@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { ASSET_TYPES, PRICE_SOURCES, type Instrument } from "@/lib/types";
+import { ASSET_TYPES, type Instrument } from "@/lib/types";
 import { saveHoldings } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,7 @@ interface HoldingRow {
   idx: number;
 }
 
-const columns: ColumnDef<HoldingRow>[] = [
+const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
   {
     id: "instrument",
     header: "Instrument",
@@ -60,7 +60,7 @@ const columns: ColumnDef<HoldingRow>[] = [
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {PRICE_SOURCES.map((s) => (
+          {sources.map((s) => (
             <SelectItem key={s} value={s}>{s}</SelectItem>
           ))}
         </SelectContent>
@@ -135,14 +135,17 @@ const columns: ColumnDef<HoldingRow>[] = [
 
 export function HoldingsForm({
   rows,
+  sources,
 }: {
   rows: { inst: Instrument; value: number }[];
+  sources: string[];
 }) {
   const [pending, startTransition] = React.useTransition();
   const data = React.useMemo<HoldingRow[]>(
     () => rows.map((r, idx) => ({ ...r, idx })),
     [rows],
   );
+  const columns = React.useMemo(() => makeColumns(sources), [sources]);
 
   return (
     <form

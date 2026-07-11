@@ -15,6 +15,7 @@ const LINKS = [
   { href: "/investments", label: "Investments" },
   { href: "/savings", label: "Savings" },
   { href: "/debts", label: "Debts" },
+  { href: "/sources", label: "Price sources" },
 ];
 
 const THEMES = ["system", "light", "dark"] as const;

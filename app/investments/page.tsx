@@ -14,6 +14,7 @@ export default async function InvestmentsPage() {
   const instruments = db.listInstruments();
   const txs = db.allTransactions();
   const rules = db.listRecurring();
+  const sourceKeys = [db.MANUAL_SOURCE, ...db.listPriceSources().map((s) => s.key)];
 
   const costBy: Record<string, number> = {};
   const txsByInstrument: Record<string, Tx[]> = {};
@@ -65,6 +66,7 @@ export default async function InvestmentsPage() {
             holdings={holdings}
             txsByInstrument={txsByInstrument}
             rulesByInstrument={rulesByInstrument}
+            sourceKeys={sourceKeys}
           />
         </CardContent>
       </Card>
