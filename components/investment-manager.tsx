@@ -261,9 +261,10 @@ export function InvestmentManager({
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard tone="violet" icon={Wallet} label="Portfolio value" value={fmtVND(totalValue)} />
-        <StatCard tone="sky" icon={Landmark} label="Total invested" value={fmtVND(totalCost)} />
+        <StatCard index={0} tone="violet" icon={Wallet} label="Portfolio value" value={fmtVND(totalValue)} />
+        <StatCard index={1} tone="sky" icon={Landmark} label="Total invested" value={fmtVND(totalCost)} />
         <StatCard
+          index={2}
           tone={totalPnl >= 0 ? "emerald" : "rose"}
           icon={totalPnl >= 0 ? TrendingUp : TrendingDown}
           label="Total P&L"
@@ -271,7 +272,7 @@ export function InvestmentManager({
           valueClassName={totalPnl >= 0 ? "text-(--chart-positive)" : "text-(--chart-negative)"}
           sub={`${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`}
         />
-        <StatCard tone="amber" icon={Layers} label="Holdings" value={String(holdings.length)} />
+        <StatCard index={3} tone="amber" icon={Layers} label="Holdings" value={String(holdings.length)} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">

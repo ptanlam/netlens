@@ -65,6 +65,7 @@ export function StatCard({
   icon: Icon,
   tone = "blue",
   className,
+  index = 0,
   children,
 }: {
   label: React.ReactNode;
@@ -74,13 +75,16 @@ export function StatCard({
   icon?: LucideIcon;
   tone?: Tone;
   className?: string;
+  /** Position in a row of cards — staggers the entrance animation. */
+  index?: number;
   children?: React.ReactNode;
 }) {
   const t = TONES[tone];
   return (
     <div
+      style={{ animationDelay: `${Math.min(index * 70, 350)}ms` }}
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-xl bg-card p-4 ring-1 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg",
+        "group relative flex animate-rise-in flex-col overflow-hidden rounded-xl bg-card p-4 ring-1 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg",
         t.ring,
         t.shadow,
         className,

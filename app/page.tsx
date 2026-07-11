@@ -40,18 +40,21 @@ export default async function Dashboard() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
+          index={0}
           tone="violet"
           icon={Wallet}
           label="Portfolio value"
           value={fmtVND(payload.portfolioTotal)}
         />
         <StatCard
+          index={1}
           tone="sky"
           icon={Landmark}
           label="Total invested"
           value={fmtVND(payload.investedTotal)}
         />
         <StatCard
+          index={2}
           tone={payload.pnl >= 0 ? "emerald" : "rose"}
           icon={payload.pnl >= 0 ? TrendingUp : TrendingDown}
           label="Total P&L"
@@ -60,6 +63,7 @@ export default async function Dashboard() {
           sub={`${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`}
         />
         <StatCard
+          index={3}
           tone="amber"
           icon={Activity}
           label="Live prices"

@@ -19,6 +19,13 @@ const FMARKET_URL = "https://api.fmarket.vn/res/products/filter";
 const FMARKET_NAV_HISTORY_URL = "https://api.fmarket.vn/res/product/get-nav-history";
 const HISTORY_FROM = "20250101";
 
+/** Sources that trade every day (no exchange calendar). Only these may have their
+ *  live price stamped into `price_history` under "today" — for exchange/NAV sources
+ *  (stocks, funds) a live snapshot on a closed day (weekend/holiday) or mid-session
+ *  is not a real daily close, so the historical series is left to `refreshHistory`,
+ *  which keys official closes to actual trading dates. */
+const CONTINUOUS_STRATEGIES = new Set(["coingecko"]);
+
 function isoFromEpoch(seconds: number): string {
   const d = new Date(seconds * 1000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -120,6 +127,9 @@ export async function refreshAll(): Promise<[number, string[]]> {
       errors.push(`${rows.length} holding(s): unknown price source '${key}'`);
       continue;
     }
+    // Only continuously-traded sources (crypto) may stamp their live price into the
+    // daily history — a stock/fund snapshot on a closed market isn't a real close.
+    const trackDaily = CONTINUOUS_STRATEGIES.has(src.history_strategy);
     try {
       if (src.batch) {
         const symbols = [...new Set(rows.map((r) => r.symbol).filter(Boolean) as string[])].sort();
@@ -129,7 +139,7 @@ export async function refreshAll(): Promise<[number, string[]]> {
           const lookup = r.symbol ?? r.name;
           if (prices[lookup] != null) {
             updatePrice(r.name, prices[lookup]);
-            upsertPriceHistory(r.name, { [today]: prices[lookup] });
+            if (trackDaily) upsertPriceHistory(r.name, { [today]: prices[lookup] });
             updated += 1;
           }
           else errors.push(`${r.name}: no ${src.label} price for '${lookup}'`);
@@ -141,7 +151,7 @@ export async function refreshAll(): Promise<[number, string[]]> {
             const price = extractSingle(src, data);
             if (price != null) {
               updatePrice(r.name, price);
-              upsertPriceHistory(r.name, { [today]: price });
+              if (trackDaily) upsertPriceHistory(r.name, { [today]: price });
               updated += 1;
             }
             else errors.push(`${r.name}: no ${src.label} price`);

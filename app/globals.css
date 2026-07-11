@@ -136,3 +136,36 @@
     @apply font-sans;
   }
 }
+
+/* ---------- playful, accessibility-safe motion ---------- */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Only animate when the visitor hasn't asked to reduce motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .animate-pop-in {
+    animation: pop-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-rise-in {
+    animation: rise-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}

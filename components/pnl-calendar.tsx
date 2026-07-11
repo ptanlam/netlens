@@ -248,7 +248,7 @@ export function PnlCalendar({
             No P&L history yet — add transactions to see daily moves.
           </p>
         ) : (
-          <div className="space-y-1 sm:space-y-1.5">
+          <div key={active} className="space-y-1 sm:space-y-1.5">
             <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
               {WEEKDAYS.map((w) => (
                 <div key={w} className="text-center text-[0.65rem] font-medium text-muted-foreground sm:text-xs">
@@ -259,7 +259,16 @@ export function PnlCalendar({
             {weeks.map((week, wi) => (
               <div key={wi} className="grid grid-cols-7 gap-1 sm:gap-1.5">
                 {week.map((c, ci) => {
-                  if (!c) return <div key={ci} className="min-h-11 rounded-md sm:min-h-14" />;
+                  // Stagger the pop-in by grid position so the month "unfolds".
+                  const delay = { animationDelay: `${Math.min((wi * 7 + ci) * 14, 320)}ms` };
+                  if (!c)
+                    return (
+                      <div
+                        key={ci}
+                        style={delay}
+                        className="min-h-11 animate-pop-in rounded-md sm:min-h-14"
+                      />
+                    );
                   const tracked = byDate.has(c.date);
                   const isToday = c.date === today;
                   const cellClass = cn(
@@ -269,7 +278,7 @@ export function PnlCalendar({
                   );
                   if (!tracked)
                     return (
-                      <div key={ci} className={cellClass} title={`${c.date}\nNo data`}>
+                      <div key={ci} style={delay} className={cn(cellClass, "animate-pop-in")} title={`${c.date}\nNo data`}>
                         {cellBody(c, false)}
                       </div>
                     );
@@ -278,11 +287,11 @@ export function PnlCalendar({
                       key={ci}
                       type="button"
                       onClick={() => setSelected(c.date)}
-                      style={cellStyle(c.delta, true)}
+                      style={{ ...cellStyle(c.delta, true), ...delay }}
                       title={`${c.date}\nDay P&L: ${c.delta >= 0 ? "+" : ""}${fmtVND(c.delta)}\nTotal P&L: ${fmtVND(c.point.pnl)} · Value ${fmtVND(c.point.value)}`}
                       className={cn(
                         cellClass,
-                        "cursor-pointer outline-none hover:ring-2 hover:ring-ring/40 focus-visible:ring-2 focus-visible:ring-ring",
+                        "animate-pop-in cursor-pointer outline-none transition-all hover:-translate-y-0.5 hover:shadow-sm hover:ring-2 hover:ring-ring/40 focus-visible:ring-2 focus-visible:ring-ring active:scale-95 motion-reduce:transform-none",
                       )}
                     >
                       {cellBody(c, true)}
