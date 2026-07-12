@@ -194,7 +194,7 @@ export function InvestmentActivity({
           </div>
           {/* Fixed-height body so a partial last page (or an empty range) keeps the
               table the same size instead of collapsing. */}
-          <div className="h-[300px] overflow-y-hidden">
+          <div className="h-[294px] overflow-y-hidden">
             {pageRows.length === 0 ? (
               <div className="border-t border-[#f0ede6] py-8 text-center text-[13px] text-[#a5a29a]">
                 No transactions in this range.
