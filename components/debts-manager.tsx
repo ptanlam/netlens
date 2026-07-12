@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { BadgeCheck, CreditCard, Flame, Pencil, Plus, TriangleAlert, Trash2, Wallet } from "lucide-react";
+import { Pencil, Plus, TriangleAlert, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import {
   DEBT_KINDS, INTEREST_TYPES, type Debt, type DebtKind, type DebtPayment,
@@ -12,11 +12,11 @@ import {
 } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { debtOwed, isMatured, isRevolving, maturityDate, paidThisMonth } from "@/lib/savings";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-table";
-import { StatCard } from "@/components/stat-card";
+import { cn } from "@/lib/utils";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -471,6 +471,15 @@ const columns: ColumnDef<DebtRow>[] = [
   },
 ];
 
+function KpiTile({ label, value, valueCls, last }: { label: string; value: string; valueCls?: string; last?: boolean }) {
+  return (
+    <div className={cn("px-5 py-[18px]", !last && "border-b border-[#edeae3] sm:border-r sm:border-b-0")}>
+      <div className="font-mono text-[10.5px] tracking-[0.08em] text-[#a5a29a] uppercase">{label}</div>
+      <div className={cn("mt-[7px] font-mono text-[22px] tabular-nums", valueCls)}>{value}</div>
+    </div>
+  );
+}
+
 export function DebtsManager({
   debts,
   payments,
@@ -513,57 +522,58 @@ export function DebtsManager({
   const interest = owedSum + paidSum - principalSum;
   const dueThisMonth = rows.filter((r) => r.isCredit && !r.paidThisMonth);
 
+  const series = buildDailySeries(debts, (debt, at) => debtOwed(debt, byDebt.get(debt.id) ?? [], at));
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       {dueThisMonth.length > 0 && (
-        <Alert>
-          <TriangleAlert />
-          <AlertTitle>
-            {dueThisMonth.length} credit payment{dueThisMonth.length > 1 ? "s" : ""} due this month
-          </AlertTitle>
-          <AlertDescription>
-            Record this month&apos;s payment for {dueThisMonth.map((r) => r.debt.lender ?? "a credit account").join(", ")}
-            {" "}to avoid a late mark on your credit score.
-          </AlertDescription>
-        </Alert>
+        <div className="flex items-start gap-2.5 rounded-[10px] border border-[#e0c9a0] bg-card px-[18px] py-3.5">
+          <TriangleAlert className="mt-0.5 size-4 text-[#c07a3f]" />
+          <div>
+            <div className="text-[13.5px] font-semibold">
+              {dueThisMonth.length} credit payment{dueThisMonth.length > 1 ? "s" : ""} due this month
+            </div>
+            <div className="mt-0.5 text-[12.5px] text-muted-foreground">
+              Record this month&apos;s payment for {dueThisMonth.map((r) => r.debt.lender ?? "a credit account").join(", ")}
+              {" "}to avoid a late mark on your credit score.
+            </div>
+          </div>
+        </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard
-          tone="rose"
-          icon={CreditCard}
-          label="Currently owed"
-          value={fmtVND(owedSum)}
-          valueClassName="text-(--chart-negative)"
-        />
-        <StatCard
-          tone="emerald"
-          icon={BadgeCheck}
-          label="Total paid"
-          value={fmtVND(paidSum)}
-        />
-        <StatCard
-          tone="amber"
-          icon={Flame}
-          label="Est. interest accrued"
-          value={`+${fmtVND(interest)}`}
-          valueClassName="text-(--chart-negative)"
-        />
+      <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-3">
+        <KpiTile label="Currently owed" value={fmtVND(owedSum)} valueCls="text-(--chart-negative)" />
+        <KpiTile label="Total paid" value={fmtVND(paidSum)} />
+        <KpiTile label="Est. interest accrued" value={`+${fmtVND(interest)}`} valueCls="text-(--chart-negative)" last />
       </div>
 
+      {series.length > 1 && (
+        <ValueOverTime
+          title="Debt owed over time"
+          subtitle="Outstanding balance as interest accrues and payments post"
+          series={series}
+          stroke="#b34a3a"
+          areaFill="rgba(179,74,58,0.13)"
+          tipLabel="Owed"
+          emptyMessage="No debt history yet."
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[12.5px] text-muted-foreground">
           Sorted by interest rate — tackle the highest-rate debts first.
         </p>
         <AddDebtDialog />
       </div>
 
-      <DataTable
-        columns={columns}
-        data={rows}
-        initialSorting={[{ id: "rate", desc: true }]}
-        emptyMessage="No debts yet."
-      />
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <DataTable
+          columns={columns}
+          data={rows}
+          initialSorting={[{ id: "rate", desc: true }]}
+          emptyMessage="No debts yet."
+        />
+      </div>
     </div>
   );
 }

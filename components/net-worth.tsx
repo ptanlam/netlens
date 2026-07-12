@@ -1,61 +1,72 @@
-import { LineChart, PiggyBank, CreditCard } from "lucide-react";
 import { fmtVND } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+/** Editorial net-worth hero: a large mono figure with a breakdown rail. */
 export function NetWorthPanel({
   investments,
   savings,
   debts,
+  todayDelta,
 }: {
   investments: number;
   savings: number;
   debts: number;
+  /** Day-over-day P&L move; null while the series is still loading. */
+  todayDelta?: number | null;
 }) {
   const net = investments + savings - debts;
 
-  const parts: { label: string; value: number; sign: string; icon: typeof LineChart }[] = [
-    { label: "Investments", value: investments, sign: "", icon: LineChart },
-    { label: "Savings", value: savings, sign: "+", icon: PiggyBank },
-    { label: "Debts", value: debts, sign: "−", icon: CreditCard },
+  const parts = [
+    { label: "Investments", value: investments, sign: "", cls: "text-foreground" },
+    { label: "Savings", value: savings, sign: "+", cls: "text-accent-brand" },
+    { label: "Debts", value: debts, sign: "−", cls: "text-(--chart-negative)" },
   ];
 
   return (
-    <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 p-5 text-white shadow-lg shadow-violet-500/25 ring-1 ring-white/10 sm:p-6 dark:from-indigo-600 dark:via-violet-600 dark:to-fuchsia-700">
-      {/* decorative glows */}
-      <div className="pointer-events-none absolute -top-16 -right-10 size-56 rounded-full bg-white/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-20 left-1/3 size-56 rounded-full bg-fuchsia-300/20 blur-3xl" />
+    <div className="flex flex-wrap items-end justify-between gap-10">
+      <div>
+        <div className="font-mono text-[11px] tracking-[0.14em] text-[#a5a29a] uppercase">
+          Net worth
+        </div>
+        <div className="mt-2.5 font-mono text-[44px] leading-[0.95] font-medium tracking-[-0.03em] text-foreground tabular-nums sm:text-[56px]">
+          {fmtVND(net)}
+        </div>
+        <div className="mt-3.5 flex flex-wrap items-center gap-3.5">
+          <span className="text-[13px] text-muted-foreground">
+            Investments + Savings − Debts
+          </span>
+          {todayDelta != null && todayDelta !== 0 && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-[3px] font-mono text-[12px] tabular-nums",
+                todayDelta < 0
+                  ? "bg-[#f6eae7] text-(--chart-negative)"
+                  : "bg-accent text-accent-brand",
+              )}
+            >
+              {todayDelta < 0 ? "▾" : "▴"} Today {todayDelta < 0 ? "−" : "+"}
+              {fmtVND(Math.abs(todayDelta)).replace("-", "")}
+            </span>
+          )}
+        </div>
+      </div>
 
-      <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="text-sm font-medium text-white/75">Net worth</div>
+      <div className="min-w-[290px] border-l border-border pl-6.5">
+        {parts.map((p, i) => (
           <div
+            key={p.label}
             className={cn(
-              "mt-1 text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl",
-              net < 0 && "text-rose-100",
+              "flex items-baseline justify-between py-[7px]",
+              i < parts.length - 1 && "border-b border-[#edeae3]",
             )}
           >
-            {fmtVND(net)}
+            <span className="text-[13px] text-muted-foreground">{p.label}</span>
+            <span className={cn("font-mono text-[15px] tabular-nums", p.cls)}>
+              {p.sign}
+              {fmtVND(p.value)}
+            </span>
           </div>
-          <div className="mt-1 text-sm text-white/70">Investments + Savings − Debts</div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
-          {parts.map((p) => (
-            <div
-              key={p.label}
-              className="rounded-lg bg-white/10 px-3 py-2.5 ring-1 ring-white/15 backdrop-blur-sm transition-colors hover:bg-white/15"
-            >
-              <div className="flex items-center gap-1.5 text-xs text-white/70">
-                <p.icon className="size-3.5" />
-                {p.label}
-              </div>
-              <div className="mt-1 font-mono text-sm font-semibold tabular-nums sm:text-base">
-                {p.sign}
-                {fmtVND(p.value)}
-              </div>
-            </div>
-          ))}
-        </div>
+        ))}
       </div>
     </div>
   );

@@ -1,9 +1,6 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
 import type { RecurringRule, Tx } from "@/lib/types";
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card";
 import { InvestmentManager, type HoldingView } from "@/components/investment-manager";
 import { PendingUnitsCard } from "@/components/pending-units";
 
@@ -50,26 +47,15 @@ export default async function InvestmentsPage() {
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+    <div className="flex flex-col gap-[18px]">
       {pending.length > 0 && <PendingUnitsCard pending={pending} />}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Investments</CardTitle>
-          <CardDescription>
-            Your holdings, the transactions against them, and the recurring rules that
-            automate them — all in one place. Expand a holding to manage its activity.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <InvestmentManager
-            holdings={holdings}
-            txsByInstrument={txsByInstrument}
-            rulesByInstrument={rulesByInstrument}
-            sourceKeys={sourceKeys}
-          />
-        </CardContent>
-      </Card>
+      <InvestmentManager
+        holdings={holdings}
+        allTxs={txs}
+        txsByInstrument={txsByInstrument}
+        rulesByInstrument={rulesByInstrument}
+        sourceKeys={sourceKeys}
+      />
     </div>
   );
 }

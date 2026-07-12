@@ -1,8 +1,5 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card";
 import { SavingsManager } from "@/components/savings-manager";
 
 export default async function SavingsPage() {
@@ -10,20 +7,15 @@ export default async function SavingsPage() {
   const savings = db.listSavings();
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Savings</CardTitle>
-          <CardDescription>
-            Track term deposits — enter each deposit&apos;s principal, annual interest
-            rate, and term. Estimated current value accrues to the maturity date
-            (simple interest is paid at maturity; compound accrues monthly).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SavingsManager savings={savings} />
-        </CardContent>
-      </Card>
+    <div>
+      <div className="mb-3.5">
+        <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Savings</div>
+        <div className="mt-0.5 text-[13px] text-muted-foreground">
+          Term deposits — principal, annual rate, and term. Value accrues to maturity
+          (simple pays at maturity; compound accrues monthly).
+        </div>
+      </div>
+      <SavingsManager savings={savings} />
     </div>
   );
 }

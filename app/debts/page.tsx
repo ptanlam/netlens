@@ -1,8 +1,5 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card";
 import { DebtsManager } from "@/components/debts-manager";
 
 export default async function DebtsPage() {
@@ -11,22 +8,17 @@ export default async function DebtsPage() {
   const payments = db.listDebtPayments();
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Debts</CardTitle>
-          <CardDescription>
-            Track loans and credit accounts. Choose a <em>type</em>: <em>Fixed</em>
-            {" "}(interest on the original amount), <em>Flexible</em> (interest recomputed
-            on the remaining balance, so paying early saves interest), or <em>Credit</em>
-            {" "}(a card/line with a required monthly payment — the app flags any credit
-            account you haven&apos;t paid this month). Record repayments with the wallet button.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DebtsManager debts={debts} payments={payments} />
-        </CardContent>
-      </Card>
+    <div>
+      <div className="mb-3.5">
+        <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Debts</div>
+        <div className="mt-0.5 max-w-[820px] text-[13px] text-muted-foreground">
+          Loans and credit accounts. <span className="italic">Fixed</span> charges interest on
+          the original amount, <span className="italic">Flexible</span> recomputes on the
+          remaining balance, and <span className="italic">Credit</span> flags any card you
+          haven&apos;t paid this month. Record repayments with the wallet button.
+        </div>
+      </div>
+      <DebtsManager debts={debts} payments={payments} />
     </div>
   );
 }

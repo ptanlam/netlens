@@ -5,7 +5,6 @@ import { CheckCircle2, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import type { PriceSource } from "@/lib/types";
 import { addPriceSource, deletePriceSource, testPriceSource, updatePriceSource } from "@/app/actions";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
@@ -15,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 type ActionResult = { ok: boolean; message: string };
@@ -236,42 +234,58 @@ function DeleteSourceButton({ source }: { source: PriceSource }) {
   );
 }
 
+function Tag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full border border-border px-[9px] py-0.5 font-mono text-[10.5px] text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
 export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+    <div className="rounded-xl border border-border bg-card px-6 py-6">
+      <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Price sources</div>
+      <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
+        The feeds your holdings are priced against. Each is a self-contained config — a request
+        URL and how to read the price out — so you can add one without touching code.
+      </div>
+
+      <div className="mt-5 flex items-center justify-between border-b border-[#edeae3] pb-4">
+        <span className="text-[13px] text-muted-foreground">
           {sources.length} source{sources.length === 1 ? "" : "s"}. Holdings pick one of these to price against.
-        </p>
+        </span>
         <AddSourceDialog />
       </div>
 
-      <Separator />
-
-      <ul className="flex flex-col gap-2">
+      <div className="mt-[18px] flex flex-col gap-3.5">
         {sources.map((s) => (
-          <li key={s.key} className="flex items-start justify-between gap-3 rounded-lg border p-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{s.label}</span>
-                <Badge variant="secondary" className="font-mono">{s.key}</Badge>
-                {s.builtin ? <Badge variant="outline">built-in</Badge> : null}
+          <div key={s.key} className="rounded-[10px] border border-border p-[18px]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                <span className="font-serif text-[16px] font-semibold">{s.label}</span>
+                <span className="rounded-[5px] bg-foreground px-2 py-0.5 font-mono text-[11px] text-background">{s.key}</span>
+                {s.builtin ? (
+                  <span className="rounded-[5px] bg-background px-2 py-0.5 font-mono text-[11px] text-muted-foreground">built-in</span>
+                ) : null}
               </div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                <Badge variant="outline">{s.kind}</Badge>
-                <Badge variant="outline">{s.method}</Badge>
-                {s.batch ? <Badge variant="outline">batch</Badge> : null}
-                <Badge variant="outline">history: {s.history_strategy}</Badge>
+              <div className="flex shrink-0 items-center gap-1">
+                <EditSourceDialog source={s} />
+                <DeleteSourceButton source={s} />
               </div>
-              <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{s.url}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <EditSourceDialog source={s} />
-              <DeleteSourceButton source={s} />
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <Tag>{s.kind}</Tag>
+              <Tag>{s.method}</Tag>
+              {s.batch ? <Tag>batch</Tag> : null}
+              <Tag>history: {s.history_strategy}</Tag>
             </div>
-          </li>
+            <div className="mt-3 rounded-[7px] border border-[#f0ede6] bg-muted px-3 py-2.5 font-mono text-[12px] break-all text-muted-foreground">
+              {s.url}
+            </div>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

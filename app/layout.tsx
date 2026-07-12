@@ -1,23 +1,31 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { ThemeProvider } from "next-themes";
-import { Toaster } from "@/components/ui/sonner";
-import { Nav } from "@/components/nav";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Newsreader, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
+import { Toaster } from '@/components/ui/sonner';
+import { Nav } from '@/components/nav';
+import './globals.css';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const plexSans = IBM_Plex_Sans({
+  variable: '--font-plex-sans',
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const plexMono = IBM_Plex_Mono({
+  variable: '--font-plex-mono',
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+});
+
+const newsreader = Newsreader({
+  variable: '--font-newsreader',
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
 });
 
 export const metadata: Metadata = {
-  title: "Personal Finance",
-  description: "Personal finance tracking and visualization",
+  title: 'Netlens',
+  description: 'Netlens tracking and visualization',
 };
 
 export default function RootLayout({
@@ -26,19 +34,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      suppressHydrationWarning
-    >
-      <body className="min-h-full flex flex-col">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
-            {children}
-          </main>
-          <Toaster richColors position="top-center" />
-        </ThemeProvider>
+    <html lang='en' className={`${plexSans.variable} ${plexMono.variable} ${newsreader.variable} h-full antialiased`}>
+      <body className='min-h-full flex flex-col'>
+        <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
+        <main className='mx-auto w-full max-w-[1180px] flex-1 px-5 pt-8 pb-18 sm:px-8'>{children}</main>
+        <Toaster richColors position='top-center' />
       </body>
     </html>
   );
