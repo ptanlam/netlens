@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { refreshPrices } from "@/app/actions";
@@ -75,6 +76,7 @@ function useRefreshPrices() {
   const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
   const inFlight = React.useRef(false);
   const lastRun = React.useRef(0);
+  const router = useRouter();
 
   const run = React.useCallback(
     (silent = false) => {
@@ -84,6 +86,11 @@ function useRefreshPrices() {
         try {
           const res = await refreshPrices();
           lastRun.current = Date.now();
+          // Every server-rendered stat (KPIs, allocation, P&L by holding, net worth) is
+          // computed from the DB at render time, so re-render the tree to pick up the
+          // prices we just wrote. The action's revalidatePath alone leaves the client
+          // sitting on the tree it already has.
+          router.refresh();
           refreshCount += 1;
           for (const cb of refreshListeners) cb();
           if (res.ok) {
@@ -95,7 +102,7 @@ function useRefreshPrices() {
         }
       });
     },
-    [startTransition],
+    [startTransition, router],
   );
 
   return { pending, run, lastUpdated, lastRun };
