@@ -25,7 +25,15 @@ function niceMax(v: number): number {
 }
 
 function fmtLabel(date: string, tf: Bucket): string {
-  return tf === "Monthly" || tf === "Yearly" ? date.slice(0, 7) : date;
+  if (tf === "Yearly") return date.slice(0, 4);
+  return tf === "Monthly" ? date.slice(0, 7) : date;
+}
+
+/** Axis labels drop the year on narrow screens so they don't collide. */
+function fmtAxisLabel(date: string, tf: Bucket, compact: boolean): string {
+  const full = fmtLabel(date, tf);
+  if (!compact || tf === "Yearly") return full;
+  return tf === "Monthly" ? full.slice(2) : full.slice(5);
 }
 
 export function PortfolioChart({
@@ -101,7 +109,13 @@ export function PortfolioChart({
         ) : !series ? (
           <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>
         ) : (
-          <ChartSvg pts={pts} metric={metric} hoverIdx={hoverIdx} setHoverIdx={setHoverIdx} />
+          <ChartSvg
+            pts={pts}
+            metric={metric}
+            timeframe={timeframe}
+            hoverIdx={hoverIdx}
+            setHoverIdx={setHoverIdx}
+          />
         )}
       </div>
     </div>
@@ -111,17 +125,30 @@ export function PortfolioChart({
 function ChartSvg({
   pts,
   metric,
+  timeframe,
   hoverIdx,
   setHoverIdx,
 }: {
   pts: Point[];
   metric: Metric;
+  timeframe: Bucket;
   hoverIdx: number | null;
   setHoverIdx: (i: number | null) => void;
 }) {
   const n = pts.length;
   const W = 1000;
   const H = 250;
+
+  // Rendered width of the plot area, so the x axis can thin its labels to fit.
+  const axisRef = React.useRef<HTMLDivElement>(null);
+  const [axisW, setAxisW] = React.useState(0);
+  React.useEffect(() => {
+    const el = axisRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setAxisW(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const { yMin, yMax, ticks } = React.useMemo(() => {
     const vals = pts.map((p) => p.v);
@@ -154,15 +181,43 @@ function ChartSvg({
   const green = "#2f7d55";    // gains
   const red = "#b34a3a";
 
-  const step = Math.max(1, Math.ceil(n / 9));
-  const xLabels: React.ReactNode[] = [];
-  for (let i = 0; i < n; i += step) {
-    xLabels.push(
-      <div key={i} className="absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap text-[#a5a29a]" style={{ left: `${(X(i) / W) * 100}%` }}>
-        {pts[i].label}
-      </div>,
-    );
+  // Thin the x axis to however many labels actually fit the rendered width.
+  const GLYPH = 6; // IBM Plex Mono advance at 10px
+  const GAP = 14;
+  const plotW = axisW || W;
+  const compact = axisW > 0 && axisW < 420;
+  const axisLabel = (i: number) => fmtAxisLabel(pts[i].date, timeframe, compact);
+  const labelW = (i: number) => axisLabel(i).length * GLYPH;
+  const fits = Math.max(2, Math.min(9, Math.floor(plotW / (labelW(0) + GAP))));
+  const step = Math.max(1, Math.ceil((n - 1) / (fits - 1)));
+
+  // Walk back from the newest point so the latest date is always labelled. The two edge
+  // labels are pinned inside the plot rather than centred, so they reach half a label
+  // further inwards and can still crowd a neighbour — drop any label that collides.
+  const xIdx: number[] = [];
+  let keptLeft = Infinity;
+  for (let i = n - 1; i >= 0; i -= step) {
+    const w = labelW(i);
+    const left = labelLeft(X(i) / W, plotW, w, i, n);
+    if (left + w + GAP > keptLeft) continue;
+    xIdx.push(i);
+    keptLeft = left;
   }
+  xIdx.reverse();
+
+  const xLabels = xIdx.map((i) => (
+    <div
+      key={i}
+      className="absolute font-mono text-[10px] whitespace-nowrap text-[#a5a29a]"
+      style={{
+        left: `${(X(i) / W) * 100}%`,
+        // Keep the edge labels inside the plot instead of centring them past it.
+        transform: i === 0 ? "none" : i === n - 1 ? "translateX(-100%)" : "translateX(-50%)",
+      }}
+    >
+      {axisLabel(i)}
+    </div>
+  ));
 
   const hi = hoverIdx != null && pts[hi_ok(hoverIdx, n)] ? hoverIdx : null;
   const tipLeft = hi != null ? Math.max(6, Math.min(94, (X(hi) / W) * 100)) : 0;
@@ -229,11 +284,21 @@ function ChartSvg({
           </div>
         ))}
       </div>
-      <div className="relative mt-2 ml-[46px] h-[18px]">{xLabels}</div>
+      <div ref={axisRef} className="relative mt-2 ml-[46px] h-[18px]">
+        {xLabels}
+      </div>
     </div>
   );
 }
 
 function hi_ok(i: number, n: number) {
   return Math.max(0, Math.min(n - 1, i));
+}
+
+/** Left edge of an x-axis label in px — mirrors the transform applied when rendering it. */
+function labelLeft(frac: number, plotW: number, w: number, i: number, n: number): number {
+  const x = frac * plotW;
+  if (i === 0) return x;
+  if (i === n - 1) return x - w;
+  return x - w / 2;
 }
