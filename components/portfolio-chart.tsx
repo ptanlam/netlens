@@ -177,9 +177,9 @@ function ChartSvg({
   const baseY = metric === "value" ? H : zeroY;
   const area = line + "L" + X(n - 1).toFixed(1) + " " + baseY.toFixed(1) + " L 0 " + baseY.toFixed(1) + " Z";
 
-  const ink = "#17150f";      // the portfolio-value line is neutral (value isn't a gain)
-  const green = "#2f7d55";    // gains
-  const red = "#b34a3a";
+  const ink = "var(--chart-ink)";   // the portfolio-value line is neutral (value isn't a gain)
+  const green = "var(--chart-positive)";
+  const red = "var(--chart-negative)";
 
   // Thin the x axis to however many labels actually fit the rendered width.
   const GLYPH = 6; // IBM Plex Mono advance at 10px
@@ -208,7 +208,7 @@ function ChartSvg({
   const xLabels = xIdx.map((i) => (
     <div
       key={i}
-      className="absolute font-mono text-[10px] whitespace-nowrap text-[#a5a29a]"
+      className="absolute font-mono text-[10px] whitespace-nowrap text-faint"
       style={{
         left: `${(X(i) / W) * 100}%`,
         // Keep the edge labels inside the plot instead of centring them past it.
@@ -227,11 +227,11 @@ function ChartSvg({
       <div className="relative ml-[46px] h-[250px]">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 block h-full w-full">
           {ticks.map((t, i) => (
-            <line key={"g" + i} x1={0} x2={W} y1={Y(t)} y2={Y(t)} stroke={t === 0 ? "#cfc9bd" : "#efece5"} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            <line key={"g" + i} x1={0} x2={W} y1={Y(t)} y2={Y(t)} stroke={t === 0 ? "var(--grid-strong)" : "var(--grid)"} strokeWidth={1} vectorEffect="non-scaling-stroke" />
           ))}
           {metric === "value" ? (
             <>
-              <path className="animate-fade-in" d={area} fill="rgba(23,21,15,0.11)" />
+              <path className="animate-fade-in" d={area} fill="rgb(var(--ink-rgb) / 0.11)" />
               <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke={ink} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
             </>
           ) : (
@@ -240,15 +240,15 @@ function ChartSvg({
                 <clipPath id="clipPos"><rect x={0} y={0} width={W} height={Math.max(0, zeroY)} /></clipPath>
                 <clipPath id="clipNeg"><rect x={0} y={zeroY} width={W} height={Math.max(0, H - zeroY)} /></clipPath>
               </defs>
-              <path className="animate-fade-in" d={area} fill="rgba(47,125,85,0.13)" clipPath="url(#clipPos)" />
-              <path className="animate-fade-in" d={area} fill="rgba(179,74,58,0.13)" clipPath="url(#clipNeg)" />
-              <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke="#3a372f" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+              <path className="animate-fade-in" d={area} fill="rgb(var(--positive-rgb) / 0.13)" clipPath="url(#clipPos)" />
+              <path className="animate-fade-in" d={area} fill="rgb(var(--negative-rgb) / 0.13)" clipPath="url(#clipNeg)" />
+              <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke="var(--chart-ink)" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
             </>
           )}
           {hi != null && (
             <>
-              <line x1={X(hi)} x2={X(hi)} y1={0} y2={H} stroke="#17150f" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
-              <circle cx={X(hi)} cy={Y(pts[hi].v)} r={4} fill="#fff" stroke={pts[hi].v < 0 ? red : metric === "value" ? ink : green} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+              <line x1={X(hi)} x2={X(hi)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
+              <circle cx={X(hi)} cy={Y(pts[hi].v)} r={4} fill="var(--card)" stroke={pts[hi].v < 0 ? red : metric === "value" ? ink : green} strokeWidth={2} vectorEffect="non-scaling-stroke" />
             </>
           )}
           <rect
@@ -270,7 +270,7 @@ function ChartSvg({
         {hi != null && (
           <div className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 whitespace-nowrap" style={{ left: `${tipLeft}%` }}>
             <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].label}</div>
-            <div className="font-mono text-[12.5px] tabular-nums" style={{ color: pts[hi].v < 0 ? "#e8a294" : metric === "value" ? "#c9c4b9" : "#8fd3ac" }}>
+            <div className="font-mono text-[12.5px] tabular-nums" style={{ color: pts[hi].v < 0 ? "var(--tooltip-negative)" : metric === "value" ? "var(--tooltip-neutral)" : "var(--tooltip-positive)" }}>
               {pts[hi].v >= 0 && metric === "pl" ? "+" : ""}
               {fmtVND(pts[hi].v)}
             </div>
@@ -279,7 +279,7 @@ function ChartSvg({
       </div>
       <div className="absolute top-0 left-0 h-[250px] w-[46px]">
         {ticks.map((t, i) => (
-          <div key={"y" + i} className="absolute left-0 -translate-y-1/2 font-mono text-[10.5px] text-[#a5a29a]" style={{ top: `${(Y(t) / H) * 100}%` }}>
+          <div key={"y" + i} className="absolute left-0 -translate-y-1/2 font-mono text-[10.5px] text-faint" style={{ top: `${(Y(t) / H) * 100}%` }}>
             {fmtTr(t)}
           </div>
         ))}

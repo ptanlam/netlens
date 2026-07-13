@@ -46,7 +46,7 @@ function ContribList({ rows }: { rows: HoldingPnlPoint["holdings"] }) {
           compact (no wasted space / no overflow) but multi-page rows don't jump. */}
       <div className={paged ? "h-[158px] overflow-hidden" : undefined}>
         {rows.slice(start, end).map((r) => (
-          <div key={r.name} className="flex items-center justify-between border-b border-[#edeae3] py-[7px]">
+          <div key={r.name} className="flex items-center justify-between border-b border-divider py-[7px]">
             <span className="font-mono text-[11px]">{r.name}</span>
             <span className={cn("font-mono text-[11px] tabular-nums", r.pnl < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
               {fmtSigned(r.pnl)}
@@ -181,59 +181,64 @@ export function PnlCalendar({
   const canNext = !!bounds && !!active && active < bounds.max;
 
   function cellStyle(c: DayCell): React.CSSProperties {
-    if (!c.tracked) return { background: "#faf9f6", border: `1px solid ${c.day === selDay ? "#17150f" : "#edeae3"}` };
+    const border = `1px solid ${c.day === selDay ? "var(--foreground)" : "var(--divider)"}`;
+    if (!c.tracked) return { background: "var(--muted)", border };
     const inten = Math.min(1, Math.abs(c.delta) / maxAbs);
     const alpha = (0.09 + 0.36 * inten).toFixed(2);
-    const bg = c.delta >= 0 ? `rgba(47,125,85,${alpha})` : `rgba(179,74,58,${alpha})`;
-    return { background: bg, border: `1px solid ${c.day === selDay ? "#17150f" : "#edeae3"}` };
+    const hue = c.delta >= 0 ? "var(--positive-rgb)" : "var(--negative-rgb)";
+    return { background: `rgb(${hue} / ${alpha})`, border };
   }
 
   return (
     <div className="mt-4 rounded-xl border border-border bg-card px-6 py-[22px]">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="font-serif text-[17px] font-semibold">P&amp;L calendar</div>
-          <div className="mt-0.5 text-[12px] text-muted-foreground">
-            Daily change in unrealized P&amp;L — select a day for the breakdown
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-5">
+          <div>
+            <div className="font-serif text-[17px] font-semibold">P&amp;L calendar</div>
+            <div className="mt-0.5 text-[12px] text-muted-foreground">
+              Daily change in unrealized P&amp;L — select a day for the breakdown
+            </div>
           </div>
+          {active && (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => shift(-1)}
+                disabled={!canPrev}
+                aria-label="Previous month"
+                className="size-7 rounded-md border border-input bg-card text-[13px] text-muted-foreground disabled:opacity-40"
+              >
+                ‹
+              </button>
+              <input
+                type="month"
+                value={active}
+                min={bounds?.min}
+                max={bounds?.max}
+                aria-label={`${MONTH_NAMES[mon - 1]} ${year} — pick a month`}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  setMonth(e.target.value);
+                  setSelectedDay(null);
+                }}
+                className="rounded-md border border-input bg-card px-2.5 py-1 text-center font-mono text-[13px] text-foreground outline-none focus:border-ring"
+              />
+              <button
+                type="button"
+                onClick={() => shift(1)}
+                disabled={!canNext}
+                aria-label="Next month"
+                className="size-7 rounded-md border border-input bg-card text-[13px] text-muted-foreground disabled:opacity-40"
+              >
+                ›
+              </button>
+            </div>
+          )}
         </div>
         {active && (
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => shift(-1)}
-              disabled={!canPrev}
-              aria-label="Previous month"
-              className="size-7 rounded-md border border-input bg-card text-[13px] text-muted-foreground disabled:opacity-40"
-            >
-              ‹
-            </button>
-            <input
-              type="month"
-              value={active}
-              min={bounds?.min}
-              max={bounds?.max}
-              aria-label={`${MONTH_NAMES[mon - 1]} ${year} — pick a month`}
-              onChange={(e) => {
-                if (!e.target.value) return;
-                setMonth(e.target.value);
-                setSelectedDay(null);
-              }}
-              className="rounded-md border border-input bg-card px-2.5 py-1 text-center font-mono text-[13px] text-foreground outline-none focus:border-ring"
-            />
-            <button
-              type="button"
-              onClick={() => shift(1)}
-              disabled={!canNext}
-              aria-label="Next month"
-              className="size-7 rounded-md border border-input bg-card text-[13px] text-muted-foreground disabled:opacity-40"
-            >
-              ›
-            </button>
-            <span className={cn("ml-2 font-mono text-[14px] tabular-nums", monthTotal < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
-              {fmtSigned(monthTotal)}
-            </span>
-          </div>
+          <span className={cn("font-mono text-[14px] tabular-nums", monthTotal < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
+            {fmtSigned(monthTotal)}
+          </span>
         )}
       </div>
 
@@ -248,7 +253,7 @@ export function PnlCalendar({
           <div>
             <div className="mb-1.5 grid grid-cols-7 gap-1.5">
               {WEEKDAYS.map((w) => (
-                <div key={w} className="text-center font-mono text-[10px] tracking-[0.06em] text-[#a5a29a] uppercase">{w}</div>
+                <div key={w} className="text-center font-mono text-[10px] tracking-[0.06em] text-faint uppercase">{w}</div>
               ))}
             </div>
             <div className="grid grid-cols-7 gap-1.5">
@@ -265,9 +270,9 @@ export function PnlCalendar({
                       c.tracked && "cursor-pointer",
                     )}
                   >
-                    <div className={cn("font-mono text-[11px]", c.tracked ? "text-muted-foreground" : "text-[#a5a29a]")}>{c.day}</div>
+                    <div className={cn("font-mono text-[11px]", c.tracked ? "text-muted-foreground" : "text-faint")}>{c.day}</div>
                     {c.tracked && (
-                      <div className={cn("hidden text-right font-mono text-[10px] tabular-nums sm:block", c.delta >= 0 ? "text-[#245f41]" : "text-[#8f3527]")}>
+                      <div className={cn("hidden text-right font-mono text-[10px] tabular-nums sm:block", c.delta >= 0 ? "text-positive-strong" : "text-negative-strong")}>
                         {fmtCompact(c.delta)}
                       </div>
                     )}
@@ -280,7 +285,7 @@ export function PnlCalendar({
           <div className="flex min-h-[200px] flex-col border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-[22px]">
             {selHas && selDate ? (
               <>
-                <div className="shrink-0 font-mono text-[11px] tracking-[0.06em] text-[#a5a29a] uppercase">
+                <div className="shrink-0 font-mono text-[11px] tracking-[0.06em] text-faint uppercase">
                   {MONTHS[mon - 1]} {selDay}, {year}
                 </div>
                 <div className={cn("mt-1.5 shrink-0 font-mono text-[21px] tracking-[-0.01em] tabular-nums", selHit!.delta < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
@@ -288,13 +293,13 @@ export function PnlCalendar({
                 </div>
                 <div className="mt-3.5 mb-2 shrink-0 text-[12px] text-muted-foreground">Per-holding contribution</div>
                 {detailRows.length === 0 ? (
-                  <p className="py-2 text-[13px] text-[#a5a29a]">No per-holding breakdown for this day.</p>
+                  <p className="py-2 text-[13px] text-faint">No per-holding breakdown for this day.</p>
                 ) : (
                   <ContribList key={selDate} rows={detailRows} />
                 )}
               </>
             ) : (
-              <p className="pt-2 text-[13px] text-[#a5a29a]">
+              <p className="pt-2 text-[13px] text-faint">
                 Select a day with activity to see the per-holding breakdown.
               </p>
             )}

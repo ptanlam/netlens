@@ -251,7 +251,7 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
         URL and how to read the price out — so you can add one without touching code.
       </div>
 
-      <div className="mt-5 flex items-center justify-between border-b border-[#edeae3] pb-4">
+      <div className="mt-5 flex items-center justify-between border-b border-divider pb-4">
         <span className="text-[13px] text-muted-foreground">
           {sources.length} source{sources.length === 1 ? "" : "s"}. Holdings pick one of these to price against.
         </span>
@@ -280,7 +280,7 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
               {s.batch ? <Tag>batch</Tag> : null}
               <Tag>history: {s.history_strategy}</Tag>
             </div>
-            <div className="mt-3 rounded-[7px] border border-[#f0ede6] bg-muted px-3 py-2.5 font-mono text-[12px] break-all text-muted-foreground">
+            <div className="mt-3 rounded-[7px] border border-divider-soft bg-muted px-3 py-2.5 font-mono text-[12px] break-all text-muted-foreground">
               {s.url}
             </div>
           </div>

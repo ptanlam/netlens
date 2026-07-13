@@ -473,8 +473,8 @@ const columns: ColumnDef<DebtRow>[] = [
 
 function KpiTile({ label, value, valueCls, last }: { label: string; value: string; valueCls?: string; last?: boolean }) {
   return (
-    <div className={cn("px-5 py-[18px]", !last && "border-b border-[#edeae3] sm:border-r sm:border-b-0")}>
-      <div className="font-mono text-[10.5px] tracking-[0.08em] text-[#a5a29a] uppercase">{label}</div>
+    <div className={cn("px-5 py-[18px]", !last && "border-b border-divider sm:border-r sm:border-b-0")}>
+      <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{label}</div>
       <div className={cn("mt-[7px] font-mono text-[22px] tabular-nums", valueCls)}>{value}</div>
     </div>
   );
@@ -527,8 +527,8 @@ export function DebtsManager({
   return (
     <div className="flex flex-col gap-4">
       {dueThisMonth.length > 0 && (
-        <div className="flex items-start gap-2.5 rounded-[10px] border border-[#e0c9a0] bg-card px-[18px] py-3.5">
-          <TriangleAlert className="mt-0.5 size-4 text-[#c07a3f]" />
+        <div className="flex items-start gap-2.5 rounded-[10px] border border-warning-border bg-card px-[18px] py-3.5">
+          <TriangleAlert className="mt-0.5 size-4 text-warning" />
           <div>
             <div className="text-[13.5px] font-semibold">
               {dueThisMonth.length} credit payment{dueThisMonth.length > 1 ? "s" : ""} due this month
@@ -552,8 +552,8 @@ export function DebtsManager({
           title="Debt owed over time"
           subtitle="Outstanding balance as interest accrues and payments post"
           series={series}
-          stroke="#b34a3a"
-          areaFill="rgba(179,74,58,0.13)"
+          stroke="var(--chart-negative)"
+          areaFill="rgb(var(--negative-rgb) / 0.13)"
           tipLabel="Owed"
           emptyMessage="No debt history yet."
         />

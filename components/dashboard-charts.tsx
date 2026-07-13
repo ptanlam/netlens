@@ -13,12 +13,12 @@ import { cn } from "@/lib/utils";
 
 /** Fixed slot per asset type — colour follows the entity, never its rank. */
 const TYPE_COLORS: Record<string, string> = {
-  Funds: "#c2b48f",
-  Stocks: "#2b2924",
-  Crypto: "#c07a3f",
-  "Real Estate": "#857f70",
+  Funds: "var(--chart-1)",
+  Stocks: "var(--chart-2)",
+  Crypto: "var(--chart-3)",
+  "Real Estate": "var(--chart-4)",
 };
-const typeColor = (t: string) => TYPE_COLORS[t] ?? "#2f7d55";
+const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
 
 /** Short VND for bars/legends: ₫372tr, ₫22tr. */
 function fmtTrVND(v: number): string {
@@ -167,14 +167,14 @@ export function DashboardCharts({
       <div className="mt-[30px] grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-4">
         {kpis.map((k, i) => {
           const tone = k.positive ? "text-accent-brand" : "text-(--chart-negative)";
-          const tint = k.emph ? (k.positive ? "bg-[#eef5f1]" : "bg-[#fbeeeb]") : "";
+          const tint = k.emph ? (k.positive ? "bg-positive-wash" : "bg-negative-wash") : "";
           // Divider to the right: tint it when it sits between two emphasized
           // tiles, so a rust/green wash isn't split by a muddy neutral gray line.
           const between = k.emph && kpis[i + 1]?.emph;
-          const divider = between ? (k.positive ? "border-[#d9e8df]" : "border-[#f0d9d3]") : "border-[#edeae3]";
+          const divider = between ? (k.positive ? "border-positive-border" : "border-negative-border") : "border-divider";
           return (
             <div key={k.label} className={cn("px-4 py-4 sm:px-5 sm:py-[18px]", tint, divider, i < 3 && "lg:border-r", i % 2 === 0 && "border-r lg:border-r")}>
-              <div className={cn("font-mono text-[10.5px] tracking-[0.08em] uppercase", k.emph ? cn("font-semibold", tone) : "text-[#a5a29a]")}>{k.label}</div>
+              <div className={cn("font-mono text-[10.5px] tracking-[0.08em] uppercase", k.emph ? cn("font-semibold", tone) : "text-faint")}>{k.label}</div>
               <div
                 className={cn(
                   "mt-[7px] font-mono tracking-[-0.01em] tabular-nums",
@@ -198,9 +198,9 @@ export function DashboardCharts({
       {pending > 0 && (
         <Link
           href="/investments"
-          className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#e0c9a0] bg-card px-4 py-3.5 transition-colors hover:bg-muted"
+          className="mt-4 flex items-start gap-2.5 rounded-xl border border-warning-border bg-card px-4 py-3.5 transition-colors hover:bg-muted"
         >
-          <TriangleAlert className="mt-0.5 size-4 text-[#c07a3f]" />
+          <TriangleAlert className="mt-0.5 size-4 text-warning" />
           <div>
             <div className="text-[13.5px] font-semibold">
               {pending} fund purchase{pending > 1 ? "s" : ""} awaiting unit confirmation
@@ -244,7 +244,7 @@ export function DashboardCharts({
 function ActivityCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
-      <div className="font-mono text-[10.5px] tracking-[0.08em] text-[#a5a29a] uppercase">{label}</div>
+      <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{label}</div>
       <div className="mt-[5px] font-mono text-[17px] tabular-nums">{value}</div>
     </div>
   );
@@ -268,7 +268,7 @@ function AllocationCard({ payload }: { payload: Payload }) {
       </div>
       <div className="flex flex-col">
         {rows.map((r, i) => (
-          <div key={r.type} className={cn("flex items-center justify-between py-[9px]", i < rows.length - 1 && "border-b border-[#edeae3]")}>
+          <div key={r.type} className={cn("flex items-center justify-between py-[9px]", i < rows.length - 1 && "border-b border-divider")}>
             <div className="flex items-center gap-2.5">
               <span className="size-[9px] rounded-[2px]" style={{ background: r.color }} />
               <span className="text-[13px]">{r.type}</span>
@@ -344,7 +344,7 @@ function PnlByHoldingCard({ payload }: { payload: Payload }) {
           const neg = p.pnl < 0;
           const w = neg ? (Math.abs(p.pnl) / (maxNeg || 1)) * zeroPct : (p.pnl / (maxPos || 1)) * (100 - zeroPct);
           const left = neg ? zeroPct - w : zeroPct;
-          const color = neg ? "#b34a3a" : "#2f7d55";
+          const color = neg ? "var(--chart-negative)" : "var(--chart-positive)";
           return (
             <div key={p.name} className="flex items-center gap-3">
               <div className="w-[104px] truncate text-right font-mono text-[12px]" title={p.name}>{p.name}</div>

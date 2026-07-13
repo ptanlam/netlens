@@ -25,7 +25,7 @@ export function NetWorthPanel({
   return (
     <div className="flex flex-wrap items-end justify-between gap-10">
       <div>
-        <div className="font-mono text-[11px] tracking-[0.14em] text-[#a5a29a] uppercase">
+        <div className="font-mono text-[11px] tracking-[0.14em] text-faint uppercase">
           Net worth
         </div>
         <div className="mt-2.5 font-mono text-[44px] leading-[0.95] font-medium tracking-[-0.03em] text-foreground tabular-nums sm:text-[56px]">
@@ -40,7 +40,7 @@ export function NetWorthPanel({
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md px-2.5 py-[3px] font-mono text-[12px] tabular-nums",
                 todayDelta < 0
-                  ? "bg-[#f6eae7] text-(--chart-negative)"
+                  ? "bg-negative-wash-strong text-(--chart-negative)"
                   : "bg-accent text-accent-brand",
               )}
             >
@@ -57,7 +57,7 @@ export function NetWorthPanel({
             key={p.label}
             className={cn(
               "flex items-baseline justify-between py-[7px]",
-              i < parts.length - 1 && "border-b border-[#edeae3]",
+              i < parts.length - 1 && "border-b border-divider",
             )}
           >
             <span className="text-[13px] text-muted-foreground">{p.label}</span>

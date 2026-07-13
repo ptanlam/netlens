@@ -8,12 +8,12 @@ import type { InstrumentOption } from "@/components/tx-form";
 import { cn } from "@/lib/utils";
 
 const TYPE_COLORS: Record<string, string> = {
-  Funds: "#c2b48f",
-  Stocks: "#2b2924",
-  Crypto: "#c07a3f",
-  "Real Estate": "#857f70",
+  Funds: "var(--chart-1)",
+  Stocks: "var(--chart-2)",
+  Crypto: "var(--chart-3)",
+  "Real Estate": "var(--chart-4)",
 };
-const typeColor = (t: string) => TYPE_COLORS[t] ?? "#2f7d55";
+const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
 
 const PER_PAGE = 6;
 
@@ -137,14 +137,14 @@ export function InvestmentActivity({
           </div>
           <div className="flex items-center gap-1.5">
             <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(0); }} className={selectCls} />
-            <span className="text-[#a5a29a]">–</span>
+            <span className="text-faint">–</span>
             <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(0); }} className={selectCls} />
           </div>
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2.5">
-        <span className="font-mono text-[10px] tracking-[0.06em] text-[#a5a29a] uppercase">Filter</span>
+        <span className="font-mono text-[10px] tracking-[0.06em] text-faint uppercase">Filter</span>
         <select value={filterHolding} onChange={(e) => { setFilterHolding(e.target.value); setPage(0); }} className={selectCls}>
           <option value="All">All holdings</option>
           {holdingNames.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -157,37 +157,37 @@ export function InvestmentActivity({
       </div>
 
       {/* Summary tiles */}
-      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-[#edeae3] bg-[#edeae3] lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-divider bg-divider lg:grid-cols-4">
         <SummaryTile label="Transactions" value={String(filtered.length)} />
         <SummaryTile label="Invested" value={fmtVND(invested)} />
         <SummaryTile label="Proceeds" value={proceeds > 0 ? fmtVND(proceeds) : "₫0"} valueCls="text-accent-brand" />
         <SummaryTile label="Net deployed" value={fmtVND(net)} />
       </div>
 
-      <div className="mt-6 mb-3 font-mono text-[10px] tracking-[0.08em] text-[#a5a29a] uppercase">
+      <div className="mt-6 mb-3 font-mono text-[10px] tracking-[0.08em] text-faint uppercase">
         Cumulative capital deployed
       </div>
       <CumulativeChart txs={filtered} from={from} to={to} />
 
-      <div className="mt-6 mb-2.5 font-mono text-[10px] tracking-[0.08em] text-[#a5a29a] uppercase">
+      <div className="mt-6 mb-2.5 font-mono text-[10px] tracking-[0.08em] text-faint uppercase">
         Capital deployed by month
       </div>
       <div className="flex items-end gap-3">
         {bars.map((b) => (
           <div key={b.key} className="flex flex-1 flex-col items-center gap-1.5">
             <div className="flex h-[54px] w-full items-end">
-              <div className="w-full rounded-t-[3px] bg-[#c2b48f]" style={{ height: `${Math.max(3, Math.round((b.amt / maxBar) * 100))}%` }} />
+              <div className="w-full rounded-t-[3px] bg-chart-1" style={{ height: `${Math.max(3, Math.round((b.amt / maxBar) * 100))}%` }} />
             </div>
-            <div className="font-mono text-[10px] text-[#a5a29a]">{b.label}</div>
+            <div className="font-mono text-[10px] text-faint">{b.label}</div>
             <div className="font-mono text-[9.5px] text-muted-foreground tabular-nums">{trVND(b.amt)}</div>
           </div>
         ))}
       </div>
 
       {/* Transactions table */}
-      <div className="mt-6 overflow-x-auto border-t border-[#edeae3]">
+      <div className="mt-6 overflow-x-auto border-t border-divider">
         <div className="min-w-[720px]">
-          <div className="grid grid-cols-[88px_128px_58px_1fr_1fr_118px_56px] gap-3 py-3 font-mono text-[10px] tracking-[0.06em] text-[#a5a29a] uppercase">
+          <div className="grid grid-cols-[88px_128px_58px_1fr_1fr_118px_56px] gap-3 py-3 font-mono text-[10px] tracking-[0.06em] text-faint uppercase">
             <span>Date</span><span>Holding</span><span>Type</span>
             <span className="text-right">Units</span><span className="text-right">Price</span>
             <span className="text-right">Amount</span><span />
@@ -196,7 +196,7 @@ export function InvestmentActivity({
               table the same size instead of collapsing. */}
           <div className="h-[294px] overflow-y-hidden">
             {pageRows.length === 0 ? (
-              <div className="border-t border-[#f0ede6] py-8 text-center text-[13px] text-[#a5a29a]">
+              <div className="border-t border-divider-soft py-8 text-center text-[13px] text-faint">
                 No transactions in this range.
               </div>
             ) : (
@@ -204,7 +204,7 @@ export function InvestmentActivity({
                 const isBuy = t.amount >= 0;
                 const price = t.quantity ? t.amount / t.quantity : null;
                 return (
-                  <div key={t.id} className="grid grid-cols-[88px_128px_58px_1fr_1fr_118px_56px] items-center gap-3 border-t border-[#f0ede6] py-2.5">
+                  <div key={t.id} className="grid grid-cols-[88px_128px_58px_1fr_1fr_118px_56px] items-center gap-3 border-t border-divider-soft py-2.5">
                     <span className="font-mono text-[12px] text-muted-foreground tabular-nums">{t.date}</span>
                     <div className="flex items-center gap-2 overflow-hidden">
                       <span className="size-2 shrink-0 rounded-[2px]" style={{ background: typeColor(t.asset_type) }} />
@@ -213,7 +213,7 @@ export function InvestmentActivity({
                     <span
                       className={cn(
                         "rounded-[5px] px-[7px] py-0.5 text-center font-mono text-[10px]",
-                        isBuy ? "bg-[#f0ede6] text-muted-foreground" : "bg-accent text-accent-brand",
+                        isBuy ? "bg-divider-soft text-muted-foreground" : "bg-accent text-accent-brand",
                       )}
                     >
                       {isBuy ? "Buy" : "Sell"}
@@ -228,8 +228,8 @@ export function InvestmentActivity({
             )}
           </div>
           {filtered.length > 0 && (
-            <div className="mt-1.5 flex items-center justify-between border-t border-[#edeae3] pt-3.5">
-              <span className="font-mono text-[11.5px] text-[#a5a29a] tabular-nums">
+            <div className="mt-1.5 flex items-center justify-between border-t border-divider pt-3.5">
+              <span className="font-mono text-[11.5px] text-faint tabular-nums">
                 {rowFirst}–{rowLast} of {filtered.length}
               </span>
               <div className="flex gap-1.5">
@@ -237,7 +237,7 @@ export function InvestmentActivity({
                   type="button"
                   onClick={() => setPage(safePage - 1)}
                   disabled={safePage === 0}
-                  className="rounded-md border border-input bg-card px-3 py-1.5 font-mono text-[11.5px] disabled:text-[#c7c3ba]"
+                  className="rounded-md border border-input bg-card px-3 py-1.5 font-mono text-[11.5px] disabled:text-disabled-foreground"
                 >
                   ‹ Prev
                 </button>
@@ -245,7 +245,7 @@ export function InvestmentActivity({
                   type="button"
                   onClick={() => setPage(safePage + 1)}
                   disabled={safePage >= totalPages - 1}
-                  className="rounded-md border border-input bg-card px-3 py-1.5 font-mono text-[11.5px] disabled:text-[#c7c3ba]"
+                  className="rounded-md border border-input bg-card px-3 py-1.5 font-mono text-[11.5px] disabled:text-disabled-foreground"
                 >
                   Next ›
                 </button>
@@ -261,7 +261,7 @@ export function InvestmentActivity({
 function SummaryTile({ label, value, valueCls }: { label: string; value: string; valueCls?: string }) {
   return (
     <div className="bg-card px-4 py-3.5">
-      <div className="font-mono text-[10px] tracking-[0.08em] text-[#a5a29a] uppercase">{label}</div>
+      <div className="font-mono text-[10px] tracking-[0.08em] text-faint uppercase">{label}</div>
       <div className={cn("mt-1.5 font-mono text-[19px] tabular-nums", valueCls)}>{value}</div>
     </div>
   );
@@ -316,19 +316,19 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
     <div className="relative">
       <div className="relative ml-[52px] h-[150px]">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 block h-full w-full">
-          <line x1={0} x2={W} y1={H - 1} y2={H - 1} stroke="#efece5" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          <path className="animate-fade-in" d={area} fill="rgba(184,154,95,0.15)" />
-          <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke="#b89a5f" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+          <line x1={0} x2={W} y1={H - 1} y2={H - 1} stroke="var(--grid)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          <path className="animate-fade-in" d={area} fill="rgb(var(--gold-rgb) / 0.15)" />
+          <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke="var(--chart-gold)" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
           {hi != null && (
             <>
-              <line x1={X(pts[hi].x)} x2={X(pts[hi].x)} y1={0} y2={H} stroke="#17150f" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
-              <circle cx={X(pts[hi].x)} cy={Y(pts[hi].v)} r={4} fill="#fff" stroke="#b89a5f" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+              <line x1={X(pts[hi].x)} x2={X(pts[hi].x)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
+              <circle cx={X(pts[hi].x)} cy={Y(pts[hi].v)} r={4} fill="var(--card)" stroke="var(--chart-gold)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
             </>
           )}
           <rect x={0} y={0} width={W} height={H} fill="transparent" style={{ cursor: "crosshair" }} onMouseMove={onMove} onMouseLeave={() => setHoverIdx(null)} />
         </svg>
-        <div className="absolute -top-1.5 -left-[52px] font-mono text-[10px] text-[#a5a29a]">₫{Math.round(max / 1e6)}tr</div>
-        <div className="absolute -bottom-0.5 -left-[52px] font-mono text-[10px] text-[#a5a29a]">₫0</div>
+        <div className="absolute -top-1.5 -left-[52px] font-mono text-[10px] text-faint">₫{Math.round(max / 1e6)}tr</div>
+        <div className="absolute -bottom-0.5 -left-[52px] font-mono text-[10px] text-faint">₫0</div>
         {hi != null && (
           <div className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 whitespace-nowrap" style={{ left: `${tipLeft}%` }}>
             <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].date} · {pts[hi].label}</div>
@@ -336,7 +336,7 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
           </div>
         )}
       </div>
-      <div className="mt-1.5 ml-[52px] flex justify-between font-mono text-[10px] text-[#a5a29a] tabular-nums">
+      <div className="mt-1.5 ml-[52px] flex justify-between font-mono text-[10px] text-faint tabular-nums">
         <span>{from}</span><span>{to}</span>
       </div>
     </div>

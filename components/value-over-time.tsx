@@ -134,7 +134,7 @@ export function ValueOverTime({
                 onChange={(e) => { if (e.target.value) { setFrom(e.target.value); setHoverIdx(null); } }}
                 className={selectCls}
               />
-              <span className="text-[#a5a29a]">–</span>
+              <span className="text-faint">–</span>
               <input
                 type="date"
                 value={to}
@@ -209,7 +209,7 @@ function ChartSvg({
   const xLabels: React.ReactNode[] = [];
   for (let i = 0; i < n; i += step) {
     xLabels.push(
-      <div key={i} className="absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap text-[#a5a29a]" style={{ left: `${(X(i) / W) * 100}%` }}>
+      <div key={i} className="absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap text-faint" style={{ left: `${(X(i) / W) * 100}%` }}>
         {pts[i].date}
       </div>,
     );
@@ -223,14 +223,14 @@ function ChartSvg({
       <div className="relative ml-[46px] h-[220px]">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 block h-full w-full">
           {ticks.map((t, i) => (
-            <line key={"g" + i} x1={0} x2={W} y1={Y(t)} y2={Y(t)} stroke={t === 0 ? "#cfc9bd" : "#efece5"} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            <line key={"g" + i} x1={0} x2={W} y1={Y(t)} y2={Y(t)} stroke={t === 0 ? "var(--grid-strong)" : "var(--grid)"} strokeWidth={1} vectorEffect="non-scaling-stroke" />
           ))}
           <path className="animate-fade-in" d={area} fill={areaFill} />
           <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke={stroke} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
           {hi != null && (
             <>
-              <line x1={X(hi)} x2={X(hi)} y1={0} y2={H} stroke="#17150f" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
-              <circle cx={X(hi)} cy={Y(pts[hi].v)} r={4} fill="#fff" stroke={stroke} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+              <line x1={X(hi)} x2={X(hi)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
+              <circle cx={X(hi)} cy={Y(pts[hi].v)} r={4} fill="var(--card)" stroke={stroke} strokeWidth={2} vectorEffect="non-scaling-stroke" />
             </>
           )}
           <rect
@@ -260,7 +260,7 @@ function ChartSvg({
       </div>
       <div className="absolute top-0 left-0 h-[220px] w-[46px]">
         {ticks.map((t, i) => (
-          <div key={"y" + i} className="absolute left-0 -translate-y-1/2 font-mono text-[10.5px] text-[#a5a29a]" style={{ top: `${(Y(t) / H) * 100}%` }}>
+          <div key={"y" + i} className="absolute left-0 -translate-y-1/2 font-mono text-[10.5px] text-faint" style={{ top: `${(Y(t) / H) * 100}%` }}>
             {fmtTr(t)}
           </div>
         ))}

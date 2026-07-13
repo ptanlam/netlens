@@ -182,7 +182,7 @@ export function LivePrices() {
   return (
     <div className="flex items-center gap-2 sm:gap-3.5">
       <div className="hidden text-right leading-tight sm:block">
-        <div className="font-mono text-[10px] tracking-[0.06em] text-[#a5a29a] uppercase">Live prices</div>
+        <div className="font-mono text-[10px] tracking-[0.06em] text-faint uppercase">Live prices</div>
         <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
       </div>
 
@@ -200,7 +200,7 @@ export function LivePrices() {
               : "border-input bg-card text-muted-foreground hover:bg-muted",
           )}
         >
-          <span className={cn("size-1.5 rounded-full", live ? "animate-pulse bg-accent-brand" : "bg-[#c9c4b9]")} />
+          <span className={cn("size-1.5 rounded-full", live ? "animate-pulse bg-accent-brand" : "bg-disabled-foreground")} />
           Live
           {live && <span className="tabular-nums">· {INTERVALS.find((i) => i.ms === intervalMs)?.label}</span>}
         </SelectTrigger>

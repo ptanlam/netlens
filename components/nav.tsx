@@ -7,6 +7,7 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Menu, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LivePrices } from '@/components/live-prices';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { logout } from '@/app/actions';
 import { cn } from '@/lib/utils';
 
@@ -100,7 +101,7 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   const pathname = usePathname();
   if (pathname === '/login') return null;
   return (
-    <header className='sticky top-0 z-40 border-b border-border bg-[rgba(244,242,238,0.86)] backdrop-blur-[10px]'>
+    <header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) backdrop-blur-[10px]'>
       <div className='mx-auto flex h-[58px] w-full max-w-[1180px] items-center justify-between gap-3 px-5 sm:px-8'>
         <div className='flex min-w-0 items-center gap-3 sm:gap-7'>
           <div className='sm:hidden'>
@@ -115,6 +116,7 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
         </div>
         <div className='flex items-center gap-2'>
           <LivePrices />
+          <ThemeToggle />
           {authEnabled && <LogoutButton />}
         </div>
       </div>

@@ -30,9 +30,19 @@
   System → Light → Dark. Colors come from CSS vars in `app/globals.css`.
 
 ## Colors
+- **Never hardcode a color.** Every colour must resolve to a CSS var from
+  `app/globals.css`, because each one has a `.dark` counterpart — a raw hex silently
+  breaks dark mode. Use the semantic tokens: `text-faint`, `border-divider(-soft)`,
+  `bg-warning(-bg)`, `bg-positive-wash` / `bg-negative-wash`, `text-*-strong`,
+  `--grid` / `--grid-strong` (chart gridlines), `--chart-ink` / `--chart-gold` (lines).
+  For computed alphas (area fills, tinted calendar cells) use the bare RGB triples:
+  `rgb(var(--positive-rgb) / 0.13)`.
+- The chart tooltip is `bg-foreground`, so its surface **inverts** with the theme. Its
+  text uses `--tooltip-positive/negative/neutral`, which flip in `.dark` to stay legible.
 - Asset types have fixed slots: `TYPE_COLORS` in `dashboard-charts.tsx`
   (Funds=chart-1, Stocks=chart-2, Crypto=chart-3, Real Estate=chart-4). Color follows
-  the entity, never its rank.
+  the entity, never its rank. Stocks is near-black on paper and inverts to near-white in
+  dark, so it stays visible.
 - Gains/losses: `text-(--chart-positive)` / `text-(--chart-negative)` (Tailwind v4
   arbitrary-property syntax). Debts/owed amounts render negative-colored.
 

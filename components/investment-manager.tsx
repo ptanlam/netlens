@@ -27,12 +27,12 @@ export interface HoldingView {
 type RuleView = { rule: RecurringRule; nextDue: string | null };
 
 const TYPE_COLORS: Record<string, string> = {
-  Funds: "#c2b48f",
-  Stocks: "#2b2924",
-  Crypto: "#c07a3f",
-  "Real Estate": "#857f70",
+  Funds: "var(--chart-1)",
+  Stocks: "var(--chart-2)",
+  Crypto: "var(--chart-3)",
+  "Real Estate": "var(--chart-4)",
 };
-const typeColor = (t: string) => TYPE_COLORS[t] ?? "#2f7d55";
+const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
 
 function DeleteHoldingButton({ name }: { name: string }) {
   const [pending, startTransition] = React.useTransition();
@@ -58,7 +58,7 @@ function DeleteHoldingButton({ name }: { name: string }) {
 
 function TxRow({ tx, option }: { tx: Tx; option: InstrumentOption }) {
   return (
-    <div className="flex items-center gap-3 border-b border-[#f0ede6] py-2 text-sm last:border-0">
+    <div className="flex items-center gap-3 border-b border-divider-soft py-2 text-sm last:border-0">
       <span className="font-mono whitespace-nowrap tabular-nums text-muted-foreground">{tx.date}</span>
       <span className={cn("font-mono whitespace-nowrap font-medium tabular-nums", tx.amount < 0 && "text-(--chart-negative)")}>
         {fmtVND(tx.amount)}
@@ -117,7 +117,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
   const usesFallback = inst.price_source !== "manual" && !live;
 
   return (
-    <div className="border-t border-[#f0ede6] first:border-t-0">
+    <div className="border-t border-divider-soft first:border-t-0">
       <div
         onClick={() => setOpen((o) => !o)}
         role="button"
@@ -126,19 +126,19 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
         className="flex cursor-pointer items-center justify-between gap-3 px-[18px] py-3.5"
       >
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className={cn("inline-block font-mono text-[12px] text-[#a5a29a] transition-transform", open && "rotate-90")}>▸</span>
+          <span className={cn("inline-block font-mono text-[12px] text-faint transition-transform", open && "rotate-90")}>▸</span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="truncate text-[14px] font-semibold">{inst.name}</span>
               <span className="rounded-[5px] bg-background px-[7px] py-0.5 font-mono text-[10px] text-muted-foreground">{inst.asset_type}</span>
               {live && <span className="rounded-[5px] bg-accent px-[7px] py-0.5 font-mono text-[10px] text-accent-brand">live</span>}
               {usesFallback && (
-                <span title={`No live price from ${inst.price_source} — showing the fallback value.`} className="rounded-[5px] bg-[#fbf1e6] px-[7px] py-0.5 font-mono text-[10px] text-[#c07a3f]">
+                <span title={`No live price from ${inst.price_source} — showing the fallback value.`} className="rounded-[5px] bg-warning-bg px-[7px] py-0.5 font-mono text-[10px] text-warning">
                   fallback
                 </span>
               )}
             </div>
-            <div className="mt-1 font-mono text-[11.5px] text-[#a5a29a] tabular-nums">
+            <div className="mt-1 font-mono text-[11.5px] text-faint tabular-nums">
               {inst.quantity != null && inst.last_price != null
                 ? `${inst.quantity} × ${inst.last_price.toLocaleString("de-DE")}`
                 : "manual value"}
@@ -156,7 +156,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
       </div>
 
       {open && (
-        <div className="border-t border-[#f0ede6] bg-muted px-[18px] py-4 pl-[41px]">
+        <div className="border-t border-divider-soft bg-muted px-[18px] py-4 pl-[41px]">
           <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-muted-foreground">
             <span>Source: {inst.price_source}</span>
             {inst.symbol && <span>Symbol: {inst.symbol}</span>}
@@ -254,8 +254,8 @@ export function InvestmentManager({
       {/* KPI strip */}
       <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-4">
         {kpis.map((k, i) => (
-          <div key={k.label} className={cn("px-4 py-4 sm:px-5 sm:py-[18px]", i % 2 === 0 && "border-r border-[#edeae3]", i < 3 && "lg:border-r lg:border-[#edeae3]")}>
-            <div className="font-mono text-[10.5px] tracking-[0.08em] text-[#a5a29a] uppercase">{k.label}</div>
+          <div key={k.label} className={cn("px-4 py-4 sm:px-5 sm:py-[18px]", i % 2 === 0 && "border-r border-divider", i < 3 && "lg:border-r lg:border-divider")}>
+            <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{k.label}</div>
             <div className={cn("mt-[7px] font-mono text-[17px] tracking-[-0.01em] tabular-nums sm:text-[22px]", k.valueCls)}>{k.value}</div>
             {k.sub && <div className={cn("mt-[3px] text-[11.5px] text-muted-foreground", k.subCls)}>{k.sub}</div>}
           </div>
@@ -291,7 +291,7 @@ export function InvestmentManager({
                 <div className="flex items-center gap-2.5">
                   <span className="size-[9px] rounded-[2px]" style={{ background: typeColor(group.type) }} />
                   <span className="text-[14px] font-semibold">{group.type}</span>
-                  <span className="text-[12px] text-[#a5a29a]">
+                  <span className="text-[12px] text-faint">
                     {group.holdings.length} holding{group.holdings.length === 1 ? "" : "s"}
                   </span>
                 </div>

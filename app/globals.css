@@ -12,6 +12,29 @@
   --font-heading: var(--font-newsreader);
   --font-serif: var(--font-newsreader);
   --color-accent-brand: var(--accent-brand);
+  /* Semantic surface/ink tokens — every one of these has a `.dark` counterpart,
+     so components must use them instead of raw hex. */
+  --color-faint: var(--faint);
+  --color-divider: var(--divider);
+  --color-divider-soft: var(--divider-soft);
+  --color-grid: var(--grid);
+  --color-grid-strong: var(--grid-strong);
+  --color-chart-ink: var(--chart-ink);
+  --color-chart-gold: var(--chart-gold);
+  --color-warning: var(--warning);
+  --color-warning-border: var(--warning-border);
+  --color-warning-bg: var(--warning-bg);
+  --color-positive-wash: var(--positive-wash);
+  --color-positive-border: var(--positive-border);
+  --color-positive-strong: var(--positive-strong);
+  --color-negative-wash: var(--negative-wash);
+  --color-negative-wash-strong: var(--negative-wash-strong);
+  --color-negative-border: var(--negative-border);
+  --color-negative-strong: var(--negative-strong);
+  --color-disabled-foreground: var(--disabled-foreground);
+  --color-tooltip-neutral: var(--tooltip-neutral);
+  --color-tooltip-positive: var(--tooltip-positive);
+  --color-tooltip-negative: var(--tooltip-negative);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -54,6 +77,7 @@
 
 :root {
   /* ---- "Paper" editorial theme ---- */
+  color-scheme: light;
   --background: #f4f2ee;      /* warm paper */
   --foreground: #17150f;      /* near-black ink */
   --card: #ffffff;
@@ -81,6 +105,37 @@
   --chart-5: #2f7d55;
   --chart-positive: #2f7d55;  /* gains render green */
   --chart-negative: #b34a3a;
+  /* Bare RGB triples: chart area fills and tinted calendar cells composite these
+     at a computed alpha, so they can't be plain hex. Use rgb(var(--x) / <alpha>). */
+  --positive-rgb: 47 125 85;
+  --negative-rgb: 179 74 58;
+  --ink-rgb: 23 21 15;
+  --gold-rgb: 184 154 95;
+  --header-bg: rgb(244 242 238 / 0.86);
+  --faint: #a5a29a;           /* lowest-contrast ink — column labels, dimmed digits */
+  --divider: #edeae3;         /* hairline between rows */
+  --divider-soft: #f0ede6;    /* fainter hairline inside dense tables */
+  --grid: #efece5;            /* chart gridline */
+  --grid-strong: #cfc9bd;     /* chart zero line */
+  --chart-ink: #3a372f;       /* neutral value line (a value isn't a gain) */
+  --chart-gold: #b89a5f;      /* invested-over-time line */
+  --warning: #c07a3f;         /* amber — "needs attention", also the Crypto series */
+  --warning-border: #e0c9a0;
+  --warning-bg: #fbf1e6;
+  --positive-wash: #eef5f1;
+  --positive-border: #d9e8df;
+  --positive-strong: #245f41; /* gain text sitting on a tinted cell */
+  --negative-wash: #fbeeeb;
+  --negative-wash-strong: #f6eae7;
+  --negative-border: #f0d9d3;
+  --negative-strong: #8f3527; /* loss text sitting on a tinted cell */
+  --disabled-foreground: #c7c3ba;
+  /* The chart tooltip is `bg-foreground`, so its surface INVERTS with the theme:
+     ink here, paper in `.dark`. These read against ink; `.dark` flips them. */
+  --tooltip-neutral: #c9c4b9;
+  --tooltip-positive: #8fd3ac;
+  --tooltip-negative: #e8a294;
+  --selection: #e7e2d8;
   --radius: 0.75rem;
   --sidebar: #ffffff;
   --sidebar-foreground: #17150f;
@@ -92,9 +147,75 @@
   --sidebar-ring: #2f7d55;
 }
 
-/* Dark mode intentionally removed — this app ships the single "paper" theme.
-   The `@custom-variant dark` above is kept so any lingering `dark:` utility
-   classes match only a `.dark` ancestor (never added), rather than the OS. */
+/* ---- "Ink" theme: the paper theme after dark. ----
+   Same warm hue family, inverted lightness. Series colours that were near-black
+   on paper (Stocks) have to invert to near-white here, while the warm ones
+   (Funds/Crypto) only brighten — otherwise they vanish into the background. */
+.dark {
+  color-scheme: dark;         /* so native controls (month picker, scrollbars) go dark too */
+  --background: #14130f;
+  --foreground: #f0ede6;
+  --card: #1c1a16;
+  --card-foreground: #f0ede6;
+  --popover: #1c1a16;
+  --popover-foreground: #f0ede6;
+  --primary: #f0ede6;         /* paper — light buttons on ink */
+  --primary-foreground: #17150f;
+  --secondary: #2a2822;
+  --secondary-foreground: #f0ede6;
+  --muted: #201e19;
+  --muted-foreground: #a5a29a;
+  --accent: #16271f;          /* dark green wash */
+  --accent-foreground: #8fd3ac;
+  --accent-brand: #4ea87a;    /* lifted so green stays legible on ink */
+  --destructive: #e0705c;
+  --border: #2e2b25;
+  --input: #3a372f;
+  --ring: #a5a29a;
+  --chart-1: #c2b48f;         /* Funds */
+  --chart-2: #d7d2c6;         /* Stocks — inverted from near-black */
+  --chart-3: #d18a4d;         /* Crypto */
+  --chart-4: #9c9686;         /* Real Estate */
+  --chart-5: #4ea87a;
+  --chart-positive: #4ea87a;
+  --chart-negative: #e0705c;
+  --positive-rgb: 78 168 122;
+  --negative-rgb: 224 112 92;
+  --ink-rgb: 215 210 198;
+  --gold-rgb: 194 180 143;
+  --header-bg: rgb(20 19 15 / 0.86);
+  --faint: #736f66;
+  --divider: #2a2822;
+  --divider-soft: #232019;
+  --grid: #24221d;
+  --grid-strong: #3a372f;
+  --chart-ink: #d7d2c6;
+  --chart-gold: #c2b48f;
+  --warning: #d9974f;
+  --warning-border: #5a4526;
+  --warning-bg: #2c2318;
+  --positive-wash: #16271f;
+  --positive-border: #26402f;
+  --positive-strong: #8fd3ac;
+  --negative-wash: #2b1a17;
+  --negative-wash-strong: #33201c;
+  --negative-border: #452721;
+  --negative-strong: #e8a294;
+  --disabled-foreground: #4a473f;
+  /* Tooltip surface is paper here (bg-foreground), so tooltip ink goes dark. */
+  --tooltip-neutral: #57534e;
+  --tooltip-positive: #245f41;
+  --tooltip-negative: #8f3527;
+  --selection: #3a372f;
+  --sidebar: #1c1a16;
+  --sidebar-foreground: #f0ede6;
+  --sidebar-primary: #f0ede6;
+  --sidebar-primary-foreground: #17150f;
+  --sidebar-accent: #16271f;
+  --sidebar-accent-foreground: #8fd3ac;
+  --sidebar-border: #2e2b25;
+  --sidebar-ring: #4ea87a;
+}
 
 @layer base {
   * {
@@ -118,7 +239,7 @@
     cursor: pointer;
   }
   ::selection {
-    background: #e7e2d8;
+    background: var(--selection);
   }
 }
 

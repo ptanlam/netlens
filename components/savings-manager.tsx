@@ -170,8 +170,8 @@ function SavingRow({ saving }: { saving: Saving }) {
 
 function KpiTile({ label, value, valueCls, last }: { label: string; value: string; valueCls?: string; last?: boolean }) {
   return (
-    <div className={cn("px-5 py-[18px]", !last && "border-b border-[#edeae3] sm:border-r sm:border-b-0")}>
-      <div className="font-mono text-[10.5px] tracking-[0.08em] text-[#a5a29a] uppercase">{label}</div>
+    <div className={cn("px-5 py-[18px]", !last && "border-b border-divider sm:border-r sm:border-b-0")}>
+      <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{label}</div>
       <div className={cn("mt-[7px] font-mono text-[22px] tabular-nums", valueCls)}>{value}</div>
     </div>
   );
@@ -199,8 +199,8 @@ export function SavingsManager({ savings }: { savings: Saving[] }) {
           title="Savings value over time"
           subtitle="Estimated total as deposits accrue interest toward maturity"
           series={series}
-          stroke="#2f7d55"
-          areaFill="rgba(47,125,85,0.13)"
+          stroke="var(--chart-positive)"
+          areaFill="rgb(var(--positive-rgb) / 0.13)"
           tipLabel="Value"
           emptyMessage="No deposit history yet."
         />

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Newsreader, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { Nav } from '@/components/nav';
+import { ThemeProvider } from '@/components/theme-provider';
 import './globals.css';
 
 const plexSans = IBM_Plex_Sans({
@@ -34,11 +35,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang='en' className={`${plexSans.variable} ${plexMono.variable} ${newsreader.variable} h-full antialiased`}>
+    <html
+      lang='en'
+      suppressHydrationWarning
+      className={`${plexSans.variable} ${plexMono.variable} ${newsreader.variable} h-full antialiased`}
+    >
       <body className='min-h-full flex flex-col'>
-        <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
-        <main className='mx-auto w-full max-w-[1180px] flex-1 px-5 pt-8 pb-18 sm:px-8'>{children}</main>
-        <Toaster richColors position='top-center' />
+        <ThemeProvider>
+          <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
+          <main className='mx-auto w-full max-w-[1180px] flex-1 px-5 pt-8 pb-18 sm:px-8'>{children}</main>
+          <Toaster richColors position='top-center' />
+        </ThemeProvider>
       </body>
     </html>
   );

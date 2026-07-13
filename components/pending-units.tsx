@@ -22,7 +22,7 @@ function PendingItem({ row }: { row: PendingRow }) {
   const id = `units-${row.tx.id}`;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-5 rounded-[10px] border border-[#edeae3] bg-muted px-4 py-3.5">
+    <div className="flex flex-wrap items-center justify-between gap-5 rounded-[10px] border border-divider bg-muted px-4 py-3.5">
       <div>
         <div className="text-[14px] font-semibold">{row.tx.instrument}</div>
         <div className="mt-[3px] font-mono text-[12px] text-muted-foreground tabular-nums">
@@ -31,7 +31,7 @@ function PendingItem({ row }: { row: PendingRow }) {
       </div>
       <div className="flex flex-wrap items-end gap-3.5">
         <div>
-          <label htmlFor={id} className="mb-1.5 block font-mono text-[10.5px] text-[#a5a29a]">
+          <label htmlFor={id} className="mb-1.5 block font-mono text-[10.5px] text-faint">
             Confirmed units{row.estUnits ? ` (est. ${row.estUnits})` : ""}
           </label>
           <input
@@ -49,7 +49,7 @@ function PendingItem({ row }: { row: PendingRow }) {
               type="checkbox"
               checked={addToHoldings}
               onChange={(e) => setAddToHoldings(e.target.checked)}
-              className="accent-[#17150f]"
+              className="accent-(--foreground)"
             />
             add to holding
           </label>
@@ -86,8 +86,8 @@ export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
       >
         {/* Pulsing beacon — signals items are still awaiting confirmation. */}
         <span className="relative flex size-1.5 shrink-0">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#c07a3f] opacity-75" />
-          <span className="relative inline-flex size-1.5 rounded-full bg-[#c07a3f]" />
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-warning opacity-75" />
+          <span className="relative inline-flex size-1.5 rounded-full bg-warning" />
         </span>
         <span className="font-serif text-[17px] font-semibold">Awaiting fund units</span>
         <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
