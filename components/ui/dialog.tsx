@@ -47,10 +47,24 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
 }) {
+  const popupRef = React.useRef<HTMLDivElement>(null)
+
+  // A focused text input always matches :focus-visible, so autofocusing the first
+  // field draws a ring on it and makes it look bulkier than its neighbours. Focus
+  // the panel instead unless the dialog was opened from the keyboard, where landing
+  // on the first field is what a keyboard user expects. (Base UI already does this
+  // for touch.)
+  const initialFocus = React.useCallback(
+    (openType: string) => (openType === "keyboard" ? true : popupRef.current),
+    []
+  )
+
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
+        ref={popupRef}
+        initialFocus={initialFocus}
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",

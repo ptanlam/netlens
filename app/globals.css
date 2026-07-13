@@ -108,6 +108,15 @@
   html {
     @apply font-sans;
   }
+  /* Tailwind v4 drops the browser default of `cursor: pointer` on buttons.
+     Restore it for anything interactive; `disabled:cursor-not-allowed`
+     utilities still win over this base layer. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
   ::selection {
     background: #e7e2d8;
   }
