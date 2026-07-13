@@ -1,0 +1,196 @@
+"use client";
+
+import * as React from "react";
+import { RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import { refreshPrices } from "@/app/actions";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
+const STORAGE_KEY = "pf.auto-refresh-ms";
+
+/** Live refresh hits CoinGecko / Yahoo / fmarket on every tick, so the shortest option
+ *  is 1m — fast enough for crypto, slow enough to stay under free-tier limits. */
+const INTERVALS = [
+  { ms: 0, label: "Off" },
+  { ms: 60_000, label: "1m" },
+  { ms: 300_000, label: "5m" },
+  { ms: 900_000, label: "15m" },
+] as const;
+
+const VALID_MS = new Set<number>(INTERVALS.map((i) => i.ms));
+
+/** A tiny localStorage-backed store, so the live setting survives a reload and every
+ *  mount agrees on it. `useSyncExternalStore` is what keeps the SSR snapshot (0 / off)
+ *  from desyncing against the client's saved value — and it lets two open tabs stay in
+ *  step via the `storage` event. */
+const listeners = new Set<() => void>();
+
+function subscribeInterval(cb: () => void) {
+  listeners.add(cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    listeners.delete(cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+function readInterval() {
+  const ms = Number(window.localStorage.getItem(STORAGE_KEY));
+  return VALID_MS.has(ms) ? ms : 0;
+}
+
+function writeInterval(ms: number) {
+  window.localStorage.setItem(STORAGE_KEY, String(ms));
+  for (const cb of listeners) cb();
+}
+
+/** Shared refresh logic. `silent` suppresses the success toast so a live refresh every
+ *  minute doesn't spam — failures still surface. */
+function useRefreshPrices() {
+  const [pending, startTransition] = React.useTransition();
+  const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
+  const inFlight = React.useRef(false);
+  const lastRun = React.useRef(0);
+
+  const run = React.useCallback(
+    (silent = false) => {
+      if (inFlight.current) return; // never stack requests
+      inFlight.current = true;
+      startTransition(async () => {
+        try {
+          const res = await refreshPrices();
+          lastRun.current = Date.now();
+          if (res.ok) {
+            setLastUpdated(new Date());
+            if (!silent) toast.success(res.message);
+          } else toast.warning(res.message);
+        } finally {
+          inFlight.current = false;
+        }
+      });
+    },
+    [startTransition],
+  );
+
+  return { pending, run, lastUpdated, lastRun };
+}
+
+/** Prices are pulled once when the app opens. Module-level (not a ref) so React's
+ *  double-mount in dev — or a client-side nav that remounts the nav — can't re-fire it. */
+let refreshedOnOpen = false;
+
+export function RefreshPricesButton() {
+  const { pending, run } = useRefreshPrices();
+  return (
+    <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run()}>
+      <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
+      Refresh prices
+    </Button>
+  );
+}
+
+/** The nav's price controls: a clock, a Live pill that doubles as the interval picker,
+ *  and a manual refresh. This is the single place prices are polled from — mounted once
+ *  in the nav, it covers every page. */
+export function LivePrices() {
+  const { pending, run, lastRun } = useRefreshPrices();
+  const intervalMs = React.useSyncExternalStore(subscribeInterval, readInterval, () => 0);
+  const live = intervalMs > 0;
+
+  const [now, setNow] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    const tick = () => setNow(new Date());
+    const first = setTimeout(tick, 0); // async so we don't setState synchronously in the effect
+    const id = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, []);
+
+  // Fresh prices the moment the app opens, without a toast.
+  React.useEffect(() => {
+    if (refreshedOnOpen) return;
+    refreshedOnOpen = true;
+    run(true);
+  }, [run]);
+
+  // While live is armed, silently re-pull on the chosen interval.
+  React.useEffect(() => {
+    if (!intervalMs) return;
+    const id = setInterval(() => {
+      if (document.hidden) return; // don't poll a background tab
+      run(true);
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs, run]);
+
+  // A hidden tab skips its ticks; refresh on return if we're already overdue.
+  React.useEffect(() => {
+    if (!intervalMs) return;
+    const onVisible = () => {
+      if (document.hidden) return;
+      if (Date.now() - lastRun.current >= intervalMs) run(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [intervalMs, run, lastRun]);
+
+  const onIntervalChange = (ms: number) => {
+    writeInterval(ms);
+    if (ms) run(true); // refresh straight away so the choice visibly does something
+  };
+
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const stamp = now
+    ? `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`
+    : "—";
+
+  return (
+    <div className="flex items-center gap-2 sm:gap-3.5">
+      <div className="hidden text-right leading-tight sm:block">
+        <div className="font-mono text-[10px] tracking-[0.06em] text-[#a5a29a] uppercase">Live prices</div>
+        <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
+      </div>
+
+      <Select
+        value={String(intervalMs)}
+        onValueChange={(v) => v != null && onIntervalChange(Number(v))}
+      >
+        <SelectTrigger
+          size="sm"
+          aria-label={live ? `Live refresh every ${INTERVALS.find((i) => i.ms === intervalMs)?.label}` : "Live refresh off"}
+          className={cn(
+            "h-auto gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11.5px]",
+            live
+              ? "border-accent-brand/40 bg-accent text-accent-foreground"
+              : "border-input bg-card text-muted-foreground hover:bg-muted",
+          )}
+        >
+          <span className={cn("size-1.5 rounded-full", live ? "animate-pulse bg-accent-brand" : "bg-[#c9c4b9]")} />
+          Live
+          {live && <span className="tabular-nums">· {INTERVALS.find((i) => i.ms === intervalMs)?.label}</span>}
+        </SelectTrigger>
+        <SelectContent>
+          {INTERVALS.map((i) => (
+            <SelectItem key={i.ms} value={String(i.ms)}>
+              {i.ms === 0 ? "Off" : `Every ${i.label}`}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <button
+        type="button"
+        onClick={() => run()}
+        disabled={pending}
+        className="flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-1.5 font-mono text-[11.5px] text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+      >
+        <span className={cn("size-1.5 rounded-full bg-accent-brand", pending && "animate-ping")} />
+        Refresh
+      </button>
+    </div>
+  );
+}

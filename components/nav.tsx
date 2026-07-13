@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Menu, LogOut } from 'lucide-react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { logout, refreshPrices } from '@/app/actions';
+import { LivePrices } from '@/components/live-prices';
+import { logout } from '@/app/actions';
 import { cn } from '@/lib/utils';
 
 const LINKS = [
@@ -20,85 +20,6 @@ const LINKS = [
 
 function isActive(pathname: string, href: string) {
   return href === '/' ? pathname === '/' : pathname.startsWith(href);
-}
-
-/** Live clock + one-tap price refresh, mirroring the mockup's top-right. */
-/** Poll interval when live refresh is armed. */
-const LIVE_INTERVAL_MS = 60_000;
-
-function NavPrices() {
-  const [now, setNow] = React.useState<Date | null>(null);
-  const [live, setLive] = React.useState(false);
-  const [pending, startTransition] = React.useTransition();
-
-  React.useEffect(() => {
-    const tick = () => setNow(new Date());
-    const first = setTimeout(tick, 0); // async so we don't setState synchronously in the effect
-    const id = setInterval(tick, 1000);
-    return () => {
-      clearTimeout(first);
-      clearInterval(id);
-    };
-  }, []);
-
-  // While live is armed, silently re-pull prices on an interval.
-  React.useEffect(() => {
-    if (!live) return;
-    const id = setInterval(() => {
-      startTransition(async () => {
-        const res = await refreshPrices();
-        if (!res.ok) toast.warning(res.message);
-      });
-    }, LIVE_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [live]);
-
-  const p2 = (n: number) => String(n).padStart(2, '0');
-  const stamp = now
-    ? `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`
-    : '—';
-
-  function refresh() {
-    if (pending) return;
-    startTransition(async () => {
-      const res = await refreshPrices();
-      if (res.ok) toast.success(res.message);
-      else toast.warning(res.message);
-    });
-  }
-
-  return (
-    <div className='flex items-center gap-2 sm:gap-3.5'>
-      <div className='hidden text-right leading-tight sm:block'>
-        <div className='font-mono text-[10px] tracking-[0.06em] text-[#a5a29a] uppercase'>Live prices</div>
-        <div className='font-mono text-[11.5px] tabular-nums text-muted-foreground'>{stamp}</div>
-      </div>
-      <button
-        type='button'
-        onClick={() => setLive((v) => !v)}
-        aria-pressed={live}
-        title={live ? `Live refresh on — every ${LIVE_INTERVAL_MS / 1000}s` : 'Enable live refresh'}
-        className={cn(
-          'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 font-mono text-[11.5px] transition-colors',
-          live
-            ? 'border-accent-brand/40 bg-accent text-accent-foreground'
-            : 'border-input bg-card text-muted-foreground hover:bg-muted',
-        )}
-      >
-        <span className={cn('size-1.5 rounded-full', live ? 'animate-pulse bg-accent-brand' : 'bg-[#c9c4b9]')} />
-        Live
-      </button>
-      <button
-        type='button'
-        onClick={refresh}
-        disabled={pending}
-        className='flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-1.5 font-mono text-[11.5px] text-foreground transition-colors hover:bg-muted disabled:opacity-60'
-      >
-        <span className={cn('size-1.5 rounded-full bg-accent-brand', pending && 'animate-ping')} />
-        Refresh
-      </button>
-    </div>
-  );
 }
 
 function Wordmark() {
@@ -193,7 +114,7 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
           </nav>
         </div>
         <div className='flex items-center gap-2'>
-          <NavPrices />
+          <LivePrices />
           {authEnabled && <LogoutButton />}
         </div>
       </div>

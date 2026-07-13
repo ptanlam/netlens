@@ -13,7 +13,6 @@ import { AddRecurringDialog } from "@/components/add-recurring-dialog";
 import { TxRowActions } from "@/components/tx-row-actions";
 import { type InstrumentOption } from "@/components/tx-form";
 import { RecurringManager } from "@/components/recurring-manager";
-import { RefreshPricesControls } from "@/components/refresh-prices";
 import { InvestmentActivity } from "@/components/investment-activity";
 import { cn } from "@/lib/utils";
 
@@ -263,9 +262,8 @@ export function InvestmentManager({
         ))}
       </div>
 
-      {/* Actions */}
+      {/* Actions — price refresh lives in the nav, so it isn't repeated here. */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <RefreshPricesControls />
         <Button variant="outline" size="sm" nativeButton={false} render={<a href="/export.csv" download />}>
           <Download className="size-3.5" />
           Export CSV

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-table";
 import { Input } from "@/components/ui/input";
-import { RefreshPricesButton } from "@/components/refresh-prices";
+import { RefreshPricesButton } from "@/components/live-prices";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
