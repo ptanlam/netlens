@@ -3,6 +3,10 @@
  * Ported from the Flask version's pnl.py — units held at time t are estimated
  * per transaction (recorded quantity, else amount / price(tx date)), anchored
  * to current holdings so the last point matches the live P&L card.
+ *
+ * Past days are priced from the stored daily close; today is priced from each
+ * instrument's live `last_price`, so today's move (and its per-holding breakdown)
+ * tracks every price refresh rather than only the sources that stamp a daily bar.
  */
 import { getDb, listInstruments, priceHistoryByInstrument, todayIso } from "./db";
 import type { HoldingPnlPoint, PnlPoint } from "./types";
@@ -40,6 +44,12 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
   interface Tracked {
     type: string;
     priceAt: (d: string) => number;
+    /** Live price from the last refresh. Only `price_history` knows past days, but for
+     *  *today* this is the truest price we have — and the only one that moves when the
+     *  user hits refresh, since a quote on a closed market is never stamped into the
+     *  daily history (see CONTINUOUS_STRATEGIES in lib/prices.ts). Using it here is also
+     *  what makes the series' last point agree with the live P&L card. */
+    livePrice: number | null;
     events: [string, number][];
     offset: number;
     first: string;
@@ -62,7 +72,14 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
         totalUnits += units;
       }
       const qtyNow = inst.quantity != null ? inst.quantity : totalUnits;
-      tracked[inst.name] = { type: inst.asset_type, priceAt, events, offset: qtyNow - totalUnits, first };
+      tracked[inst.name] = {
+        type: inst.asset_type,
+        priceAt,
+        livePrice: inst.last_price,
+        events,
+        offset: qtyNow - totalUnits,
+        first,
+      };
     } else {
       manual.push({ name: inst.name, type: inst.asset_type, value: inst.manual_value ?? 0, first });
     }
@@ -103,7 +120,9 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
       let raw = 0;
       if (ds >= tr.first) {
         const units = Math.max(tr.offset + cumUnits[name], 0);
-        if (units) raw = units * tr.priceAt(ds);
+        // Today is priced live; every earlier day is settled, so it uses the stored close.
+        const price = ds === end && tr.livePrice != null ? tr.livePrice : tr.priceAt(ds);
+        if (units) raw = units * price;
       }
       value += raw;
       const v = Math.round(raw);

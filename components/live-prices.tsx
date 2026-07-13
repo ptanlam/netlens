@@ -46,6 +46,28 @@ function writeInterval(ms: number) {
   for (const cb of listeners) cb();
 }
 
+/** Bumped after every successful refresh. Anything holding price-derived data that the
+ *  server can't revalidate on its own — the client-fetched P&L history behind the chart
+ *  and calendar — subscribes to this to know it went stale. */
+const refreshListeners = new Set<() => void>();
+let refreshCount = 0;
+
+function subscribeRefresh(cb: () => void) {
+  refreshListeners.add(cb);
+  return () => {
+    refreshListeners.delete(cb);
+  };
+}
+
+/** Counts completed price refreshes. Changes → prices moved → today's P&L moved. */
+export function usePriceRefreshCount() {
+  return React.useSyncExternalStore(
+    subscribeRefresh,
+    () => refreshCount,
+    () => 0,
+  );
+}
+
 /** Shared refresh logic. `silent` suppresses the success toast so a live refresh every
  *  minute doesn't spam — failures still surface. */
 function useRefreshPrices() {
@@ -62,6 +84,8 @@ function useRefreshPrices() {
         try {
           const res = await refreshPrices();
           lastRun.current = Date.now();
+          refreshCount += 1;
+          for (const cb of refreshListeners) cb();
           if (res.ok) {
             setLastUpdated(new Date());
             if (!silent) toast.success(res.message);

@@ -8,6 +8,7 @@ import { fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel } from "@/components/net-worth";
 import { PortfolioChart } from "@/components/portfolio-chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
+import { usePriceRefreshCount } from "@/components/live-prices";
 import { cn } from "@/lib/utils";
 
 /** Fixed slot per asset type — colour follows the entity, never its rank. */
@@ -29,6 +30,18 @@ function fmtSigned(v: number): string {
   return `${v < 0 ? "−" : "+"}₫${Math.abs(Math.round(v)).toLocaleString("de-DE")}`;
 }
 
+/** A price refresh can only move *today* — every earlier day is settled history. So the
+ *  latest point is spliced onto the series we already have rather than refetched. */
+function withLatest<T extends { date: string }>(prev: T[], tail: T[]): T[] {
+  if (!tail.length) return prev;
+  const latest = tail[tail.length - 1];
+  if (!prev.length) return [latest];
+  const last = prev[prev.length - 1];
+  if (last.date === latest.date) return [...prev.slice(0, -1), latest];
+  if (latest.date > last.date) return [...prev, latest]; // tab left open past midnight
+  return prev;
+}
+
 export function DashboardCharts({
   payload,
   savings,
@@ -43,6 +56,8 @@ export function DashboardCharts({
   const [series, setSeries] = React.useState<PnlPoint[] | null>(null);
   const [holdingSeries, setHoldingSeries] = React.useState<HoldingPnlPoint[] | null>(null);
   const [seriesError, setSeriesError] = React.useState<string | null>(null);
+  const refreshCount = usePriceRefreshCount();
+  const loaded = series !== null;
 
   React.useEffect(() => {
     let alive = true;
@@ -56,6 +71,23 @@ export function DashboardCharts({
       .catch((e: Error) => alive && setSeriesError(e.message));
     return () => { alive = false; };
   }, []);
+
+  // Prices moved, so today's P&L moved with them — re-pull just that day and splice it
+  // in. Waits on `loaded` so the refresh fired on app open still lands (it usually
+  // completes while the first, full history fetch is still in flight).
+  React.useEffect(() => {
+    if (!refreshCount || !loaded) return;
+    let alive = true;
+    fetch("/api/pnl-history?today=1")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: { series: PnlPoint[]; holdings: HoldingPnlPoint[] }) => {
+        if (!alive) return;
+        setSeries((s) => (s ? withLatest(s, d.series) : s));
+        setHoldingSeries((h) => (h ? withLatest(h, d.holdings) : h));
+      })
+      .catch(() => {}); // a failed top-up just leaves the last good point on screen
+    return () => { alive = false; };
+  }, [refreshCount, loaded]);
 
   // Today's move + this-month total, derived from the cumulative P&L series.
   const { todayDelta, monthPnl, monthLabel } = React.useMemo(() => {
@@ -324,7 +356,10 @@ function PnlByHoldingCard({ payload }: { payload: Payload }) {
                   style={{ left: `${left}%`, width: `${w}%`, background: color, transformOrigin: neg ? "right" : "left", animationDelay: `${i * 45}ms` }}
                 />
               </div>
-              <div className="w-16 text-right font-mono text-[12px] tabular-nums" style={{ color }}>{fmtSigned(p.pnl)}</div>
+              {/* Wide enough for a signed 8-figure VND amount, or the sign wraps onto its own line. */}
+              <div className="w-[94px] shrink-0 text-right font-mono text-[12px] whitespace-nowrap tabular-nums" style={{ color }}>
+                {fmtSigned(p.pnl)}
+              </div>
             </div>
           );
         })}
