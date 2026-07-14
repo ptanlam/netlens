@@ -31,6 +31,8 @@ Pure, dependency-free logic (safe to import from client components) lives in
 | `lib/db.ts` | Schema (`SCHEMA` const) + all SQL. `getDb()` runs the schema on first use. Money stored as integer VND. |
 | `lib/types.ts` | Shared interfaces + `as const` arrays (`ASSET_TYPES`, `INTEREST_TYPES`, `PRICE_SOURCES`). Client-safe. |
 | `lib/savings.ts` | Interest maths over the `Accruing` shape — used by BOTH savings and debts. |
+| `lib/goals.ts` | Goal progress + the forward projection. Pure; reads a `GoalWorld` gathered by `db.buildGoalWorld()`. |
+| `lib/settings.ts` | `SETTINGS_SECTIONS` — the settings rail, shared server/client. |
 | `lib/pnl.ts` | Reconstructs the daily P&L series from transactions + `price_history`. |
 | `lib/prices.ts` | Live/historical price fetching (CoinGecko, Yahoo, fmarket, VCBF). Never throws; collects errors. |
 | `lib/format.ts` | `fmtVND` (₫ with `.` thousands), `fmtTr` (axis short form: `40tr`), `MONTHS`. |
@@ -46,10 +48,16 @@ Pure, dependency-free logic (safe to import from client components) lives in
 
 ## Routes
 
-Pages: `/` (dashboard), `/transactions`, `/holdings`, `/savings`, `/debts`,
-`/recurring`, `/login`.
+Pages: `/` (dashboard), `/transactions`, `/holdings`, `/savings`, `/debts`, `/goals`,
+`/recurring`, `/settings/price-sources`, `/login`.
 Route handlers: `GET /export.csv`, `GET /api/pnl-history`, `GET /healthz`.
 (There is **no** `/add` page — adding a transaction is a `<Dialog>` on `/transactions`.)
+
+**Settings** is a shell (`app/settings/layout.tsx` + `components/settings-nav.tsx`) around
+one section per folder. To add a section: a folder under `app/settings/` and an entry in
+`SETTINGS_SECTIONS` (`lib/settings.ts` — it's shared by the client rail and the server
+redirect at `/settings`, so it can't live in either). `/sources` 308s to
+`/settings/price-sources` (see `next.config.ts`).
 
 ## The dashboard (`app/page.tsx` + `components/dashboard-charts.tsx`)
 
@@ -68,7 +76,7 @@ Route handlers: `GET /export.csv`, `GET /api/pnl-history`, `GET /healthz`.
 ## Data model (tables in `lib/db.ts` `SCHEMA`)
 
 `transactions`, `instruments`, `recurring_rules`, `price_history`, `meta`,
-`savings`, `debts`, `debt_payments`. All use `CREATE TABLE IF NOT EXISTS`, so **adding a
+`savings`, `debts`, `debt_payments`, `goals`. All use `CREATE TABLE IF NOT EXISTS`, so **adding a
 new table is the entire migration** — no migration framework. Altering an existing
 table's columns would need an explicit `ALTER TABLE` (there is no migration runner), so
 prefer additive changes or sentinel values (e.g. debts use `term_months <= 0` to mean
@@ -89,3 +97,25 @@ prefer additive changes or sentinel values (e.g. debts use `term_months <= 0` to
   both use `owed(...)`, not `currentValue`, so payments reduce what's owed everywhere.
 Savings estimates ignore intermediate withdrawals; debt estimates DO account for
 recorded repayments but not for fees/minimum-payment rules.
+
+## Goals (`lib/goals.ts`)
+
+A goal is a **target on a metric the app already computes** — `net_worth`, `investments`,
+`savings` or `debts` — with an optional `target_date`. It stores no balance: progress is
+derived from the live metric on every render, so it can't go stale. `debts` counts *down*
+to its target; `baseline` is where progress is measured from (a payoff bar starts empty).
+
+`project(goal, world)` answers "do I get there, and what does it cost per month". Its
+assumptions are deliberately conservative — an "on track" never depends on luck:
+- **Market return is 0%.** Investments grow only by contributions.
+- **Pace** comes from, in order: the goal's own `monthly_plan` → active `recurring_rules`
+  (the *committed* forward rate) → the trailing 6-month contribution average.
+- **Debts** default to their own repayment path (`projectedOwed`): credit lines shrink by
+  `monthly_payment`; fixed/flexible ones decline straight-line to zero at maturity. Note
+  `debtOwed()` can't be asked about a future date directly — it would accrue interest but
+  subtract only *recorded* payments, projecting every debt as growing forever.
+- **A `monthly_plan` on a debt goal replaces that schedule** rather than adding to it —
+  hence the `paceRepaysDebt` flag threaded through `valueAt()`.
+
+`GoalWorld` carries `nowMs` as well as `today`: interest accrues by the second, so a goal
+anchored to midnight would print a different net worth than the hero right above it.

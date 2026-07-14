@@ -17,7 +17,7 @@ const LINKS = [
   { href: '/savings', label: 'Savings' },
   { href: '/debts', label: 'Debts' },
   { href: '/goals', label: 'Goals' },
-  { href: '/sources', label: 'Price sources' },
+  { href: '/settings', label: 'Settings' },
 ];
 
 function isActive(pathname: string, href: string) {

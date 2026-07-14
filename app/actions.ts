@@ -19,7 +19,8 @@ function str(v: FormDataEntryValue | null): string {
 }
 
 function revalidateAll() {
-  for (const p of ["/", "/investments", "/savings", "/debts", "/sources", "/goals"]) revalidatePath(p);
+  for (const p of ["/", "/investments", "/savings", "/debts", "/goals", "/settings/price-sources"])
+    revalidatePath(p);
 }
 
 // ---------- transactions ----------
