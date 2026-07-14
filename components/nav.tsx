@@ -25,11 +25,16 @@ function isActive(pathname: string, href: string) {
 
 function Wordmark() {
   return (
-    <Link href='/' className='flex items-center gap-2.5 text-foreground' aria-label='Netlens — home'>
+    // Below 420px the row can't hold the mark *and* the price controls; the drawer
+    // trigger and its title carry the brand there, so hide the lot rather than let
+    // the label get squeezed off and strand a bare square.
+    <Link
+      href='/'
+      className='hidden shrink-0 items-center gap-2.5 text-foreground min-[420px]:flex'
+      aria-label='Netlens — home'
+    >
       <span className='size-[9px] shrink-0 rounded-[2px] bg-foreground' />
-      <span className='hidden font-serif text-[17px] font-semibold whitespace-nowrap tracking-[-0.01em] min-[420px]:inline'>
-        Netlens
-      </span>
+      <span className='font-serif text-[17px] font-semibold whitespace-nowrap tracking-[-0.01em]'>Netlens</span>
     </Link>
   );
 }
@@ -103,12 +108,14 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   return (
     <header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) backdrop-blur-[10px]'>
       <div className='mx-auto flex h-[58px] w-full max-w-[1180px] items-center justify-between gap-3 px-5 sm:px-8'>
-        <div className='flex min-w-0 items-center gap-3 sm:gap-7'>
-          <div className='sm:hidden'>
+        {/* The pills only clear the price controls from ~1024px up; below that they
+            collide with them, so the drawer holds the links until lg. */}
+        <div className='flex min-w-0 items-center gap-3 lg:gap-7'>
+          <div className='lg:hidden'>
             <MobileNav pathname={pathname} />
           </div>
           <Wordmark />
-          <nav className='hidden items-center gap-0.5 sm:flex'>
+          <nav className='hidden items-center gap-0.5 lg:flex'>
             {LINKS.map((l) => (
               <NavPill key={l.href} href={l.href} label={l.label} pathname={pathname} />
             ))}

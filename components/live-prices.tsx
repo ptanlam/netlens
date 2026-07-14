@@ -180,8 +180,8 @@ export function LivePrices() {
     : "—";
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3.5">
-      <div className="hidden text-right leading-tight sm:block">
+    <div className="flex items-center gap-2 lg:gap-3.5">
+      <div className="hidden text-right leading-tight lg:block">
         <div className="font-mono text-[10px] tracking-[0.06em] text-faint uppercase">Live prices</div>
         <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
       </div>
