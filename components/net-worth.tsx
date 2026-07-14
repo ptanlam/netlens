@@ -5,20 +5,30 @@ import { cn } from "@/lib/utils";
 export function NetWorthPanel({
   investments,
   savings,
+  funds,
   debts,
   todayDelta,
 }: {
   investments: number;
   savings: number;
+  /** Money set aside in sinking funds. Still yours until you spend it, so it counts. */
+  funds: number;
   debts: number;
   /** Day-over-day P&L move; null while the series is still loading. */
   todayDelta?: number | null;
 }) {
-  const net = investments + savings - debts;
+  const net = investments + savings + funds - debts;
 
+  // The set-aside line only earns its place once there's something in it — an empty rail
+  // row on every dashboard would be noise for anyone not saving up for anything. Rounded,
+  // so a fund that's been spent down to sub-₫1 dust doesn't leave a "₫0" line behind.
+  const hasFunds = Math.round(funds) !== 0;
   const parts = [
     { label: "Investments", value: investments, sign: "", cls: "text-foreground" },
     { label: "Savings", value: savings, sign: "+", cls: "text-accent-brand" },
+    ...(hasFunds
+      ? [{ label: "Set aside", value: funds, sign: "+", cls: "text-accent-brand" }]
+      : []),
     { label: "Debts", value: debts, sign: "−", cls: "text-(--chart-negative)" },
   ];
 
@@ -33,7 +43,9 @@ export function NetWorthPanel({
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-3.5">
           <span className="text-[13px] text-muted-foreground">
-            Investments + Savings − Debts
+            {hasFunds
+              ? "Investments + Savings + Set aside − Debts"
+              : "Investments + Savings − Debts"}
           </span>
           {todayDelta != null && todayDelta !== 0 && (
             <span

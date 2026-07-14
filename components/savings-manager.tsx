@@ -22,18 +22,30 @@ import { cn } from "@/lib/utils";
 
 type ActionResult = { ok: boolean; message: string };
 
+/** A sinking-fund goal a deposit can be earmarked for. */
+export type FundOption = { id: number; name: string };
+
+/** The "no goal" option. Base UI's Select needs a real value, and "" round-trips through
+ *  FormData as null (`num("")` → null), which is exactly what an un-earmarked deposit is. */
+const NO_GOAL = "";
+
 function SavingForm({
   action,
   saving,
+  funds,
   onDone,
 }: {
   action: (fd: FormData) => Promise<ActionResult>;
   saving?: Saving;
+  /** Sinking-fund goals a deposit can be earmarked for. */
+  funds: FundOption[];
   onDone?: () => void;
 }) {
   const [pending, startTransition] = React.useTransition();
+  const [goalId, setGoalId] = React.useState(String(saving?.goal_id ?? NO_GOAL));
   const formRef = React.useRef<HTMLFormElement>(null);
   const today = new Date().toLocaleDateString("sv-SE");
+  const goalLabel = funds.find((f) => String(f.id) === goalId)?.name ?? "Not earmarked";
 
   return (
     <form
@@ -85,10 +97,35 @@ function SavingForm({
           </SelectContent>
         </Select>
       </div>
+      {funds.length > 0 && (
+        <div className="grid gap-2">
+          <Label htmlFor="s-goal">Earmark for (optional)</Label>
+          <Select name="goal_id" value={goalId} onValueChange={(v) => setGoalId(v ?? NO_GOAL)}>
+            <SelectTrigger id="s-goal" className="w-full">
+              <SelectValue>{goalLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_GOAL}>Not earmarked</SelectItem>
+              {funds.map((f) => (
+                <SelectItem key={f.id} value={String(f.id)}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="s-note">Note (optional)</Label>
         <Input id="s-note" name="note" defaultValue={saving?.note ?? undefined} />
       </div>
+      {funds.length > 0 && (
+        <p className="text-[12px] text-muted-foreground sm:col-span-2">
+          An earmarked deposit still counts once — here, under Savings. It also fills the
+          fund it&apos;s tied to, and is left out of net-worth goals, since it&apos;s
+          already spoken for.
+        </p>
+      )}
       <div className="sm:col-span-2">
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : saving ? "Update deposit" : "Add deposit"}
@@ -98,7 +135,7 @@ function SavingForm({
   );
 }
 
-function SavingRow({ saving }: { saving: Saving }) {
+function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 
@@ -106,6 +143,7 @@ function SavingRow({ saving }: { saving: Saving }) {
   const cur = currentValue(saving);
   const matVal = maturityValue(saving);
   const interest = cur - saving.principal;
+  const earmarked = funds.find((f) => f.id === saving.goal_id);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card px-5 py-4">
@@ -120,6 +158,11 @@ function SavingRow({ saving }: { saving: Saving }) {
           >
             {matured ? "Matured" : "Active"}
           </span>
+          {earmarked && (
+            <span className="rounded-[5px] bg-secondary px-[7px] py-0.5 font-mono text-[10px] text-muted-foreground">
+              For {earmarked.name}
+            </span>
+          )}
         </div>
         <div className="mt-1 font-mono text-[12px] text-muted-foreground tabular-nums">
           {fmtVND(saving.principal)} · {saving.rate}%/yr · {saving.term_months}mo · {saving.start_date} → {maturityDate(saving)}
@@ -144,7 +187,7 @@ function SavingRow({ saving }: { saving: Saving }) {
               <DialogHeader>
                 <DialogTitle>Edit deposit</DialogTitle>
               </DialogHeader>
-              <SavingForm action={(fd) => updateSaving(saving.id, fd)} saving={saving} onDone={() => setEditOpen(false)} />
+              <SavingForm action={(fd) => updateSaving(saving.id, fd)} saving={saving} funds={funds} onDone={() => setEditOpen(false)} />
             </DialogContent>
           </Dialog>
           <Button
@@ -178,7 +221,7 @@ function KpiTile({ label, value, valueCls, last }: { label: string; value: strin
   );
 }
 
-export function SavingsManager({ savings }: { savings: Saving[] }) {
+export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: FundOption[] }) {
   const s = summarize(savings);
   const series = buildDailySeries(savings, currentValue);
 
@@ -209,12 +252,12 @@ export function SavingsManager({ savings }: { savings: Saving[] }) {
 
       {savings.length === 0 && <p className="text-[13px] text-muted-foreground">No deposits yet.</p>}
       {savings.map((saving) => (
-        <SavingRow key={saving.id} saving={saving} />
+        <SavingRow key={saving.id} saving={saving} funds={funds} />
       ))}
 
       <div className="rounded-xl border border-border bg-card px-6 py-[22px]">
         <div className="mb-[18px] font-serif text-[17px] font-semibold">New deposit</div>
-        <SavingForm action={addSaving} />
+        <SavingForm action={addSaving} funds={funds} />
       </div>
     </div>
   );

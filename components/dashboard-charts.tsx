@@ -47,12 +47,14 @@ function withLatest<T extends { date: string }>(prev: T[], tail: T[]): T[] {
 export function DashboardCharts({
   payload,
   savings,
+  funds,
   debts,
   pending,
   goals,
 }: {
   payload: Payload;
   savings: number;
+  funds: number;
   debts: number;
   pending: number;
   goals: GoalView[];
@@ -163,6 +165,7 @@ export function DashboardCharts({
       <NetWorthPanel
         investments={payload.portfolioTotal}
         savings={savings}
+        funds={funds}
         debts={debts}
         todayDelta={todayDelta}
       />
