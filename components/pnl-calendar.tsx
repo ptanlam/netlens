@@ -114,13 +114,16 @@ export function PnlCalendar({
     return { min: series[0].date.slice(0, 7), max: series[series.length - 1].date.slice(0, 7) };
   }, [series]);
 
+  const [view, setView] = React.useState<"month" | "year">("month");
   const [month, setMonth] = React.useState<string | null>(null);
   const active = month ?? bounds?.max ?? null;
   const [year, mon] = active
     ? [Number(active.slice(0, 4)), Number(active.slice(5, 7))]
     : [0, 0];
 
-  const [selectedDay, setSelectedDay] = React.useState<number | null>(null);
+  // A full ISO date, not a day-of-month: the year view has to be able to name a day
+  // outside the active month.
+  const [selected, setSelected] = React.useState<string | null>(null);
 
   const cells = React.useMemo(() => {
     if (!active) return [] as (DayCell | null)[];
@@ -142,24 +145,57 @@ export function PnlCalendar({
     return out;
   }, [active, year, mon, byDate]);
 
+  /** Every day of the active year, Jan 1 → Dec 31, padded so week 1 starts on a Monday. */
+  const yearCells = React.useMemo(() => {
+    if (!active) return [] as (DayCell | null)[];
+    const out: (DayCell | null)[] = Array(mondayIndex(new Date(year, 0, 1))).fill(null);
+    for (let m = 1; m <= 12; m++) {
+      const days = new Date(year, m, 0).getDate();
+      for (let day = 1; day <= days; day++) {
+        const date = `${year}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const hit = byDate.get(date);
+        out.push({
+          date,
+          day,
+          delta: hit?.delta ?? 0,
+          point: hit?.point ?? { date, invested: 0, value: 0, pnl: 0 },
+          tracked: byDate.has(date) && (hit?.delta ?? 0) !== 0,
+        });
+      }
+    }
+    while (out.length % 7 !== 0) out.push(null);
+    return out;
+  }, [active, year, byDate]);
+
+  // The two views share everything downstream — only the set of cells differs.
+  const shown = view === "year" ? yearCells : cells;
+
   const maxAbs = React.useMemo(() => {
     let m = 0;
-    for (const c of cells) if (c?.tracked) m = Math.max(m, Math.abs(c.delta));
+    for (const c of shown) if (c?.tracked) m = Math.max(m, Math.abs(c.delta));
     return m || 1;
-  }, [cells]);
+  }, [shown]);
 
-  const monthTotal = React.useMemo(
-    () => cells.reduce((a, c) => (c?.tracked ? a + c.delta : a), 0),
-    [cells],
+  const periodTotal = React.useMemo(
+    () => shown.reduce((a, c) => (c?.tracked ? a + c.delta : a), 0),
+    [shown],
   );
 
-  // Default selection: latest tracked day in the active month.
+  /** The week column each month starts in — drives the labels above the year grid. */
+  const monthStarts = React.useMemo(() => {
+    if (view !== "year") return [];
+    return MONTHS.map((label, i) => {
+      const idx = yearCells.findIndex((c) => c && c.date.slice(5, 7) === String(i + 1).padStart(2, "0"));
+      return { label, week: idx < 0 ? 0 : Math.floor(idx / 7) };
+    });
+  }, [view, yearCells]);
+
+  // Default selection: the latest tracked day in whatever period is on screen.
   const latestTracked = React.useMemo(() => {
-    for (let i = cells.length - 1; i >= 0; i--) if (cells[i]?.tracked) return cells[i]!.day;
+    for (let i = shown.length - 1; i >= 0; i--) if (shown[i]?.tracked) return shown[i]!.date;
     return null;
-  }, [cells]);
-  const selDay = selectedDay ?? latestTracked;
-  const selDate = selDay ? `${year}-${String(mon).padStart(2, "0")}-${String(selDay).padStart(2, "0")}` : null;
+  }, [shown]);
+  const selDate = (selected && shown.some((c) => c?.date === selected) ? selected : null) ?? latestTracked;
   const selHit = selDate ? byDate.get(selDate) : null;
   const selHas = !!selHit && selHit.delta !== 0;
 
@@ -171,17 +207,25 @@ export function PnlCalendar({
       .sort((a, b) => b.pnl - a.pnl);
   }, [selDate, holdingsByDate]);
 
+  /** Step the period: a month in month view, a whole year in year view. */
   function shift(delta: number) {
     if (!active) return;
-    const d = new Date(year, mon - 1 + delta, 1);
+    const d = view === "year"
+      ? new Date(year + delta, mon - 1, 1)
+      : new Date(year, mon - 1 + delta, 1);
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-    setSelectedDay(null);
+    setSelected(null);
   }
-  const canPrev = !!bounds && !!active && active > bounds.min;
-  const canNext = !!bounds && !!active && active < bounds.max;
+
+  const canPrev = !!bounds && !!active && (view === "year"
+    ? year > Number(bounds.min.slice(0, 4))
+    : active > bounds.min);
+  const canNext = !!bounds && !!active && (view === "year"
+    ? year < Number(bounds.max.slice(0, 4))
+    : active < bounds.max);
 
   function cellStyle(c: DayCell): React.CSSProperties {
-    const border = `1px solid ${c.day === selDay ? "var(--foreground)" : "var(--divider)"}`;
+    const border = `1px solid ${c.date === selDate ? "var(--foreground)" : "var(--divider)"}`;
     if (!c.tracked) return { background: "var(--muted)", border };
     const inten = Math.min(1, Math.abs(c.delta) / maxAbs);
     const alpha = (0.09 + 0.36 * inten).toFixed(2);
@@ -205,29 +249,35 @@ export function PnlCalendar({
                 type="button"
                 onClick={() => shift(-1)}
                 disabled={!canPrev}
-                aria-label="Previous month"
+                aria-label={view === "year" ? "Previous year" : "Previous month"}
                 className="size-7 rounded-md border border-input bg-card text-[13px] text-muted-foreground disabled:opacity-40"
               >
                 ‹
               </button>
-              <input
-                type="month"
-                value={active}
-                min={bounds?.min}
-                max={bounds?.max}
-                aria-label={`${MONTH_NAMES[mon - 1]} ${year} — pick a month`}
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  setMonth(e.target.value);
-                  setSelectedDay(null);
-                }}
-                className="rounded-md border border-input bg-card px-2.5 py-1 text-center font-mono text-[13px] text-foreground outline-none focus:border-ring"
-              />
+              {view === "year" ? (
+                <span className="rounded-md border border-input bg-card px-2.5 py-1 text-center font-mono text-[13px] tabular-nums">
+                  {year}
+                </span>
+              ) : (
+                <input
+                  type="month"
+                  value={active}
+                  min={bounds?.min}
+                  max={bounds?.max}
+                  aria-label={`${MONTH_NAMES[mon - 1]} ${year} — pick a month`}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    setMonth(e.target.value);
+                    setSelected(null);
+                  }}
+                  className="rounded-md border border-input bg-card px-2.5 py-1 text-center font-mono text-[13px] text-foreground outline-none focus:border-ring"
+                />
+              )}
               <button
                 type="button"
                 onClick={() => shift(1)}
                 disabled={!canNext}
-                aria-label="Next month"
+                aria-label={view === "year" ? "Next year" : "Next month"}
                 className="size-7 rounded-md border border-input bg-card text-[13px] text-muted-foreground disabled:opacity-40"
               >
                 ›
@@ -235,11 +285,30 @@ export function PnlCalendar({
             </div>
           )}
         </div>
-        {active && (
-          <span className={cn("font-mono text-[14px] tabular-nums", monthTotal < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
-            {fmtSigned(monthTotal)}
-          </span>
-        )}
+        <div className="flex items-center gap-4">
+          {active && (
+            <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
+              {(["month", "year"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setView(v)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 font-mono text-[11.5px] capitalize transition-colors",
+                    view === v ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          )}
+          {active && (
+            <span className={cn("font-mono text-[14px] tabular-nums", periodTotal < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
+              {fmtSigned(periodTotal)}
+            </span>
+          )}
+        </div>
       </div>
 
       {error ? (
@@ -250,43 +319,95 @@ export function PnlCalendar({
         <p className="py-10 text-center text-sm text-muted-foreground">No P&amp;L history yet — add transactions to see daily moves.</p>
       ) : (
         <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[1.7fr_1fr]">
-          <div>
-            <div className="mb-1.5 grid grid-cols-7 gap-1.5">
-              {WEEKDAYS.map((w) => (
-                <div key={w} className="text-center font-mono text-[10px] tracking-[0.06em] text-faint uppercase">{w}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1.5">
-              {cells.map((c, i) =>
-                !c ? (
-                  <div key={i} className="min-h-[50px]" />
-                ) : (
+          {view === "year" ? (
+            // A year is 53 weeks: too many for a 7-wide grid, so weeks run as columns and
+            // weekdays as rows. Cells carry no text at this size — the colour is the datum
+            // and the title gives the number.
+            <div className="overflow-x-auto">
+              <div className="flex min-w-max gap-1.5">
+                <div className="mt-[18px] grid grid-rows-7 gap-[3px]">
+                  {WEEKDAYS.map((w, i) => (
+                    <div
+                      key={w}
+                      className="flex h-[14px] items-center font-mono text-[9px] text-faint"
+                    >
+                      {i % 2 === 0 ? w : ""}
+                    </div>
+                  ))}
+                </div>
+                <div>
                   <div
-                    key={i}
-                    onClick={c.tracked ? () => setSelectedDay(c.day) : undefined}
-                    style={cellStyle(c)}
-                    className={cn(
-                      "flex min-h-[50px] flex-col justify-between rounded-md px-2 py-1.5",
-                      c.tracked && "cursor-pointer",
-                    )}
+                    className="mb-1 grid gap-[3px]"
+                    style={{ gridTemplateColumns: `repeat(${yearCells.length / 7}, 14px)` }}
                   >
-                    <div className={cn("font-mono text-[11px]", c.tracked ? "text-muted-foreground" : "text-faint")}>{c.day}</div>
-                    {c.tracked && (
-                      <div className={cn("hidden text-right font-mono text-[10px] tabular-nums sm:block", c.delta >= 0 ? "text-positive-strong" : "text-negative-strong")}>
-                        {fmtCompact(c.delta)}
-                      </div>
+                    {monthStarts.map((m) => (
+                      <span
+                        key={m.label}
+                        className="font-mono text-[9px] whitespace-nowrap text-faint"
+                        style={{ gridColumnStart: m.week + 1 }}
+                      >
+                        {m.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="grid grid-flow-col grid-rows-7 gap-[3px]" style={{ gridAutoColumns: "14px" }}>
+                    {yearCells.map((c, i) =>
+                      !c ? (
+                        <div key={i} className="size-[14px]" />
+                      ) : (
+                        <div
+                          key={i}
+                          onClick={c.tracked ? () => setSelected(c.date) : undefined}
+                          style={cellStyle(c)}
+                          title={`${c.date} · ${c.tracked ? fmtSigned(c.delta) : "no change"}`}
+                          className={cn("size-[14px] rounded-[3px]", c.tracked && "cursor-pointer")}
+                        />
+                      ),
                     )}
                   </div>
-                ),
-              )}
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div>
+              <div className="mb-1.5 grid grid-cols-7 gap-1.5">
+                {WEEKDAYS.map((w) => (
+                  <div key={w} className="text-center font-mono text-[10px] tracking-[0.06em] text-faint uppercase">{w}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1.5">
+                {cells.map((c, i) =>
+                  !c ? (
+                    <div key={i} className="min-h-[50px]" />
+                  ) : (
+                    <div
+                      key={i}
+                      onClick={c.tracked ? () => setSelected(c.date) : undefined}
+                      style={cellStyle(c)}
+                      className={cn(
+                        "flex min-h-[50px] flex-col justify-between rounded-md px-2 py-1.5",
+                        c.tracked && "cursor-pointer",
+                      )}
+                    >
+                      <div className={cn("font-mono text-[11px]", c.tracked ? "text-muted-foreground" : "text-faint")}>{c.day}</div>
+                      {c.tracked && (
+                        <div className={cn("hidden text-right font-mono text-[10px] tabular-nums sm:block", c.delta >= 0 ? "text-positive-strong" : "text-negative-strong")}>
+                          {fmtCompact(c.delta)}
+                        </div>
+                      )}
+                    </div>
+                  ),
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex min-h-[200px] flex-col border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-[22px]">
             {selHas && selDate ? (
               <>
                 <div className="shrink-0 font-mono text-[11px] tracking-[0.06em] text-faint uppercase">
-                  {MONTHS[mon - 1]} {selDay}, {year}
+                  {MONTHS[Number(selDate.slice(5, 7)) - 1]} {Number(selDate.slice(8, 10))},{" "}
+                  {selDate.slice(0, 4)}
                 </div>
                 <div className={cn("mt-1.5 shrink-0 font-mono text-[21px] tracking-[-0.01em] tabular-nums", selHit!.delta < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
                   {fmtSigned(selHit!.delta)}

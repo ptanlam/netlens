@@ -105,8 +105,10 @@ export function InvestmentActivity({
   const rowFirst = filtered.length ? safePage * PER_PAGE + 1 : 0;
   const rowLast = Math.min(filtered.length, (safePage + 1) * PER_PAGE);
 
+  // Fixed height, not padding: a <select> and a date field derive different intrinsic
+  // heights from the same padding, and the row sits next to the range pills.
   const selectCls =
-    "rounded-lg border border-input bg-card px-2.5 py-1.5 font-mono text-[12px] outline-none focus:border-ring";
+    "h-7 rounded-lg border border-input bg-card px-2.5 font-mono text-[12px] outline-none focus:border-ring";
   const pill = (active: boolean) =>
     cn(
       "cursor-pointer rounded-md border-0 px-[11px] py-[5px] font-mono text-[11.5px] transition-colors",

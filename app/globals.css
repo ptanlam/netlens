@@ -241,6 +241,29 @@
   ::selection {
     background: var(--selection);
   }
+  /* A date field sizes itself from the UA's segmented control, so it comes out taller than
+     a text input carrying the exact same height/padding/font — a few px in Chrome, and a
+     lot more in iOS Safari, which is where a row of otherwise-matched fields visibly ends
+     up with one fat one. Strip the native chrome so our own box wins on every engine. */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 0;
+  }
+  input[type="date"]::-webkit-datetime-edit {
+    padding: 0;
+    line-height: normal;
+  }
+  input[type="date"]::-webkit-date-and-time-value {
+    margin: 0;
+    min-height: 0;
+    text-align: left;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    margin: 0;
+    padding: 0;
+    opacity: 0.55;
+  }
 }
 
 /* ---------- playful, accessibility-safe motion ---------- */
@@ -266,13 +289,25 @@
   }
 }
 
-/* Line charts draw themselves in (paths use pathLength="1"). */
+/* Line charts draw themselves in, left to right.
+ *
+ * Deliberately *not* the usual stroke-dasharray/dashoffset trick: these charts render with
+ * preserveAspectRatio="none", so the path is stretched non-uniformly and Chrome measures
+ * the dash in that scaled space. A dash long enough to cover the path at one width falls
+ * short at another, so the line would creep along and then snap the remainder in at the
+ * end — worse the wider the viewport. Wiping with a clip instead sidesteps arc length
+ * altogether: the percentages resolve against the path's own bounding box, so the wipe is
+ * exact at every size. It's also a steadier reveal, since it sweeps in x (time, on these
+ * charts) rather than along the line, which speeds up over steep segments.
+ *
+ * The insets overshoot on the three static sides so the 2px stroke isn't shaved where it
+ * bulges past the bounding box (peaks, troughs, and the first point). */
 @keyframes draw-line {
   from {
-    stroke-dashoffset: 1;
+    clip-path: inset(-4px 100% -4px -4px);
   }
   to {
-    stroke-dashoffset: 0;
+    clip-path: inset(-4px -4px -4px -4px);
   }
 }
 
@@ -304,7 +339,6 @@
     animation: rise-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .animate-draw-line {
-    stroke-dasharray: 1;
     animation: draw-line 1.1s cubic-bezier(0.4, 0, 0.2, 1) both;
   }
   .animate-grow-x {
