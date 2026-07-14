@@ -107,7 +107,7 @@ function DesktopNav({ pathname }: { pathname: string }) {
       }
       const apply = () => {
         slider.style.opacity = '1';
-        slider.style.transform = `translateX(${active.offsetLeft}px)`;
+        slider.style.left = `${active.offsetLeft}px`;
         slider.style.width = `${active.offsetWidth}px`;
       };
       // On the very first placement there's nothing to slide *from* — animating would
@@ -124,17 +124,35 @@ function DesktopNav({ pathname }: { pathname: string }) {
     };
 
     place();
+
     const ro = new ResizeObserver(place);
     ro.observe(nav);
-    return () => ro.disconnect();
+    // Every pill is measured, so anything that changes their width has to re-place the
+    // slider — and the web font lands *after* first paint, widening each label. Without
+    // this the slider can stay frozen at the icon-only width it measured pre-font, and
+    // since the active label is `text-background` (dark), the part sticking out past the
+    // stale pill is dark-on-dark and reads as a missing label.
+    let live = true;
+    document.fonts?.ready.then(() => {
+      if (live) place();
+    });
+
+    return () => {
+      live = false;
+      ro.disconnect();
+    };
   }, [pathname]);
 
   return (
     <nav ref={navRef} className='relative hidden items-center gap-0.5 lg:flex'>
+      {/* Animates `left`/`width`, not `transform`: a transformed layer whose width changes
+          doesn't reliably re-rasterize (the pill paints at its stale width, cutting the
+          active label off into dark-on-dark). The nav is five items — laying them out is
+          cheap, and it always paints what it measured. */}
       <span
         ref={sliderRef}
         aria-hidden
-        className='absolute inset-y-0 left-0 z-0 rounded-[7px] bg-foreground opacity-0 transition-[transform,width,opacity] duration-300 ease-out motion-reduce:transition-none'
+        className='absolute inset-y-0 left-0 z-0 w-0 rounded-[7px] bg-foreground opacity-0 transition-[left,width,opacity] duration-300 ease-out motion-reduce:transition-none'
       />
       {LINKS.map((l) => (
         <NavPill
@@ -207,7 +225,9 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   if (pathname === '/login') return null;
   return (
     <header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) backdrop-blur-[10px]'>
-      <div className='mx-auto flex h-[58px] w-full max-w-[1180px] items-center justify-between gap-3 px-5 sm:px-8'>
+      {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
+          than the content beneath it. */}
+      <div className='mx-auto flex h-[58px] w-full max-w-[1180px] items-center justify-between gap-3 px-5 sm:px-8 xl:max-w-[1400px] 2xl:max-w-[1640px]'>
         {/* The pills only clear the price controls from ~1024px up; below that they
             collide with them, so the drawer holds the links until lg. */}
         <div className='flex min-w-0 items-center gap-3 lg:gap-7'>

@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import * as db from "@/lib/db";
 import { refreshAll, testPriceSource as runPriceSourceTest } from "@/lib/prices";
 import { authToken, COOKIE_NAME } from "@/lib/auth";
+import { fmtVND } from "@/lib/format";
 import { GOAL_METRICS, type GoalMetric } from "@/lib/types";
 
 function num(v: FormDataEntryValue | null): number | null {
@@ -93,6 +94,8 @@ type ParsedSaving = {
   start_date: string;
   term_months: number;
   interest_type: "simple" | "compound";
+  /** Earmarked for a sinking fund, or null for an ordinary deposit. */
+  goal_id: number | null;
   note: string | null;
 };
 
@@ -115,6 +118,8 @@ function parseSaving(fd: FormData): { ok: true; value: ParsedSaving } | { ok: fa
       start_date: str(fd.get("start_date")) || db.todayIso(),
       term_months: term,
       interest_type: fd.get("interest_type") === "compound" ? "compound" : "simple",
+      // "" (the None option) means the deposit isn't earmarked for anything.
+      goal_id: num(fd.get("goal_id")),
       note: str(fd.get("note")) || null,
     },
   };
@@ -124,7 +129,7 @@ export async function addSaving(fd: FormData) {
   const p = parseSaving(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const s = p.value;
-  db.addSaving(s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.note);
+  db.addSaving(s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.goal_id, s.note);
   revalidateAll();
   return { ok: true, message: "Deposit saved." };
 }
@@ -134,7 +139,7 @@ export async function updateSaving(id: number, fd: FormData) {
   const p = parseSaving(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const s = p.value;
-  db.updateSaving(id, s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.note);
+  db.updateSaving(id, s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.goal_id, s.note);
   revalidateAll();
   return { ok: true, message: "Deposit updated." };
 }
@@ -258,10 +263,13 @@ function parseGoal(fd: FormData): { ok: true; value: ParsedGoal } | { ok: false;
   const metricRaw = str(fd.get("metric")) as GoalMetric;
   const metric = GOAL_METRICS.includes(metricRaw) ? metricRaw : "net_worth";
   const target = num(fd.get("target"));
-  const baseline = num(fd.get("baseline")) ?? 0;
+  const isFund = metric === "fund";
+  // A fund starts empty by definition — its balance IS its progress, so there's nothing
+  // to measure from and no baseline field on the form.
+  const baseline = isFund ? 0 : (num(fd.get("baseline")) ?? 0);
   const plan = num(fd.get("monthly_plan"));
   if (!name) return { ok: false, message: "A goal name is required." };
-  if (target == null || target < 0)
+  if (target == null || target <= 0)
     return { ok: false, message: "A target amount is required." };
   // A debt goal counts DOWN from the baseline, so the two can't be the same number —
   // there'd be no distance to cover and the bar could never move.
@@ -293,13 +301,72 @@ export async function addGoal(fd: FormData) {
 }
 
 export async function updateGoal(id: number, fd: FormData) {
-  if (!db.getGoal(id)) return { ok: false, message: "Not found." };
+  const existing = db.getGoal(id);
+  if (!existing) return { ok: false, message: "Not found." };
   const p = parseGoal(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const g = p.value;
+  // Switching a fund to another metric would strand its ledger — the money would vanish
+  // from net worth while its rows sat in the table. Renaming and re-targeting are fine.
+  if (existing.metric === "fund" && g.metric !== "fund" && db.listGoalContributions(id).length > 0)
+    return {
+      ok: false,
+      message: "This fund holds money. Withdraw it (or mark it as bought) before changing what it tracks.",
+    };
   db.updateGoal(id, g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note);
   revalidateAll();
   return { ok: true, message: "Goal updated." };
+}
+
+/** Put money into a sinking fund (or take it out — a negative amount is a withdrawal). */
+export async function addGoalContribution(goalId: number, fd: FormData) {
+  const goal = db.getGoal(goalId);
+  if (!goal) return { ok: false, message: "Goal not found." };
+  if (goal.metric !== "fund")
+    return { ok: false, message: "Only a sinking fund holds money." };
+  const amount = num(fd.get("amount"));
+  if (amount == null || amount === 0)
+    return { ok: false, message: "An amount is required." };
+  const withdraw = str(fd.get("direction")) === "withdraw";
+  const signed = withdraw ? -Math.abs(amount) : Math.abs(amount);
+  db.addGoalContribution(goalId, str(fd.get("date")) || db.todayIso(), signed, str(fd.get("note")) || null);
+  revalidateAll();
+  return { ok: true, message: withdraw ? "Withdrawal recorded." : "Money added." };
+}
+
+export async function deleteGoalContribution(id: number) {
+  db.deleteGoalContribution(id);
+  revalidateAll();
+  return { ok: true, message: "Entry deleted." };
+}
+
+/**
+ * You bought the thing: drain the cash pot in one withdrawal and archive the goal.
+ *
+ * Earmarked deposits are only un-earmarked, never deleted. A deposit is real money in a
+ * real bank until you actually withdraw it — Netlens can't cash it out for you, and
+ * deleting the row here would erase it from net worth while the bank still holds it. Once
+ * you've broken the deposit for real, delete it on the Savings page.
+ */
+export async function spendGoalFund(goalId: number) {
+  const goal = db.getGoal(goalId);
+  if (!goal) return { ok: false, message: "Goal not found." };
+  if (goal.metric !== "fund") return { ok: false, message: "Only a sinking fund holds money." };
+
+  const cash = db.fundCash(goalId);
+  const deposits = db.savingsByGoal()[goalId] ?? [];
+  if (cash <= 0 && deposits.length === 0) return { ok: false, message: "This fund is empty." };
+
+  if (cash > 0) db.addGoalContribution(goalId, db.todayIso(), -Math.round(cash), `Bought: ${goal.name}`);
+  db.unlinkGoalSavings(goalId);
+  db.setGoalArchived(goalId, true);
+  revalidateAll();
+
+  const parts = [cash > 0 ? `${fmtVND(cash)} in cash spent` : null,
+    deposits.length > 0
+      ? `${deposits.length} deposit${deposits.length === 1 ? "" : "s"} released — delete ${deposits.length === 1 ? "it" : "them"} on Savings once withdrawn`
+      : null].filter(Boolean);
+  return { ok: true, message: `${parts.join(" · ")} — goal archived.` };
 }
 
 export async function archiveGoal(id: number, archived: boolean) {

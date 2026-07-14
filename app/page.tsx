@@ -31,6 +31,7 @@ export default async function Dashboard() {
     <DashboardCharts
       payload={payload}
       savings={savingsValue}
+      funds={db.fundsCashTotal()}
       debts={debtsValue}
       pending={pending.length}
       goals={goals}

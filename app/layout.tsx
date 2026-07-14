@@ -43,7 +43,9 @@ export default function RootLayout({
       <body className='min-h-full flex flex-col'>
         <ThemeProvider>
           <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
-          <main className='mx-auto w-full max-w-[1180px] flex-1 px-5 pt-8 pb-18 sm:px-8'>{children}</main>
+          <main className='mx-auto w-full max-w-[1180px] flex-1 px-5 pt-8 pb-18 sm:px-8 xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+            {children}
+          </main>
           <Toaster richColors position='top-center' />
         </ThemeProvider>
       </body>

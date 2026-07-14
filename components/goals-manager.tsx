@@ -1,10 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Archive, ArchiveRestore, Minus, Pencil, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { GOAL_METRICS, GOAL_METRIC_LABELS, type Goal, type GoalMetric } from "@/lib/types";
-import { addGoal, archiveGoal, deleteGoal, updateGoal } from "@/app/actions";
+import {
+  GOAL_METRICS, GOAL_METRIC_LABELS,
+  type Goal, type GoalContribution, type GoalMetric, type Saving,
+} from "@/lib/types";
+import { currentValue, maturityDate } from "@/lib/savings";
+import {
+  addGoal, addGoalContribution, archiveGoal, deleteGoal, deleteGoalContribution,
+  spendGoalFund, updateGoal,
+} from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { shortfall, verdict, type GoalView } from "@/lib/goals";
 import { GoalBar, GoalStatusChip } from "@/components/goal-strip";
@@ -21,6 +29,9 @@ import {
 import { cn } from "@/lib/utils";
 
 type ActionResult = { ok: boolean; message: string };
+
+/** A fund's card shows its recent movements, not its whole history. */
+const VISIBLE_CONTRIBUTIONS = 5;
 
 /** Where each pace figure came from, said plainly — the projection is never a black box. */
 const PACE_SOURCE_NOTE: Record<string, string> = {
@@ -52,6 +63,7 @@ function GoalForm({
   // the share of the target you already have.
   const baselineDefault = goal?.baseline ?? (metric === "debts" ? Math.round(current.debts) : 0);
   const isDebt = metric === "debts";
+  const isFund = metric === "fund";
 
   return (
     <form
@@ -93,17 +105,22 @@ function GoalForm({
         <Label htmlFor="g-target">{isDebt ? "Target balance (VND)" : "Target amount (VND)"}</Label>
         <CurrencyInput
           id="g-target" name="target"
-          defaultValue={goal?.target} placeholder={isDebt ? "0" : "1.000.000.000"} required
+          defaultValue={goal?.target}
+          placeholder={isDebt ? "0" : isFund ? "800.000.000" : "1.000.000.000"} required
         />
       </div>
-      <div className="grid gap-2">
-        <Label htmlFor="g-baseline">{isDebt ? "Starting balance (VND)" : "Start progress from (VND)"}</Label>
-        <CurrencyInput
-          key={metric} // remount so the debt prefill lands when the metric changes
-          id="g-baseline" name="baseline"
-          defaultValue={baselineDefault}
-        />
-      </div>
+      {/* A fund starts empty, so it has no baseline to measure from — and no rate of its
+          own: interest comes from the deposits you earmark to it, each on its own terms. */}
+      {!isFund && (
+        <div className="grid gap-2">
+          <Label htmlFor="g-baseline">{isDebt ? "Starting balance (VND)" : "Start progress from (VND)"}</Label>
+          <CurrencyInput
+            key={metric} // remount so the debt prefill lands when the metric changes
+            id="g-baseline" name="baseline"
+            defaultValue={baselineDefault}
+          />
+        </div>
+      )}
       <div className="grid gap-2">
         <Label htmlFor="g-date">Target date (optional)</Label>
         <Input id="g-date" name="target_date" type="date" defaultValue={goal?.target_date ?? undefined} />
@@ -120,9 +137,11 @@ function GoalForm({
         <Input id="g-note" name="note" defaultValue={goal?.note ?? undefined} />
       </div>
       <p className="text-[12px] text-muted-foreground sm:col-span-2">
-        {isDebt
-          ? "Without a monthly plan, the projection follows each debt's own repayment schedule."
-          : "Without a monthly plan, the projection uses your active recurring rules — and market growth is counted as zero."}
+        {isFund
+          ? "A sinking fund holds cash you set aside plus any savings deposits you earmark for it (each keeping its own rate and term). The money counts in your net worth until you spend it, but is left out of net-worth goals — it's already spoken for. Without a monthly plan, the pace comes from what you've been putting in."
+          : isDebt
+            ? "Without a monthly plan, the projection follows each debt's own repayment schedule."
+            : "Without a monthly plan, the projection uses your active recurring rules — and market growth is counted as zero."}
       </p>
       <div className="sm:col-span-2">
         <Button type="submit" disabled={pending}>
@@ -133,12 +152,255 @@ function GoalForm({
   );
 }
 
-function GoalCard({ view, current }: { view: GoalView; current: Record<GoalMetric, number> }) {
+/** Add to a fund, or take money back out. One form, two directions — a withdrawal is just
+ *  a negative row, and the server signs it from `direction`. */
+function FundMoneyForm({
+  goalId,
+  direction,
+  onDone,
+}: {
+  goalId: number;
+  direction: "add" | "withdraw";
+  onDone: () => void;
+}) {
+  const [pending, startTransition] = React.useTransition();
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <form
+      action={(fd) =>
+        startTransition(async () => {
+          const res = await addGoalContribution(goalId, fd);
+          if (res.ok) {
+            toast.success(res.message);
+            onDone();
+          } else toast.error(res.message);
+        })
+      }
+      className="grid gap-4 sm:grid-cols-2"
+    >
+      <input type="hidden" name="direction" value={direction} />
+      <div className="grid gap-2">
+        <Label htmlFor="c-amount">Amount (VND)</Label>
+        <CurrencyInput id="c-amount" name="amount" placeholder="10.000.000" required />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="c-date">Date</Label>
+        <Input id="c-date" name="date" type="date" defaultValue={today} required />
+      </div>
+      <div className="grid gap-2 sm:col-span-2">
+        <Label htmlFor="c-note">Note (optional)</Label>
+        <Input id="c-note" name="note" placeholder={direction === "add" ? "e.g. bonus" : "e.g. moved to deposit"} />
+      </div>
+      <div className="sm:col-span-2">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving…" : direction === "add" ? "Add money" : "Withdraw"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** The deposits earmarked for this fund. They're managed on the Savings page — a deposit
+ *  is a real deposit first and a goal's contents second. */
+function LinkedDeposits({ deposits }: { deposits: Saving[] }) {
+  if (deposits.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">
+        Deposits ({deposits.length})
+      </div>
+      {deposits.map((s) => (
+        <div
+          key={s.id}
+          className="flex items-center justify-between gap-3 border-b border-divider py-1.5 last:border-b-0"
+        >
+          <span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground">
+            {s.bank ?? "Deposit"}
+            <span className="text-faint">
+              {" · "}
+              {s.rate}%/yr · {s.term_months}mo · matures {maturityDate(s)}
+            </span>
+          </span>
+          <span className="shrink-0 font-mono text-[12px] text-accent-brand tabular-nums">
+            {fmtVND(currentValue(s))}
+          </span>
+        </div>
+      ))}
+      <p className="pt-1.5 text-[11.5px] text-faint">
+        Each keeps its own rate and term. Earmark a deposit from the{" "}
+        <Link href="/savings" className="underline hover:text-foreground">
+          Savings page
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}
+
+/** The ledger behind a fund's balance, plus the two things you do to a pot: feed it, and
+ *  eventually spend it. */
+function FundPanel({
+  goal,
+  balance,
+  contributions,
+  deposits,
+}: {
+  goal: Goal;
+  balance: number;
+  contributions: GoalContribution[];
+  deposits: Saving[];
+}) {
+  const [open, setOpen] = React.useState<"add" | "withdraw" | null>(null);
+  const [pending, startTransition] = React.useTransition();
+  const archived = goal.archived === 1;
+  // Newest first: the last thing you did is the thing you'd want to correct.
+  const recent = [...contributions].reverse().slice(0, VISIBLE_CONTRIBUTIONS);
+  const hidden = contributions.length - recent.length;
+
+  const run = (fn: () => Promise<ActionResult>) =>
+    startTransition(async () => {
+      const res = await fn();
+      if (res.ok) toast.success(res.message);
+      else toast.error(res.message);
+    });
+
+  const cash = contributions.reduce((a, c) => a + c.amount, 0);
+
+  return (
+    <div className="mt-3.5 border-t border-divider pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">
+          Cash set aside{" "}
+          <span className="text-muted-foreground normal-case">{fmtVND(cash)}</span>
+        </span>
+        {!archived && (
+          <div className="flex flex-wrap gap-1.5">
+            <Dialog
+              open={open !== null}
+              onOpenChange={(v) => setOpen(v ? (open ?? "add") : null)}
+            >
+              <DialogTrigger
+                render={<Button variant="outline" size="sm" onClick={() => setOpen("add")} />}
+              >
+                <Plus className="size-3.5" />
+                Add money
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>
+                    {open === "withdraw" ? "Withdraw from" : "Add money to"} {goal.name}
+                  </DialogTitle>
+                </DialogHeader>
+                <FundMoneyForm
+                  goalId={goal.id}
+                  direction={open === "withdraw" ? "withdraw" : "add"}
+                  onDone={() => setOpen(null)}
+                />
+              </DialogContent>
+            </Dialog>
+            {cash > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setOpen("withdraw")}>
+                <Minus className="size-3.5" />
+                Withdraw
+              </Button>
+            )}
+            {balance > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pending}
+                onClick={() => {
+                  // Say exactly what happens, separately for each: the cash is spent, the
+                  // deposits are only released — the bank still holds those until you
+                  // actually break them.
+                  const bits = [
+                    cash > 0 ? `spend the ${fmtVND(cash)} in cash` : null,
+                    deposits.length > 0
+                      ? `release ${deposits.length} linked deposit${deposits.length === 1 ? "" : "s"} (delete ${deposits.length === 1 ? "it" : "them"} on Savings once you've withdrawn ${deposits.length === 1 ? "it" : "them"})`
+                      : null,
+                  ].filter(Boolean);
+                  if (!confirm(`Bought "${goal.name}"? This will ${bits.join(" and ")}, then archive the goal.`))
+                    return;
+                  run(() => spendGoalFund(goal.id));
+                }}
+              >
+                <ShoppingCart className="size-3.5" />
+                Mark as bought
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {contributions.length === 0 ? (
+        <p className="mt-2 text-[12px] text-muted-foreground">
+          No cash in the pot. Add money as you set it aside, or earmark a savings deposit
+          for this fund.
+        </p>
+      ) : (
+        <div className="mt-2">
+          {recent.map((c) => (
+            <div
+              key={c.id}
+              className="flex items-center justify-between gap-3 border-b border-divider py-1.5 last:border-b-0"
+            >
+              <span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground">
+                {c.date}
+                {c.note && <span className="text-faint"> · {c.note}</span>}
+              </span>
+              <span className="flex shrink-0 items-center gap-1.5">
+                <span
+                  className={cn(
+                    "font-mono text-[12px] tabular-nums",
+                    c.amount < 0 ? "text-(--chart-negative)" : "text-accent-brand",
+                  )}
+                >
+                  {c.amount < 0 ? "−" : "+"}
+                  {fmtVND(Math.abs(c.amount))}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Delete entry"
+                  disabled={pending}
+                  onClick={() => run(() => deleteGoalContribution(c.id))}
+                >
+                  <Trash2 className="size-3 text-destructive" />
+                </Button>
+              </span>
+            </div>
+          ))}
+          {hidden > 0 && (
+            <p className="pt-1.5 font-mono text-[11px] text-faint">
+              + {hidden} earlier {hidden === 1 ? "entry" : "entries"}
+            </p>
+          )}
+        </div>
+      )}
+
+      <LinkedDeposits deposits={deposits} />
+    </div>
+  );
+}
+
+function GoalCard({
+  view,
+  current,
+  contributions,
+  deposits,
+}: {
+  view: GoalView;
+  current: Record<GoalMetric, number>;
+  contributions: GoalContribution[];
+  deposits: Saving[];
+}) {
   const { goal, proj } = view;
   const [editOpen, setEditOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
   const archived = goal.archived === 1;
   const gap = shortfall(proj);
+  const isFund = goal.metric === "fund";
 
   const run = (fn: () => Promise<ActionResult>) =>
     startTransition(async () => {
@@ -252,6 +514,15 @@ function GoalCard({ view, current }: { view: GoalView; current: Record<GoalMetri
           )}
         </div>
       )}
+
+      {isFund && (
+        <FundPanel
+          goal={goal}
+          balance={proj.current}
+          contributions={contributions}
+          deposits={deposits}
+        />
+      )}
     </div>
   );
 }
@@ -259,9 +530,15 @@ function GoalCard({ view, current }: { view: GoalView; current: Record<GoalMetri
 export function GoalsManager({
   goals,
   current,
+  contributions,
+  deposits,
 }: {
   goals: GoalView[];
   current: Record<GoalMetric, number>;
+  /** Each fund's cash ledger, keyed by goal id. Empty for every other metric. */
+  contributions: Record<number, GoalContribution[]>;
+  /** Deposits earmarked to each fund, keyed by goal id. */
+  deposits: Record<number, Saving[]>;
 }) {
   const active = goals.filter((g) => g.goal.archived === 0);
   const archived = goals.filter((g) => g.goal.archived === 1);
@@ -270,11 +547,18 @@ export function GoalsManager({
     <div className="flex flex-col gap-4">
       {active.length === 0 && (
         <p className="text-[13px] text-muted-foreground">
-          No goals yet. Add one below — a target on net worth, investments, savings, or debts.
+          No goals yet. Add one below — a target on net worth, investments, savings or debts,
+          or a sinking fund you pay into by hand.
         </p>
       )}
       {active.map((view) => (
-        <GoalCard key={view.goal.id} view={view} current={current} />
+        <GoalCard
+          key={view.goal.id}
+          view={view}
+          current={current}
+          contributions={contributions[view.goal.id] ?? []}
+          deposits={deposits[view.goal.id] ?? []}
+        />
       ))}
 
       <div className="rounded-xl border border-border bg-card px-6 py-[22px]">
@@ -288,7 +572,13 @@ export function GoalsManager({
             Archived
           </div>
           {archived.map((view) => (
-            <GoalCard key={view.goal.id} view={view} current={current} />
+            <GoalCard
+              key={view.goal.id}
+              view={view}
+              current={current}
+              contributions={contributions[view.goal.id] ?? []}
+              deposits={deposits[view.goal.id] ?? []}
+            />
           ))}
         </>
       )}

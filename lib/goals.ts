@@ -23,11 +23,15 @@ import {
   type Payment,
 } from "./savings";
 import { MONTHS } from "./format";
-import type { Goal, GoalMetric } from "./types";
+import type { Goal, GoalContribution, GoalMetric } from "./types";
 
 /** Past this we call a goal unreachable rather than print a date in the next century. */
 const MAX_HORIZON_MONTHS = 600;
-const AVG_MONTH_MS = 30.44 * 86_400_000;
+const DAY_MS = 86_400_000;
+const AVG_MONTH_MS = 30.44 * DAY_MS;
+
+/** How far back a fund's own contribution history is averaged for its fallback pace. */
+const FUND_PACE_WINDOW_MONTHS = 6;
 
 /** The forward walk samples whole months, so sub-month precision is an illusion. Landing
  *  within half a month of the deadline is "on time" — without this, a goal arriving 13
@@ -57,11 +61,27 @@ export interface GoalWorld {
   savings: Accruing[];
   debts: GoalDebt[];
   paymentsByDebt: Record<number, Payment[]>;
+  /** Every sinking fund — archived ones too, since the cash in them is still yours and
+   *  still belongs in net worth. */
+  funds: FundRef[];
+  /** Each fund's cash ledger, keyed by goal id. */
+  contributions: Record<number, GoalContribution[]>;
+  /** Deposits earmarked for a fund, keyed by goal id. They keep their own rate and term,
+   *  and stay part of `savings` — a deposit belongs to a goal, it doesn't leave savings. */
+  savingsByGoal: Record<number, Accruing[]>;
   /** ₫/month you've committed to, from active recurring rules. */
   plannedMonthly: number;
   /** ₫/month you've actually contributed over the trailing window. */
   actualMonthly: number;
 }
+
+export interface FundRef {
+  id: number;
+}
+
+/** What `valueAt` needs to know about the thing being projected. A whole `Goal` satisfies
+ *  it; a bare `{ metric }` is enough for the metrics that carry no per-goal state. */
+export type GoalLike = { metric: GoalMetric; id?: number };
 
 /** Where the projected pace came from — the UI says which, so the number is never a
  *  black box. `schedule` means the debt's own amortization is doing the work. */
@@ -113,6 +133,13 @@ function isoOf(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Midnight of `d`'s LOCAL day, as the same UTC-midnight basis the ledger's dates parse to
+ *  (rows store a local ISO date). Using UTC here instead would push "today" forward by the
+ *  timezone offset, so money added late in the evening wouldn't appear until morning. */
+function startOfDayMs(d: Date): number {
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 /** Total term-deposit value `months` from now: interest only, no new deposits. */
 function savingsAt(w: GoalWorld, months: number): number {
   const at = dateAfter(w, months);
@@ -157,7 +184,54 @@ function debtsAt(w: GoalWorld, months: number, monthlyPayment: number, usePlan: 
 }
 
 /**
+ * The *cash* a fund holds at `at` — its ledger, summed up to that date. Cash set aside
+ * earns nothing: interest comes from the deposits earmarked to the fund, each with its own
+ * rate and term (`Saving.goal_id`), because you take whatever rate was on offer the month
+ * you had the money — a single fund-wide rate could never say that.
+ *
+ * Evaluated at the START of `at`'s day: the ledger only knows dates, so a row dated today
+ * counts today, and the balance you're shown is exactly the one a withdrawal settles
+ * against — no "Mark as bought" quoting one figure and writing another.
+ */
+export function fundCashAt(rows: GoalContribution[], at: Date): number {
+  const atMs = startOfDayMs(at);
+  return rows.reduce(
+    (a, c) => (Date.parse(c.date + "T00:00:00Z") <= atMs ? a + c.amount : a),
+    0,
+  );
+}
+
+/** What one sinking fund is worth `months` from now: cash set aside, plus the deposits
+ *  earmarked to it, each accruing on its own terms. No new money is assumed. */
+function fundAt(w: GoalWorld, g: GoalLike, months: number): number {
+  if (g.id == null) return 0; // an unsaved fund has no ledger yet
+  const at = dateAfter(w, months);
+  const cash = fundCashAt(w.contributions[g.id] ?? [], at);
+  const deposits = (w.savingsByGoal[g.id] ?? []).reduce((a, s) => a + currentValue(s, at), 0);
+  return cash + deposits;
+}
+
+/** Everything earmarked for a sinking fund, `months` from now: cash pots plus the deposits
+ *  linked to them. This money is spoken for, which is why a net-worth goal leaves it out. */
+function earmarkedAt(w: GoalWorld, months: number): number {
+  const at = dateAfter(w, months);
+  const cash = w.funds.reduce((a, f) => a + fundCashAt(w.contributions[f.id] ?? [], at), 0);
+  const deposits = Object.values(w.savingsByGoal)
+    .flat()
+    .reduce((a, s) => a + currentValue(s, at), 0);
+  return cash + deposits;
+}
+
+/** What one fund is worth today. */
+export function fundValue(w: GoalWorld, g: GoalLike): number {
+  return fundAt(w, g, 0);
+}
+
+/**
  * The goal's metric, `months` from now, assuming `pace` ₫/month goes toward it.
+ *
+ * Takes the goal rather than just its metric because a fund's value lives in its own
+ * ledger — every other metric is a figure the whole world shares.
  *
  * `paceRepaysDebt` says the pace is money aimed at the debt itself (a debt goal with a
  * monthly plan). It must be threaded through rather than inferred from `pace > 0`,
@@ -166,21 +240,38 @@ function debtsAt(w: GoalWorld, months: number, monthlyPayment: number, usePlan: 
  */
 export function valueAt(
   w: GoalWorld,
-  metric: GoalMetric,
+  g: GoalLike,
   months: number,
   pace: number,
   paceRepaysDebt = false,
 ): number {
-  switch (metric) {
+  switch (g.metric) {
     case "investments":
       return w.investments + pace * months;
     case "savings":
       return savingsAt(w, months) + pace * months;
     case "debts":
       return debtsAt(w, months, pace, paceRepaysDebt);
+    case "fund":
+      // Future contributions are counted as cash: money you haven't set aside yet can't
+      // be earning interest, which keeps the projection on the conservative side.
+      return fundAt(w, g, months) + pace * months;
     case "net_worth":
       // Contributions land in investments; debts follow their own schedule.
-      return w.investments + pace * months + savingsAt(w, months) - debtsAt(w, months, 0, false);
+      //
+      // Money earmarked for a sinking fund is deliberately NOT here — neither the cash pot
+      // nor the deposits linked to it. It counts in your net worth on the dashboard (you
+      // do hold it), but a net-worth *goal* asks a different question: how far you've got
+      // toward a number that's yours to keep. Money already promised to a car isn't, and
+      // counting it would let a goal look reached on the strength of savings that are about
+      // to walk out the door.
+      return (
+        w.investments +
+        pace * months +
+        savingsAt(w, months) -
+        earmarkedAt(w, months) -
+        debtsAt(w, months, 0, false)
+      );
   }
 }
 
@@ -198,9 +289,29 @@ export function resolvePace(g: Goal, w: GoalWorld): { pace: number; paceSource: 
     return { pace: g.monthly_plan, paceSource: "goal" };
   if (g.metric === "debts") return { pace: 0, paceSource: "schedule" };
   if (g.metric === "savings") return { pace: 0, paceSource: "none" };
+  if (g.metric === "fund") {
+    // A fund is fed by hand, so the global rules say nothing about it — but its own
+    // ledger does. Withdrawals are excluded: taking money out isn't a slower pace, it's
+    // a different act, and averaging it in would quietly project the pot shrinking.
+    const rate = fundContributionRate(w, g);
+    return rate > 0 ? { pace: rate, paceSource: "actual" } : { pace: 0, paceSource: "none" };
+  }
   if (w.plannedMonthly > 0) return { pace: w.plannedMonthly, paceSource: "planned" };
   if (w.actualMonthly > 0) return { pace: w.actualMonthly, paceSource: "actual" };
   return { pace: 0, paceSource: "none" };
+}
+
+/** ₫/month put into this fund over the trailing window — cash you set aside plus deposits
+ *  you opened for it. Both are you feeding the fund; only the vehicle differs. */
+function fundContributionRate(w: GoalWorld, g: Goal): number {
+  const recent = (date: string) => monthsBetween(date, w.today) <= FUND_PACE_WINDOW_MONTHS;
+  const cash = (w.contributions[g.id] ?? [])
+    .filter((c) => c.amount > 0 && recent(c.date))
+    .reduce((a, c) => a + c.amount, 0);
+  const deposited = (w.savingsByGoal[g.id] ?? [])
+    .filter((s) => recent(s.start_date))
+    .reduce((a, s) => a + s.principal, 0);
+  return (cash + deposited) / FUND_PACE_WINDOW_MONTHS;
 }
 
 function hasReached(g: Goal, value: number): boolean {
@@ -220,7 +331,7 @@ export function project(g: Goal, w: GoalWorld): GoalProjection {
   // A monthly plan on a *debt* goal is money aimed at the debt, so it stands in for the
   // repayment schedule. Anywhere else the pace is a contribution.
   const repaysDebt = g.metric === "debts" && paceSource === "goal";
-  const current = valueAt(w, g.metric, 0, pace, repaysDebt);
+  const current = valueAt(w, g, 0, pace, repaysDebt);
   const hit = hasReached(g, current);
 
   const monthsLeftRaw = g.target_date ? monthsBetween(w.today, g.target_date) : null;
@@ -232,7 +343,7 @@ export function project(g: Goal, w: GoalWorld): GoalProjection {
   // it — which is why `requiredIsExtra` exists rather than the UI guessing.
   let requiredPerMonth: number | null = null;
   if (!hit && monthsLeft != null && monthsLeft > 0) {
-    const drifted = valueAt(w, g.metric, monthsLeft, 0, repaysDebt);
+    const drifted = valueAt(w, g, monthsLeft, 0, repaysDebt);
     const gap = isUpward(g.metric) ? g.target - drifted : drifted - g.target;
     requiredPerMonth = Math.max(0, gap / monthsLeft);
   }
@@ -244,7 +355,7 @@ export function project(g: Goal, w: GoalWorld): GoalProjection {
     projectedDate = w.today;
   } else {
     for (let m = 1; m <= MAX_HORIZON_MONTHS; m++) {
-      if (hasReached(g, valueAt(w, g.metric, m, pace, repaysDebt))) {
+      if (hasReached(g, valueAt(w, g, m, pace, repaysDebt))) {
         projectedDate = isoOf(dateAfter(w, m));
         break;
       }

@@ -84,6 +84,9 @@ export interface Saving {
   start_date: string;
   term_months: number;
   interest_type: InterestType;
+  /** Earmarked for a sinking-fund goal, if any. The deposit still counts once — under
+   *  Savings in net worth — and its live value counts toward that goal's progress. */
+  goal_id: number | null;
   note: string | null;
   created_at: string;
 }
@@ -111,8 +114,13 @@ export interface DebtPayment {
   created_at: string;
 }
 
-/** The metrics a goal can target — each one is a figure the dashboard already computes. */
-export const GOAL_METRICS = ["net_worth", "investments", "savings", "debts"] as const;
+/**
+ * What a goal tracks. Four of these are figures the dashboard already computes, so the
+ * goal reads them live. `fund` is the odd one out: a sinking fund (a car, a wedding) is
+ * money you set aside on purpose, which no other figure knows about — so it carries its
+ * own ledger of contributions, and its "current value" is that balance.
+ */
+export const GOAL_METRICS = ["net_worth", "investments", "savings", "debts", "fund"] as const;
 export type GoalMetric = (typeof GOAL_METRICS)[number];
 
 export const GOAL_METRIC_LABELS: Record<GoalMetric, string> = {
@@ -120,6 +128,7 @@ export const GOAL_METRIC_LABELS: Record<GoalMetric, string> = {
   investments: "Investments",
   savings: "Savings",
   debts: "Debts",
+  fund: "Sinking fund",
 };
 
 /**
@@ -142,6 +151,24 @@ export interface Goal {
   monthly_plan: number | null;
   target_date: string | null;
   archived: number;
+  note: string | null;
+  created_at: string;
+}
+
+/**
+ * One movement of cash into (+) or out of (−) a sinking fund. The balance is just the sum,
+ * so a withdrawal is a negative row and buying the thing is a single row that drains the pot.
+ *
+ * This is *cash* — money set aside but not yet deposited anywhere, so it earns nothing.
+ * A fund grows interest by earmarking savings deposits to it instead (`Saving.goal_id`):
+ * each deposit keeps its own rate and term, which is how it actually works — you take
+ * whatever rate was on offer the month you had the money.
+ */
+export interface GoalContribution {
+  id: number;
+  goal_id: number;
+  date: string;
+  amount: number;
   note: string | null;
   created_at: string;
 }

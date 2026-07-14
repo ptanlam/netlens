@@ -5,12 +5,12 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
-import type { Debt, DebtPayment, Goal, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
-import type { GoalWorld } from "./goals";
-import type { Payment } from "./savings";
+import type { Debt, DebtPayment, Goal, GoalContribution, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
+import { fundCashAt, type GoalWorld } from "./goals";
+import { currentValue, type Payment } from "./savings";
 
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
-export type { AssetType, Debt, DebtPayment, Goal, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
+export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS transactions (
@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS savings (
   start_date    TEXT    NOT NULL,
   term_months   INTEGER NOT NULL,
   interest_type TEXT    NOT NULL DEFAULT 'simple',
+  goal_id       INTEGER,
   note          TEXT,
   created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -105,6 +106,17 @@ CREATE TABLE IF NOT EXISTS goals (
   note         TEXT,
   created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Contributions to a sinking-fund goal (metric = 'fund'). Negative = a withdrawal.
+CREATE TABLE IF NOT EXISTS goal_contributions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  goal_id    INTEGER NOT NULL,
+  date       TEXT    NOT NULL,
+  amount     INTEGER NOT NULL,
+  note       TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_goal_contributions_goal ON goal_contributions(goal_id);
 
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
@@ -203,6 +215,8 @@ function migrate(db: Database.Database) {
     db.exec("ALTER TABLE debts ADD COLUMN kind TEXT NOT NULL DEFAULT 'fixed'");
   if (!hasColumn("debts", "monthly_payment"))
     db.exec("ALTER TABLE debts ADD COLUMN monthly_payment INTEGER");
+  if (!hasColumn("savings", "goal_id"))
+    db.exec("ALTER TABLE savings ADD COLUMN goal_id INTEGER");
 }
 
 export function todayIso(): string {
@@ -266,24 +280,25 @@ export function getSaving(id: number): Saving | undefined {
 
 export function addSaving(
   bank: string | null, principal: number, rate: number, startDate: string,
-  termMonths: number, interestType: string, note: string | null = null,
+  termMonths: number, interestType: string, goalId: number | null = null,
+  note: string | null = null,
 ) {
   getDb()
     .prepare(
-      "INSERT INTO savings(bank, principal, rate, start_date, term_months, interest_type, note) VALUES (?,?,?,?,?,?,?)",
+      "INSERT INTO savings(bank, principal, rate, start_date, term_months, interest_type, goal_id, note) VALUES (?,?,?,?,?,?,?,?)",
     )
-    .run(bank, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, note);
+    .run(bank, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, goalId, note);
 }
 
 export function updateSaving(
   id: number, bank: string | null, principal: number, rate: number, startDate: string,
-  termMonths: number, interestType: string, note: string | null,
+  termMonths: number, interestType: string, goalId: number | null, note: string | null,
 ) {
   getDb()
     .prepare(
-      "UPDATE savings SET bank=?, principal=?, rate=?, start_date=?, term_months=?, interest_type=?, note=? WHERE id=?",
+      "UPDATE savings SET bank=?, principal=?, rate=?, start_date=?, term_months=?, interest_type=?, goal_id=?, note=? WHERE id=?",
     )
-    .run(bank, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, note, id);
+    .run(bank, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, goalId, note, id);
 }
 
 export function deleteSaving(id: number) {
@@ -709,7 +724,81 @@ export function setGoalArchived(id: number, archived: boolean) {
 }
 
 export function deleteGoal(id: number) {
-  getDb().prepare("DELETE FROM goals WHERE id=?").run(id);
+  const db = getDb();
+  db.prepare("DELETE FROM goal_contributions WHERE goal_id=?").run(id);
+  // Un-earmark, don't delete: the deposits are real money and outlive the goal.
+  db.prepare("UPDATE savings SET goal_id=NULL WHERE goal_id=?").run(id);
+  db.prepare("DELETE FROM goals WHERE id=?").run(id);
+}
+
+/** Release every deposit earmarked for a goal, leaving the deposits themselves untouched. */
+export function unlinkGoalSavings(goalId: number) {
+  getDb().prepare("UPDATE savings SET goal_id=NULL WHERE goal_id=?").run(goalId);
+}
+
+/** Deposits earmarked for a sinking fund, keyed by goal id. */
+export function savingsByGoal(): Record<number, Saving[]> {
+  const byGoal: Record<number, Saving[]> = {};
+  for (const s of listSavings()) {
+    if (s.goal_id != null) (byGoal[s.goal_id] ??= []).push(s);
+  }
+  return byGoal;
+}
+
+// ---------- sinking-fund contributions ----------
+
+/** Every contribution, or just one goal's. Oldest first, so a ledger reads top-down. */
+export function listGoalContributions(goalId?: number): GoalContribution[] {
+  const db = getDb();
+  return goalId == null
+    ? (db.prepare("SELECT * FROM goal_contributions ORDER BY date, id").all() as GoalContribution[])
+    : (db
+        .prepare("SELECT * FROM goal_contributions WHERE goal_id=? ORDER BY date, id")
+        .all(goalId) as GoalContribution[]);
+}
+
+export function addGoalContribution(
+  goalId: number, date: string, amount: number, note: string | null = null,
+) {
+  getDb()
+    .prepare("INSERT INTO goal_contributions(goal_id, date, amount, note) VALUES (?,?,?,?)")
+    .run(goalId, date, Math.round(amount), note);
+}
+
+export function deleteGoalContribution(id: number) {
+  getDb().prepare("DELETE FROM goal_contributions WHERE id=?").run(id);
+}
+
+/** The *cash* a fund holds right now — the ledger only, not its earmarked deposits. */
+export function fundCash(goalId: number, today = new Date()): number {
+  return fundCashAt(listGoalContributions(goalId), today);
+}
+
+/**
+ * Everything a fund is worth: cash set aside, plus the live value of the deposits
+ * earmarked for it (each with its own rate and term — see `Saving.goal_id`).
+ */
+export function fundValue(goalId: number, today = new Date()): number {
+  const deposits = (savingsByGoal()[goalId] ?? []).reduce(
+    (a, s) => a + currentValue(s, today),
+    0,
+  );
+  return fundCash(goalId, today) + deposits;
+}
+
+/**
+ * Cash set aside across every sinking fund — net worth's extra line.
+ *
+ * Deposits are deliberately NOT in here: an earmarked deposit is already counted under
+ * Savings, and adding it again would inflate net worth by the same money twice. Only the
+ * un-deposited cash is new. Archived funds still count — "mark as bought" drains the pot,
+ * so anything left in one is money you still hold, watched or not.
+ */
+export function fundsCashTotal(today = new Date()): number {
+  const goals = getDb()
+    .prepare("SELECT id FROM goals WHERE metric='fund'")
+    .all() as { id: number }[];
+  return goals.reduce((a, g) => a + fundCash(g.id, today), 0);
 }
 
 /** ₫/month you've committed to via active recurring rules — the *forward* contribution
@@ -744,6 +833,15 @@ export function buildGoalWorld(investments: number): GoalWorld {
   const paymentsByDebt: Record<number, Payment[]> = {};
   for (const p of listDebtPayments()) (paymentsByDebt[p.debt_id] ??= []).push(p);
 
+  const contributions: Record<number, GoalContribution[]> = {};
+  for (const c of listGoalContributions()) (contributions[c.goal_id] ??= []).push(c);
+
+  // Every fund, archived included — see `fundsCashTotal`. Net worth has to see the money
+  // even when the goal watching it has been put away.
+  const funds = getDb()
+    .prepare("SELECT id FROM goals WHERE metric='fund'")
+    .all() as { id: number }[];
+
   return {
     today: todayIso(),
     nowMs: Date.now(),
@@ -751,6 +849,9 @@ export function buildGoalWorld(investments: number): GoalWorld {
     savings: listSavings(),
     debts: listDebts(),
     paymentsByDebt,
+    funds,
+    contributions,
+    savingsByGoal: savingsByGoal(),
     plannedMonthly: plannedMonthly(),
     actualMonthly: actualMonthly(),
   };
