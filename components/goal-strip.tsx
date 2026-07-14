@@ -52,13 +52,16 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
         </Link>
       </div>
       <div>
-        {goals.map(({ goal, proj }) => (
+        {goals.map(({ goal, proj }, i) => (
           <Link
             key={goal.id}
             href="/goals"
             className="flex flex-col gap-2 border-t border-divider px-5 py-3.5 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:gap-5"
           >
             <div className="flex min-w-0 items-center gap-2 sm:w-[30%]">
+              {/* The rank you set on /goals — the rail is ordered by it, so showing the
+                  number is what makes that order legible rather than arbitrary. */}
+              <span className="shrink-0 font-mono text-[11px] text-faint tabular-nums">{i + 1}</span>
               <span className="truncate text-[13.5px] font-medium">{goal.name}</span>
               <span className="shrink-0 font-mono text-[10px] text-faint uppercase">
                 {GOAL_METRIC_LABELS[goal.metric]}

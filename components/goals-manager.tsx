@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Archive, ArchiveRestore, Minus, Pencil, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import {
+  Archive, ArchiveRestore, ChevronDown, ChevronUp, Minus, Pencil, Plus, ShoppingCart, Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   GOAL_METRICS, GOAL_METRIC_LABELS,
@@ -11,7 +13,7 @@ import {
 import { currentValue, maturityDate } from "@/lib/savings";
 import {
   addGoal, addGoalContribution, archiveGoal, deleteGoal, deleteGoalContribution,
-  spendGoalFund, updateGoal,
+  moveGoal, spendGoalFund, updateGoal,
 } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { shortfall, verdict, type GoalView } from "@/lib/goals";
@@ -384,16 +386,76 @@ function FundPanel({
   );
 }
 
+/** Rank controls. Reordering is silent on success — a toast per nudge would be noise when
+ *  you're shuffling four goals into shape, and the list moving IS the feedback. */
+function RankControls({
+  goalId,
+  rank,
+  isFirst,
+  isLast,
+}: {
+  goalId: number;
+  rank: number;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
+  const [pending, startTransition] = React.useTransition();
+
+  const move = (direction: "up" | "down") =>
+    startTransition(async () => {
+      const res = await moveGoal(goalId, direction);
+      if (!res.ok) toast.error(res.message);
+    });
+
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <span
+        className="grid size-6 place-items-center rounded-md bg-secondary font-mono text-[11px] text-muted-foreground tabular-nums"
+        aria-hidden
+      >
+        {rank}
+      </span>
+      <div className="flex flex-col">
+        <button
+          type="button"
+          aria-label={`Move up (currently ranked ${rank})`}
+          disabled={pending || isFirst}
+          onClick={() => move("up")}
+          className="grid h-[15px] w-5 place-items-center rounded-t-[5px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+        >
+          <ChevronUp className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label={`Move down (currently ranked ${rank})`}
+          disabled={pending || isLast}
+          onClick={() => move("down")}
+          className="grid h-[15px] w-5 place-items-center rounded-b-[5px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+        >
+          <ChevronDown className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function GoalCard({
   view,
   current,
   contributions,
   deposits,
+  rank,
+  isFirst,
+  isLast,
 }: {
   view: GoalView;
   current: Record<GoalMetric, number>;
   contributions: GoalContribution[];
   deposits: Saving[];
+  /** 1-based place in your ranking. Null for archived goals, which aren't ranked. */
+  rank: number | null;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   const { goal, proj } = view;
   const [editOpen, setEditOpen] = React.useState(false);
@@ -412,6 +474,10 @@ function GoalCard({
   return (
     <div className={cn("rounded-xl border border-border bg-card px-5 py-4", archived && "opacity-60")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 gap-3">
+          {rank != null && (
+            <RankControls goalId={goal.id} rank={rank} isFirst={isFirst} isLast={isLast} />
+          )}
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[14px] font-semibold">{goal.name}</span>
@@ -425,6 +491,7 @@ function GoalCard({
             {goal.target_date && ` · by ${goal.target_date}`}
             {goal.note && ` · ${goal.note}`}
           </div>
+        </div>
         </div>
         <div className="flex gap-1">
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -551,13 +618,22 @@ export function GoalsManager({
           or a sinking fund you pay into by hand.
         </p>
       )}
-      {active.map((view) => (
+      {active.length > 1 && (
+        <p className="text-[12px] text-muted-foreground">
+          Ranked in your order — the arrows move a goal up or down, and the dashboard follows
+          the same order.
+        </p>
+      )}
+      {active.map((view, i) => (
         <GoalCard
           key={view.goal.id}
           view={view}
           current={current}
           contributions={contributions[view.goal.id] ?? []}
           deposits={deposits[view.goal.id] ?? []}
+          rank={i + 1}
+          isFirst={i === 0}
+          isLast={i === active.length - 1}
         />
       ))}
 
@@ -578,6 +654,9 @@ export function GoalsManager({
               current={current}
               contributions={contributions[view.goal.id] ?? []}
               deposits={deposits[view.goal.id] ?? []}
+              rank={null}
+              isFirst={false}
+              isLast={false}
             />
           ))}
         </>
