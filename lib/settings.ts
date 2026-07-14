@@ -3,6 +3,11 @@
 
 export const SETTINGS_SECTIONS = [
   {
+    href: "/settings/appearance",
+    label: "Appearance",
+    hint: "Theme for this device",
+  },
+  {
     href: "/settings/price-sources",
     label: "Price sources",
     hint: "Where live prices come from",

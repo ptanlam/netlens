@@ -49,7 +49,7 @@ Pure, dependency-free logic (safe to import from client components) lives in
 ## Routes
 
 Pages: `/` (dashboard), `/transactions`, `/holdings`, `/savings`, `/debts`, `/goals`,
-`/recurring`, `/settings/price-sources`, `/login`.
+`/recurring`, `/settings/appearance`, `/settings/price-sources`, `/login`.
 Route handlers: `GET /export.csv`, `GET /api/pnl-history`, `GET /healthz`.
 (There is **no** `/add` page — adding a transaction is a `<Dialog>` on `/transactions`.)
 

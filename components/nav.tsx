@@ -4,20 +4,20 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
-import { Menu, LogOut } from 'lucide-react';
+import { Menu, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LivePrices } from '@/components/live-prices';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { logout } from '@/app/actions';
 import { cn } from '@/lib/utils';
 
+// Settings isn't here: it's the gear in the right-hand cluster (and a row in the drawer,
+// which is where the gear can't fit).
 const LINKS = [
   { href: '/', label: 'Dashboard' },
   { href: '/investments', label: 'Investments' },
   { href: '/savings', label: 'Savings' },
   { href: '/debts', label: 'Debts' },
   { href: '/goals', label: 'Goals' },
-  { href: '/settings', label: 'Settings' },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -87,11 +87,22 @@ function MobileNav({ pathname }: { pathname: string }) {
               <NavPill key={l.href} href={l.href} label={l.label} pathname={pathname} onClick={() => setOpen(false)} />
             ))}
           </nav>
-          {/* The header row has no width for the theme toggle on a phone, so it lives
-              here instead — and disappears once the header can show it again. */}
-          <div className='mt-auto flex items-center justify-between border-t border-border pt-3 pl-1.5 sm:hidden'>
-            <span className='font-mono text-[10px] tracking-[0.06em] text-faint uppercase'>Theme</span>
-            <ThemeToggle />
+          {/* The header row has no width for the gear on a phone, so settings — theme
+              included — is reached from here instead. */}
+          <div className='mt-auto border-t border-border pt-3 sm:hidden'>
+            <Link
+              href='/settings'
+              onClick={() => setOpen(false)}
+              className={cn(
+                'flex items-center gap-2 rounded-[7px] px-[11px] py-1.5 text-[13.5px] transition-colors',
+                isActive(pathname, '/settings')
+                  ? 'bg-foreground font-medium text-background'
+                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+              )}
+            >
+              <Settings className='size-3.5' />
+              Settings
+            </Link>
           </div>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
@@ -130,9 +141,17 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
         </div>
         <div className='flex shrink-0 items-center gap-2'>
           <LivePrices />
-          <div className='hidden sm:block'>
-            <ThemeToggle />
-          </div>
+          <Button
+            variant='ghost'
+            size='icon'
+            aria-label='Settings'
+            title='Settings'
+            nativeButton={false}
+            className='hidden sm:inline-flex'
+            render={<Link href='/settings' />}
+          >
+            <Settings className='size-4' />
+          </Button>
           {authEnabled && <LogoutButton />}
         </div>
       </div>
