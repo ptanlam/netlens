@@ -6,6 +6,8 @@ import { TriangleAlert } from "lucide-react";
 import type { HoldingPnlPoint, Payload, PnlPoint } from "@/lib/types";
 import { fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel } from "@/components/net-worth";
+import { GoalStrip } from "@/components/goal-strip";
+import type { GoalView } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
 import { usePriceRefreshCount } from "@/components/live-prices";
@@ -47,11 +49,13 @@ export function DashboardCharts({
   savings,
   debts,
   pending,
+  goals,
 }: {
   payload: Payload;
   savings: number;
   debts: number;
   pending: number;
+  goals: GoalView[];
 }) {
   const [series, setSeries] = React.useState<PnlPoint[] | null>(null);
   const [holdingSeries, setHoldingSeries] = React.useState<HoldingPnlPoint[] | null>(null);
@@ -162,6 +166,8 @@ export function DashboardCharts({
         debts={debts}
         todayDelta={todayDelta}
       />
+
+      <GoalStrip goals={goals} />
 
       {/* KPI strip — the two P&L tiles are emphasized, tinted by sign (gain/loss). */}
       <div className="mt-[30px] grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-4">

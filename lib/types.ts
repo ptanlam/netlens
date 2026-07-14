@@ -111,6 +111,41 @@ export interface DebtPayment {
   created_at: string;
 }
 
+/** The metrics a goal can target — each one is a figure the dashboard already computes. */
+export const GOAL_METRICS = ["net_worth", "investments", "savings", "debts"] as const;
+export type GoalMetric = (typeof GOAL_METRICS)[number];
+
+export const GOAL_METRIC_LABELS: Record<GoalMetric, string> = {
+  net_worth: "Net worth",
+  investments: "Investments",
+  savings: "Savings",
+  debts: "Debts",
+};
+
+/**
+ * A target on a metric, with an optional deadline. Progress is *derived* from the live
+ * metric on every render — a goal stores no balance of its own and can never go stale.
+ *
+ * `baseline`: progress is measured from here, so a debt payoff starts at 0%, not at the
+ *   40% you'd already cleared before you created the goal.
+ * `monthly_plan`: what you intend to put in each month. Overrides the pace Netlens would
+ *   otherwise infer from your recurring rules — and it's the only way a `savings` goal
+ *   gets a projection, since nothing else tells us about future deposits.
+ * `target_date`: NULL means "someday" — progress still tracks, nothing is ever "late".
+ */
+export interface Goal {
+  id: number;
+  name: string;
+  metric: GoalMetric;
+  target: number;
+  baseline: number;
+  monthly_plan: number | null;
+  target_date: string | null;
+  archived: number;
+  note: string | null;
+  created_at: string;
+}
+
 export interface Payload {
   contributions: { date: string; asset_type: string; amount: number }[];
   portfolio: { name: string; value: number; type: string; live: boolean; cost: number; pnl: number }[];
