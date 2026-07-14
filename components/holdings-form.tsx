@@ -9,6 +9,7 @@ import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-table";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { RefreshPricesButton } from "@/components/live-prices";
 import {
@@ -94,10 +95,8 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     header: "Manual value (VND)",
     enableSorting: false,
     cell: ({ row }) => (
-      <Input
+      <CurrencyInput
         name={`manual_${row.original.idx}`}
-        type="number"
-        step="1"
         defaultValue={row.original.inst.manual_value ?? ""}
         className="h-8 w-36"
       />

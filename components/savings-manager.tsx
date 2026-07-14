@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -55,7 +56,7 @@ function SavingForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="s-principal">Principal (VND)</Label>
-        <Input id="s-principal" name="principal" type="number" min="1" step="1" defaultValue={saving?.principal} placeholder="100000000" required />
+        <CurrencyInput id="s-principal" name="principal" defaultValue={saving?.principal} placeholder="100.000.000" required />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="s-rate">Interest rate (% / year)</Label>

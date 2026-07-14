@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -90,16 +91,16 @@ function GoalForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="g-target">{isDebt ? "Target balance (VND)" : "Target amount (VND)"}</Label>
-        <Input
-          id="g-target" name="target" type="number" min="0" step="1"
-          defaultValue={goal?.target} placeholder={isDebt ? "0" : "1000000000"} required
+        <CurrencyInput
+          id="g-target" name="target"
+          defaultValue={goal?.target} placeholder={isDebt ? "0" : "1.000.000.000"} required
         />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="g-baseline">{isDebt ? "Starting balance (VND)" : "Start progress from (VND)"}</Label>
-        <Input
+        <CurrencyInput
           key={metric} // remount so the debt prefill lands when the metric changes
-          id="g-baseline" name="baseline" type="number" min="0" step="1"
+          id="g-baseline" name="baseline"
           defaultValue={baselineDefault}
         />
       </div>
@@ -109,9 +110,9 @@ function GoalForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="g-plan">Monthly plan (VND, optional)</Label>
-        <Input
-          id="g-plan" name="monthly_plan" type="number" min="0" step="1"
-          defaultValue={goal?.monthly_plan ?? undefined} placeholder="30000000"
+        <CurrencyInput
+          id="g-plan" name="monthly_plan"
+          defaultValue={goal?.monthly_plan ?? undefined} placeholder="30.000.000"
         />
       </div>
       <div className="grid gap-2 sm:col-span-2">

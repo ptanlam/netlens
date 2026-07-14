@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -108,7 +109,7 @@ function HoldingForm({
       </div>
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="h-manual">{priced ? "Fallback value (VND)" : "Value (VND)"}</Label>
-        <Input id="h-manual" name="manual_value" type="number" step="1" defaultValue={holding?.manual_value ?? undefined} placeholder="10000000" />
+        <CurrencyInput id="h-manual" name="manual_value" defaultValue={holding?.manual_value ?? undefined} placeholder="10.000.000" />
         <p className="text-xs text-muted-foreground">
           {!priced ? (
             "No live price for this holding — it is worth exactly what you enter here."
