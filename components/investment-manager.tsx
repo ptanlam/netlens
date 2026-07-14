@@ -74,23 +74,35 @@ function TxRow({ tx, option }: { tx: Tx; option: InstrumentOption }) {
 
 const TX_PAGE_SIZE = 5;
 
-/** Paged, with a fixed-height row area so a partial last page doesn't shrink the
- *  panel — expanding different holdings no longer makes the layout jump. */
+/**
+ * Up to five transactions, the list just is what it is — it hugs its rows.
+ *
+ * Past five it pages, and only then is the row area pinned to a fixed height: that keeps
+ * a partial last page from shrinking the panel under the pager, which would otherwise
+ * make the whole layout jump as you step through pages. A short list doesn't need that
+ * and shouldn't pay for it with an empty box.
+ */
 function TxList({ txs, option }: { txs: Tx[]; option: InstrumentOption }) {
   const [page, setPage] = React.useState(0);
+  const paged = txs.length > TX_PAGE_SIZE;
   const pageCount = Math.max(1, Math.ceil(txs.length / TX_PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
   const start = safePage * TX_PAGE_SIZE;
-  const visible = txs.slice(start, start + TX_PAGE_SIZE);
+  const visible = paged ? txs.slice(start, start + TX_PAGE_SIZE) : txs;
 
   return (
     <>
-      <div className="h-[225px] overflow-y-hidden rounded-lg border border-border bg-card px-3">
+      <div
+        className={cn(
+          "rounded-lg border border-border bg-card px-3",
+          paged && "h-[225px] overflow-y-hidden",
+        )}
+      >
         {visible.map((tx) => (
           <TxRow key={tx.id} tx={tx} option={option} />
         ))}
       </div>
-      {pageCount > 1 && (
+      {paged && (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
           <span className="font-mono tabular-nums">
             Page {safePage + 1} of {pageCount} · {txs.length} tx{txs.length === 1 ? "" : "s"}
