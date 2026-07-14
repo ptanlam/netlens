@@ -25,12 +25,12 @@ function isActive(pathname: string, href: string) {
 
 function Wordmark() {
   return (
-    // Below 420px the row can't hold the mark *and* the price controls; the drawer
-    // trigger and its title carry the brand there, so hide the lot rather than let
-    // the label get squeezed off and strand a bare square.
+    // Below 360px even the slimmed-down price controls leave no room for the mark; the
+    // drawer trigger and its title carry the brand there, so hide the lot rather than
+    // let the label get squeezed off and strand a bare square.
     <Link
       href='/'
-      className='hidden shrink-0 items-center gap-2.5 text-foreground min-[420px]:flex'
+      className='hidden shrink-0 items-center gap-2.5 text-foreground min-[360px]:flex'
       aria-label='Netlens — home'
     >
       <span className='size-[9px] shrink-0 rounded-[2px] bg-foreground' />
@@ -86,6 +86,12 @@ function MobileNav({ pathname }: { pathname: string }) {
               <NavPill key={l.href} href={l.href} label={l.label} pathname={pathname} onClick={() => setOpen(false)} />
             ))}
           </nav>
+          {/* The header row has no width for the theme toggle on a phone, so it lives
+              here instead — and disappears once the header can show it again. */}
+          <div className='mt-auto flex items-center justify-between border-t border-border pt-3 pl-1.5 sm:hidden'>
+            <span className='font-mono text-[10px] tracking-[0.06em] text-faint uppercase'>Theme</span>
+            <ThemeToggle />
+          </div>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
@@ -121,9 +127,11 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
             ))}
           </nav>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex shrink-0 items-center gap-2'>
           <LivePrices />
-          <ThemeToggle />
+          <div className='hidden sm:block'>
+            <ThemeToggle />
+          </div>
           {authEnabled && <LogoutButton />}
         </div>
       </div>

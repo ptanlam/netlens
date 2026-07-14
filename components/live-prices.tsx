@@ -179,8 +179,12 @@ export function LivePrices() {
     ? `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`
     : "—";
 
+  const label = INTERVALS.find((i) => i.ms === intervalMs)?.label;
+
+  // A phone can't hold the full row, so both controls drop their words below `sm`:
+  // the pill keeps the dot + interval ("● 1m" / "● Off") and Refresh becomes its icon.
   return (
-    <div className="flex items-center gap-2 lg:gap-3.5">
+    <div className="flex shrink-0 items-center gap-2 lg:gap-3.5">
       <div className="hidden text-right leading-tight lg:block">
         <div className="font-mono text-[10px] tracking-[0.06em] text-faint uppercase">Live prices</div>
         <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
@@ -192,17 +196,24 @@ export function LivePrices() {
       >
         <SelectTrigger
           size="sm"
-          aria-label={live ? `Live refresh every ${INTERVALS.find((i) => i.ms === intervalMs)?.label}` : "Live refresh off"}
+          aria-label={live ? `Live refresh every ${label}` : "Live refresh off"}
           className={cn(
-            "h-auto gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11.5px]",
+            "h-7 gap-1.5 rounded-lg px-2.5 font-mono text-[11.5px] sm:px-3",
             live
               ? "border-accent-brand/40 bg-accent text-accent-foreground"
               : "border-input bg-card text-muted-foreground hover:bg-muted",
           )}
         >
           <span className={cn("size-1.5 rounded-full", live ? "animate-pulse bg-accent-brand" : "bg-disabled-foreground")} />
-          Live
-          {live && <span className="tabular-nums">· {INTERVALS.find((i) => i.ms === intervalMs)?.label}</span>}
+          <span className="hidden sm:inline">Live</span>
+          {live ? (
+            <span className="tabular-nums">
+              <span className="hidden sm:inline">· </span>
+              {label}
+            </span>
+          ) : (
+            <span className="sm:hidden">Off</span>
+          )}
         </SelectTrigger>
         <SelectContent>
           {INTERVALS.map((i) => (
@@ -217,10 +228,13 @@ export function LivePrices() {
         type="button"
         onClick={() => run()}
         disabled={pending}
-        className="flex items-center gap-1.5 rounded-lg border border-input bg-card px-3 py-1.5 font-mono text-[11.5px] text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+        aria-label="Refresh prices"
+        title="Refresh prices"
+        className="flex h-7 items-center gap-1.5 rounded-lg border border-input bg-card px-2 font-mono text-[11.5px] text-foreground transition-colors hover:bg-muted disabled:opacity-60 sm:px-3"
       >
-        <span className={cn("size-1.5 rounded-full bg-accent-brand", pending && "animate-ping")} />
-        Refresh
+        <RefreshCw className={cn("size-3.5 sm:hidden", pending && "animate-spin")} />
+        <span className={cn("hidden size-1.5 rounded-full bg-accent-brand sm:block", pending && "animate-ping")} />
+        <span className="hidden sm:inline">Refresh</span>
       </button>
     </div>
   );
