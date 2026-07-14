@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS goals (
   baseline     INTEGER NOT NULL DEFAULT 0,
   monthly_plan INTEGER,
   target_date  TEXT,
+  position     INTEGER NOT NULL DEFAULT 0,
   archived     INTEGER NOT NULL DEFAULT 0,
   note         TEXT,
   created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -217,6 +218,12 @@ function migrate(db: Database.Database) {
     db.exec("ALTER TABLE debts ADD COLUMN monthly_payment INTEGER");
   if (!hasColumn("savings", "goal_id"))
     db.exec("ALTER TABLE savings ADD COLUMN goal_id INTEGER");
+  if (!hasColumn("goals", "position")) {
+    db.exec("ALTER TABLE goals ADD COLUMN position INTEGER NOT NULL DEFAULT 0");
+    // Seed the ranking from the order goals were already listed in, so an existing board
+    // doesn't reshuffle itself the first time it loads.
+    db.exec("UPDATE goals SET position = id");
+  }
 }
 
 export function todayIso(): string {
@@ -684,10 +691,11 @@ export function metaSet(key: string, value: string) {
 
 // ---------- goals ----------
 
+/** Ranked order: you decide it (`position`), so it wins over any date or metric. */
 export function listGoals(includeArchived = false): Goal[] {
   const where = includeArchived ? "" : "WHERE archived = 0";
   return getDb()
-    .prepare(`SELECT * FROM goals ${where} ORDER BY archived, target_date IS NULL, target_date, id`)
+    .prepare(`SELECT * FROM goals ${where} ORDER BY archived, position, id`)
     .all() as Goal[];
 }
 
@@ -699,12 +707,14 @@ export function addGoal(
   name: string, metric: string, target: number, baseline: number,
   monthlyPlan: number | null, targetDate: string | null, note: string | null = null,
 ) {
-  getDb()
-    .prepare(
-      "INSERT INTO goals(name, metric, target, baseline, monthly_plan, target_date, note) VALUES (?,?,?,?,?,?,?)",
-    )
-    .run(name.trim(), metric, Math.round(target), Math.round(baseline),
-      monthlyPlan == null ? null : Math.round(monthlyPlan), targetDate, note);
+  const db = getDb();
+  // New goals land at the bottom of the ranking — a fresh goal shouldn't quietly outrank
+  // the ones you've already thought about.
+  const last = (db.prepare("SELECT COALESCE(MAX(position), 0) p FROM goals").get() as { p: number }).p;
+  db.prepare(
+    "INSERT INTO goals(name, metric, target, baseline, monthly_plan, target_date, position, note) VALUES (?,?,?,?,?,?,?,?)",
+  ).run(name.trim(), metric, Math.round(target), Math.round(baseline),
+    monthlyPlan == null ? null : Math.round(monthlyPlan), targetDate, last + 1, note);
 }
 
 export function updateGoal(
@@ -717,6 +727,47 @@ export function updateGoal(
     )
     .run(name.trim(), metric, Math.round(target), Math.round(baseline),
       monthlyPlan == null ? null : Math.round(monthlyPlan), targetDate, note, id);
+}
+
+/**
+ * Move a goal one place up or down the ranking, by swapping positions with its neighbour.
+ *
+ * The swap is done among goals in the same archived state — an active goal steps over the
+ * active goal above it, never over an archived one it can't even see. Returns false when
+ * there's no neighbour to swap with (already top or bottom), so the UI can say nothing
+ * happened rather than toast a lie.
+ */
+export function moveGoal(id: number, direction: "up" | "down"): boolean {
+  const db = getDb();
+  const goal = getGoal(id);
+  if (!goal) return false;
+
+  const neighbour = db
+    .prepare(
+      direction === "up"
+        ? `SELECT id, position FROM goals WHERE archived = ? AND (position < ? OR (position = ? AND id < ?))
+           ORDER BY position DESC, id DESC LIMIT 1`
+        : `SELECT id, position FROM goals WHERE archived = ? AND (position > ? OR (position = ? AND id > ?))
+           ORDER BY position ASC, id ASC LIMIT 1`,
+    )
+    .get(goal.archived, goal.position, goal.position, id) as
+    | { id: number; position: number }
+    | undefined;
+  if (!neighbour) return false;
+
+  // Ties are possible (a DB seeded before positions existed, say), and swapping equal
+  // positions would be a no-op that silently does nothing — so re-rank by index instead.
+  const swap = db.transaction(() => {
+    const set = db.prepare("UPDATE goals SET position = ? WHERE id = ?");
+    if (goal.position === neighbour.position) {
+      set.run(direction === "up" ? goal.position - 1 : goal.position + 1, id);
+    } else {
+      set.run(neighbour.position, id);
+      set.run(goal.position, neighbour.id);
+    }
+  });
+  swap();
+  return true;
 }
 
 export function setGoalArchived(id: number, archived: boolean) {

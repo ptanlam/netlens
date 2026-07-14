@@ -369,6 +369,14 @@ export async function spendGoalFund(goalId: number) {
   return { ok: true, message: `${parts.join(" · ")} — goal archived.` };
 }
 
+/** Move a goal one place up or down your ranking. */
+export async function moveGoal(id: number, direction: "up" | "down") {
+  const moved = db.moveGoal(id, direction);
+  if (!moved) return { ok: false, message: "Already at the end." };
+  revalidateAll();
+  return { ok: true, message: "" };
+}
+
 export async function archiveGoal(id: number, archived: boolean) {
   if (!db.getGoal(id)) return { ok: false, message: "Not found." };
   db.setGoalArchived(id, archived);

@@ -150,6 +150,9 @@ export interface Goal {
   baseline: number;
   monthly_plan: number | null;
   target_date: string | null;
+  /** Where you ranked it. Lower comes first, and it beats every other ordering — the whole
+   *  point is that you, not a deadline, decide which goal matters most. */
+  position: number;
   archived: number;
   note: string | null;
   created_at: string;
