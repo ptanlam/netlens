@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import * as db from "@/lib/db";
 import { refreshAll, testPriceSource as runPriceSourceTest } from "@/lib/prices";
 import { authToken, COOKIE_NAME } from "@/lib/auth";
+import { GOAL_METRICS, type GoalMetric } from "@/lib/types";
 
 function num(v: FormDataEntryValue | null): number | null {
   if (v == null || v === "") return null;
@@ -18,7 +19,8 @@ function str(v: FormDataEntryValue | null): string {
 }
 
 function revalidateAll() {
-  for (const p of ["/", "/investments", "/savings", "/debts", "/sources"]) revalidatePath(p);
+  for (const p of ["/", "/investments", "/savings", "/debts", "/goals", "/settings/price-sources"])
+    revalidatePath(p);
 }
 
 // ---------- transactions ----------
@@ -237,6 +239,80 @@ export async function deleteDebtPayment(id: number) {
   db.deleteDebtPayment(id);
   revalidateAll();
   return { ok: true, message: "Payment deleted." };
+}
+
+// ---------- goals ----------
+
+type ParsedGoal = {
+  name: string;
+  metric: GoalMetric;
+  target: number;
+  baseline: number;
+  monthly_plan: number | null;
+  target_date: string | null;
+  note: string | null;
+};
+
+function parseGoal(fd: FormData): { ok: true; value: ParsedGoal } | { ok: false; message: string } {
+  const name = str(fd.get("name"));
+  const metricRaw = str(fd.get("metric")) as GoalMetric;
+  const metric = GOAL_METRICS.includes(metricRaw) ? metricRaw : "net_worth";
+  const target = num(fd.get("target"));
+  const baseline = num(fd.get("baseline")) ?? 0;
+  const plan = num(fd.get("monthly_plan"));
+  if (!name) return { ok: false, message: "A goal name is required." };
+  if (target == null || target < 0)
+    return { ok: false, message: "A target amount is required." };
+  // A debt goal counts DOWN from the baseline, so the two can't be the same number —
+  // there'd be no distance to cover and the bar could never move.
+  if (metric === "debts" && baseline <= target)
+    return { ok: false, message: "For a debt goal the starting balance must be above the target." };
+  if (metric !== "debts" && baseline >= target)
+    return { ok: false, message: "The target must be above the starting point." };
+  return {
+    ok: true,
+    value: {
+      name,
+      metric,
+      target,
+      baseline,
+      monthly_plan: plan != null && plan > 0 ? plan : null,
+      target_date: str(fd.get("target_date")) || null,
+      note: str(fd.get("note")) || null,
+    },
+  };
+}
+
+export async function addGoal(fd: FormData) {
+  const p = parseGoal(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  const g = p.value;
+  db.addGoal(g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note);
+  revalidateAll();
+  return { ok: true, message: "Goal saved." };
+}
+
+export async function updateGoal(id: number, fd: FormData) {
+  if (!db.getGoal(id)) return { ok: false, message: "Not found." };
+  const p = parseGoal(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  const g = p.value;
+  db.updateGoal(id, g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note);
+  revalidateAll();
+  return { ok: true, message: "Goal updated." };
+}
+
+export async function archiveGoal(id: number, archived: boolean) {
+  if (!db.getGoal(id)) return { ok: false, message: "Not found." };
+  db.setGoalArchived(id, archived);
+  revalidateAll();
+  return { ok: true, message: archived ? "Goal archived." : "Goal restored." };
+}
+
+export async function deleteGoal(id: number) {
+  db.deleteGoal(id);
+  revalidateAll();
+  return { ok: true, message: "Goal deleted." };
 }
 
 // ---------- holdings ----------

@@ -5,10 +5,12 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
-import type { Debt, DebtPayment, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
+import type { Debt, DebtPayment, Goal, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
+import type { GoalWorld } from "./goals";
+import type { Payment } from "./savings";
 
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
-export type { AssetType, Debt, DebtPayment, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
+export type { AssetType, Debt, DebtPayment, Goal, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS transactions (
@@ -90,6 +92,19 @@ CREATE TABLE IF NOT EXISTS debt_payments (
   created_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id);
+
+CREATE TABLE IF NOT EXISTS goals (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  name         TEXT    NOT NULL,
+  metric       TEXT    NOT NULL,
+  target       INTEGER NOT NULL,
+  baseline     INTEGER NOT NULL DEFAULT 0,
+  monthly_plan INTEGER,
+  target_date  TEXT,
+  archived     INTEGER NOT NULL DEFAULT 0,
+  note         TEXT,
+  created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
@@ -650,6 +665,95 @@ export function metaGet(key: string): string | null {
 
 export function metaSet(key: string, value: string) {
   getDb().prepare("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").run(key, value);
+}
+
+// ---------- goals ----------
+
+export function listGoals(includeArchived = false): Goal[] {
+  const where = includeArchived ? "" : "WHERE archived = 0";
+  return getDb()
+    .prepare(`SELECT * FROM goals ${where} ORDER BY archived, target_date IS NULL, target_date, id`)
+    .all() as Goal[];
+}
+
+export function getGoal(id: number): Goal | undefined {
+  return getDb().prepare("SELECT * FROM goals WHERE id=?").get(id) as Goal | undefined;
+}
+
+export function addGoal(
+  name: string, metric: string, target: number, baseline: number,
+  monthlyPlan: number | null, targetDate: string | null, note: string | null = null,
+) {
+  getDb()
+    .prepare(
+      "INSERT INTO goals(name, metric, target, baseline, monthly_plan, target_date, note) VALUES (?,?,?,?,?,?,?)",
+    )
+    .run(name.trim(), metric, Math.round(target), Math.round(baseline),
+      monthlyPlan == null ? null : Math.round(monthlyPlan), targetDate, note);
+}
+
+export function updateGoal(
+  id: number, name: string, metric: string, target: number, baseline: number,
+  monthlyPlan: number | null, targetDate: string | null, note: string | null,
+) {
+  getDb()
+    .prepare(
+      "UPDATE goals SET name=?, metric=?, target=?, baseline=?, monthly_plan=?, target_date=?, note=? WHERE id=?",
+    )
+    .run(name.trim(), metric, Math.round(target), Math.round(baseline),
+      monthlyPlan == null ? null : Math.round(monthlyPlan), targetDate, note, id);
+}
+
+export function setGoalArchived(id: number, archived: boolean) {
+  getDb().prepare("UPDATE goals SET archived=? WHERE id=?").run(archived ? 1 : 0, id);
+}
+
+export function deleteGoal(id: number) {
+  getDb().prepare("DELETE FROM goals WHERE id=?").run(id);
+}
+
+/** ₫/month you've committed to via active recurring rules — the *forward* contribution
+ *  rate, which is what a projection actually wants (a trailing average only looks back). */
+export function plannedMonthly(): number {
+  const rules = getDb()
+    .prepare("SELECT amount, freq FROM recurring_rules WHERE active=1")
+    .all() as { amount: number; freq: string }[];
+  return rules.reduce((a, r) => a + (r.freq === "weekly" ? (r.amount * 52) / 12 : r.amount), 0);
+}
+
+/** ₫/month actually contributed over the trailing window — the fallback pace when there
+ *  are no recurring rules. Net of sells, floored at 0. */
+export function actualMonthly(months = 6): number {
+  const since = addMonthsIso(todayIso(), -months);
+  const total = (getDb()
+    .prepare("SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE date >= ?")
+    .get(since) as { s: number }).s;
+  return Math.max(0, total / months);
+}
+
+function addMonthsIso(iso: string, months: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const base = new Date(Date.UTC(y, m - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).getUTCDate();
+  base.setUTCDate(Math.min(d, lastDay));
+  return base.toISOString().slice(0, 10);
+}
+
+/** Gathers everything `lib/goals.ts` needs to project a goal forward. */
+export function buildGoalWorld(investments: number): GoalWorld {
+  const paymentsByDebt: Record<number, Payment[]> = {};
+  for (const p of listDebtPayments()) (paymentsByDebt[p.debt_id] ??= []).push(p);
+
+  return {
+    today: todayIso(),
+    nowMs: Date.now(),
+    investments,
+    savings: listSavings(),
+    debts: listDebts(),
+    paymentsByDebt,
+    plannedMonthly: plannedMonthly(),
+    actualMonthly: actualMonthly(),
+  };
 }
 
 // ---------- dashboard payload ----------

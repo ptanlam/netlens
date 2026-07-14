@@ -245,7 +245,8 @@ function Tag({ children }: { children: React.ReactNode }) {
 export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
   return (
     <div className="rounded-xl border border-border bg-card px-6 py-6">
-      <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Price sources</div>
+      {/* A section inside Settings now, so it sits a level below the page title. */}
+      <div className="font-serif text-[18px] font-semibold tracking-[-0.01em]">Price sources</div>
       <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
         The feeds your holdings are priced against. Each is a self-contained config — a request
         URL and how to read the price out — so you can add one without touching code.

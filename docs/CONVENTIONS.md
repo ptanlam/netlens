@@ -26,8 +26,9 @@
 - Charts: **Recharts** via the `ChartContainer`/`ChartTooltip` wrappers in
   `components/ui/chart.tsx`. Set `isAnimationActive={false}` (matches existing charts).
 - Toasts: `sonner` (`toast.success` / `toast.error`), configured in `app/layout.tsx`.
-- Theme: `next-themes`, `class` attribute, system default. The nav's theme button cycles
-  System → Light → Dark. Colors come from CSS vars in `app/globals.css`.
+- Theme: `next-themes`, `class` attribute, system default. Picked on
+  `/settings/appearance` (`components/appearance-settings.tsx`) — Match system / Paper
+  (light) / Ink (dark). Colors come from CSS vars in `app/globals.css`.
 
 ## Colors
 - **Never hardcode a color.** Every colour must resolve to a CSS var from

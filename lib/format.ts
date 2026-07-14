@@ -6,6 +6,13 @@ export function fmtVND(v: number): string {
   return `${neg ? "-" : ""}₫${s}`;
 }
 
+/** Group a run of digits with dots, as VND is written: "1000000" → "1.000.000".
+ *  Non-digits are dropped and leading zeros collapsed, so it's safe to feed raw input. */
+export function groupDigits(raw: string): string {
+  const digits = raw.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 /** Axis-style short form: 40tr = 40 million VND. */
 export function fmtTr(v: number): string {
   if (v === 0) return "0";

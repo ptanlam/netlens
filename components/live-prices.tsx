@@ -185,7 +185,9 @@ export function LivePrices() {
   // the pill keeps the dot + interval ("● 1m" / "● Off") and Refresh becomes its icon.
   return (
     <div className="flex shrink-0 items-center gap-2 lg:gap-3.5">
-      <div className="hidden text-right leading-tight lg:block">
+      {/* The nav pills gained icons and now need the width the clock used to take at lg,
+          so it waits for xl. */}
+      <div className="hidden text-right leading-tight xl:block">
         <div className="font-mono text-[10px] tracking-[0.06em] text-faint uppercase">Live prices</div>
         <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
       </div>

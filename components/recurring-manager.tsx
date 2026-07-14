@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -87,13 +88,11 @@ export function RuleForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="r-amount">Amount (VND)</Label>
-        <Input
+        <CurrencyInput
           id="r-amount"
           name="amount"
-          type="number"
-          min="1"
-          step="1"
           defaultValue={rule?.amount}
+          placeholder="5.000.000"
           required
         />
       </div>

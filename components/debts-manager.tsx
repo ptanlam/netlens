@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -97,14 +98,11 @@ function DebtForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="d-principal">{credit ? "Current balance (VND)" : "Principal (VND)"}</Label>
-        <Input
+        <CurrencyInput
           id="d-principal"
           name="principal"
-          type="number"
-          min="1"
-          step="1"
           defaultValue={debt?.principal}
-          placeholder="20000000"
+          placeholder="20.000.000"
           required
         />
       </div>
@@ -124,14 +122,11 @@ function DebtForm({
       {credit ? (
         <div className="grid gap-2">
           <Label htmlFor="d-monthly">Monthly payment (VND)</Label>
-          <Input
+          <CurrencyInput
             id="d-monthly"
             name="monthly_payment"
-            type="number"
-            min="1"
-            step="1"
             defaultValue={debt?.monthly_payment ?? undefined}
-            placeholder="3000000"
+            placeholder="3.000.000"
             required
           />
         </div>
@@ -237,7 +232,7 @@ function PaymentRow({ payment }: { payment: DebtPayment }) {
         className="flex flex-wrap items-center gap-2 border-b py-1.5 last:border-0"
       >
         <Input name="date" type="date" defaultValue={payment.date} className="h-8 w-[9.5rem]" required />
-        <Input name="amount" type="number" min="1" step="1" defaultValue={payment.amount} className="h-8 w-32" required />
+        <CurrencyInput name="amount" defaultValue={payment.amount} className="h-8 w-32" required />
         <Input name="note" defaultValue={payment.note ?? ""} placeholder="Note" className="h-8 min-w-24 flex-1" />
         <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
         <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
@@ -319,14 +314,11 @@ function PaymentDialog({ debt, payments }: { debt: Debt; payments: DebtPayment[]
           </div>
           <div className="grid gap-2">
             <Label htmlFor={`p-amount-${debt.id}`}>Amount paid (VND)</Label>
-            <Input
+            <CurrencyInput
               id={`p-amount-${debt.id}`}
               name="amount"
-              type="number"
-              min="1"
-              step="1"
               defaultValue={debt.kind === "credit" ? debt.monthly_payment ?? undefined : undefined}
-              placeholder="5000000"
+              placeholder="5.000.000"
               required
             />
           </div>

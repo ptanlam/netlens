@@ -4,6 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { Tx } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -99,14 +100,11 @@ export function TxForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="amount">Amount (VND)</Label>
-        <Input
+        <CurrencyInput
           id="amount"
           name="amount"
-          type="number"
-          min="1"
-          step="1"
           defaultValue={tx ? Math.abs(tx.amount) : undefined}
-          placeholder="1000000"
+          placeholder="1.000.000"
           required
         />
       </div>
