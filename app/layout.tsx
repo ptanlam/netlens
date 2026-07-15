@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Newsreader, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { Nav } from '@/components/nav';
@@ -27,6 +27,19 @@ const newsreader = Newsreader({
 export const metadata: Metadata = {
   title: 'Netlens',
   description: 'Netlens tracking and visualization',
+  // Launch standalone (no Safari chrome) when added to the iOS Home Screen.
+  appleWebApp: {
+    capable: true,
+    title: 'Netlens',
+    statusBarStyle: 'default',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f4f2ee' },
+    { media: '(prefers-color-scheme: dark)', color: '#14130f' },
+  ],
 };
 
 export default function RootLayout({
