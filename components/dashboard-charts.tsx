@@ -238,7 +238,7 @@ export function DashboardCharts({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[0.85fr_1.15fr]">
         <AllocationCard payload={payload} />
         <HoldingsCard payload={payload} />
       </div>
@@ -266,14 +266,45 @@ function AllocationCard({ payload }: { payload: Payload }) {
     .sort((a, b) => b.value - a.value)
     .map((a) => ({ ...a, pct: (a.value / total) * 100, color: typeColor(a.type) }));
 
+  // Donut geometry: a stroked ring with one dash-arc per slice, drawn from 12 o'clock.
+  // Prefix pcts (n ≤ 5) give each arc its start offset without mutating across the map.
+  const SIZE = 172;
+  const STROKE = 26;
+  const R = (SIZE - STROKE) / 2;
+  const C = 2 * Math.PI * R;
+
   return (
-    <div className="rounded-xl border border-border bg-card px-6 py-[22px]">
+    <div className="flex h-full flex-col rounded-xl border border-border bg-card px-6 py-[22px]">
       <div className="font-serif text-[17px] font-semibold">Allocation</div>
       <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Current value by asset type</div>
-      <div className="animate-grow-x mb-[22px] flex h-3.5 overflow-hidden rounded-[5px]">
-        {rows.map((r) => (
-          <div key={r.type} style={{ width: `${r.pct}%`, background: r.color }} />
-        ))}
+      <div className="mb-[22px] flex justify-center">
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="animate-fade-in">
+          <g transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}>
+            {rows.map((r, i) => {
+              const start = rows.slice(0, i).reduce((s, x) => s + x.pct, 0);
+              const len = (r.pct / 100) * C;
+              return (
+                <circle
+                  key={r.type}
+                  cx={SIZE / 2}
+                  cy={SIZE / 2}
+                  r={R}
+                  fill="none"
+                  stroke={r.color}
+                  strokeWidth={STROKE}
+                  strokeDasharray={`${len} ${C - len}`}
+                  strokeDashoffset={-(start / 100) * C}
+                />
+              );
+            })}
+          </g>
+          <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="var(--faint)" className="font-mono" style={{ fontSize: 9.5, letterSpacing: "0.08em" }}>
+            TOTAL
+          </text>
+          <text x="50%" y="59%" textAnchor="middle" dominantBaseline="middle" fill="var(--foreground)" className="font-mono tabular-nums" style={{ fontSize: 15 }}>
+            {fmtTrVND(total)}
+          </text>
+        </svg>
       </div>
       <div className="flex flex-col">
         {rows.map((r, i) => (
@@ -301,7 +332,7 @@ function HoldingsCard({ payload }: { payload: Payload }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
 
   return (
-    <div className="rounded-xl border border-border bg-card px-6 py-[22px]">
+    <div className="flex h-full flex-col rounded-xl border border-border bg-card px-6 py-[22px]">
       <div className="font-serif text-[17px] font-semibold">Holdings</div>
       <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Position values, largest first</div>
       <div className="flex flex-col gap-[11px]">
