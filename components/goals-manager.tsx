@@ -613,9 +613,22 @@ export function GoalsManager({
 
   return (
     <div className="flex flex-col gap-4">
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogTrigger render={<Button variant="outline" className="w-full" />}>
+          <Plus className="size-4" />
+          New goal
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>New goal</DialogTitle>
+          </DialogHeader>
+          <GoalForm action={addGoal} current={current} onDone={() => setAddOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
       {active.length === 0 && (
         <p className="text-[13px] text-muted-foreground">
-          No goals yet. Add one below — a target on net worth, investments, savings or debts,
+          No goals yet. Add one above — a target on net worth, investments, savings or debts,
           or a sinking fund you pay into by hand.
         </p>
       )}
@@ -637,19 +650,6 @@ export function GoalsManager({
           isLast={i === active.length - 1}
         />
       ))}
-
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogTrigger render={<Button variant="outline" className="w-full" />}>
-          <Plus className="size-4" />
-          New goal
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>New goal</DialogTitle>
-          </DialogHeader>
-          <GoalForm action={addGoal} current={current} onDone={() => setAddOpen(false)} />
-        </DialogContent>
-      </Dialog>
 
       {archived.length > 0 && (
         <>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { INTEREST_TYPES, type Saving } from "@/lib/types";
 import { addSaving, deleteSaving, updateSaving } from "@/app/actions";
@@ -135,6 +135,24 @@ function SavingForm({
   );
 }
 
+function AddDepositDialog({ funds }: { funds: FundOption[] }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm" />}>
+        <Plus className="size-3.5" />
+        New deposit
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>New deposit</DialogTitle>
+        </DialogHeader>
+        <SavingForm action={addSaving} funds={funds} onDone={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -250,15 +268,17 @@ export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: F
         />
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[12.5px] text-muted-foreground">
+          Term deposits, newest first.
+        </p>
+        <AddDepositDialog funds={funds} />
+      </div>
+
       {savings.length === 0 && <p className="text-[13px] text-muted-foreground">No deposits yet.</p>}
       {savings.map((saving) => (
         <SavingRow key={saving.id} saving={saving} funds={funds} />
       ))}
-
-      <div className="rounded-xl border border-border bg-card px-6 py-[22px]">
-        <div className="mb-[18px] font-serif text-[17px] font-semibold">New deposit</div>
-        <SavingForm action={addSaving} funds={funds} />
-      </div>
     </div>
   );
 }

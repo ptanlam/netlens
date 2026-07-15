@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { fmtTr, fmtVND } from "@/lib/format";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 
 export interface SeriesPoint {
@@ -187,6 +188,10 @@ function ChartSvg({
   const W = 1000;
   const H = 220;
 
+  // Full ISO dates are ~62px wide; a phone plot is only ~240px, so ~9 of them collide.
+  // Thin the axis to ~4 labels on mobile and drop the year to keep them legible.
+  const isMobile = useMediaQuery("(max-width: 640px)");
+
   const { yMax, ticks } = React.useMemo(() => {
     const max = niceMax(Math.max(1, ...pts.map((p) => p.v)));
     return { yMax: max, ticks: [0, 0.25, 0.5, 0.75, 1].map((f) => f * max) };
@@ -207,12 +212,12 @@ function ChartSvg({
   pts.forEach((p, i) => { line += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(p.v).toFixed(1) + " "; });
   const area = line + "L" + W + " " + H + " L 0 " + H + " Z";
 
-  const step = Math.max(1, Math.ceil(n / 9));
+  const step = Math.max(1, Math.ceil(n / (isMobile ? 4 : 9)));
   const xLabels: React.ReactNode[] = [];
   for (let i = 0; i < n; i += step) {
     xLabels.push(
       <div key={i} className="absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap text-faint" style={{ left: `${(X(i) / W) * 100}%` }}>
-        {pts[i].date}
+        {isMobile ? pts[i].date.slice(5) : pts[i].date}
       </div>,
     );
   }

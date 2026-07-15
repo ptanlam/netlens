@@ -174,16 +174,20 @@ export function InvestmentActivity({
       <div className="mt-6 mb-2.5 font-mono text-[10px] tracking-[0.08em] text-faint uppercase">
         Capital deployed by month
       </div>
-      <div className="flex items-end gap-3">
-        {bars.map((b) => (
-          <div key={b.key} className="flex flex-1 flex-col items-center gap-1.5">
-            <div className="flex h-[54px] w-full items-end">
-              <div className="w-full rounded-t-[3px] bg-chart-1" style={{ height: `${Math.max(3, Math.round((b.amt / maxBar) * 100))}%` }} />
+      {/* Bars stretch to fill on desktop, but hold a floor width and scroll sideways once
+          there are enough months to crush them on a phone. */}
+      <div className="-mx-1 overflow-x-auto px-1">
+        <div className="flex min-w-full items-end gap-2 sm:gap-3">
+          {bars.map((b) => (
+            <div key={b.key} className="flex min-w-[34px] flex-1 flex-col items-center gap-1.5">
+              <div className="flex h-[54px] w-full items-end">
+                <div className="w-full rounded-t-[3px] bg-chart-1" style={{ height: `${Math.max(3, Math.round((b.amt / maxBar) * 100))}%` }} />
+              </div>
+              <div className="font-mono text-[10px] text-faint">{b.label}</div>
+              <div className="font-mono text-[9.5px] text-muted-foreground tabular-nums">{trVND(b.amt)}</div>
             </div>
-            <div className="font-mono text-[10px] text-faint">{b.label}</div>
-            <div className="font-mono text-[9.5px] text-muted-foreground tabular-nums">{trVND(b.amt)}</div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* Transactions table */}
