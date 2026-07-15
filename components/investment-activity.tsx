@@ -326,15 +326,18 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
           <path className="animate-fade-in" d={area} fill="rgb(var(--gold-rgb) / 0.15)" />
           <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke="var(--chart-gold)" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
           {hi != null && (
-            <>
-              <line x1={X(pts[hi].x)} x2={X(pts[hi].x)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
-              <circle cx={X(pts[hi].x)} cy={Y(pts[hi].v)} r={4} fill="var(--card)" stroke="var(--chart-gold)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
-            </>
+            <line x1={X(pts[hi].x)} x2={X(pts[hi].x)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
           )}
           <rect x={0} y={0} width={W} height={H} fill="transparent" style={{ cursor: "crosshair" }} onMouseMove={onMove} onMouseLeave={() => setHoverIdx(null)} />
         </svg>
         <div className="absolute -top-1.5 -left-[52px] font-mono text-[10px] text-faint">₫{Math.round(max / 1e6)}tr</div>
         <div className="absolute -bottom-0.5 -left-[52px] font-mono text-[10px] text-faint">₫0</div>
+        {hi != null && (
+          <div
+            className="pointer-events-none absolute z-10 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
+            style={{ left: `${(X(pts[hi].x) / W) * 100}%`, top: `${(Y(pts[hi].v) / H) * 100}%`, borderColor: "var(--chart-gold)", background: "var(--card)" }}
+          />
+        )}
         {hi != null && (
           <div className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 whitespace-nowrap" style={{ left: `${tipLeft}%` }}>
             <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].date} · {pts[hi].label}</div>

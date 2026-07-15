@@ -246,10 +246,7 @@ function ChartSvg({
             </>
           )}
           {hi != null && (
-            <>
-              <line x1={X(hi)} x2={X(hi)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
-              <circle cx={X(hi)} cy={Y(pts[hi].v)} r={4} fill="var(--card)" stroke={pts[hi].v < 0 ? red : metric === "value" ? ink : green} strokeWidth={2} vectorEffect="non-scaling-stroke" />
-            </>
+            <line x1={X(hi)} x2={X(hi)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
           )}
           <rect
             x={0}
@@ -267,6 +264,12 @@ function ChartSvg({
             onMouseLeave={() => setHoverIdx(null)}
           />
         </svg>
+        {hi != null && (
+          <div
+            className="pointer-events-none absolute z-10 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
+            style={{ left: `${(X(hi) / W) * 100}%`, top: `${(Y(pts[hi].v) / H) * 100}%`, borderColor: pts[hi].v < 0 ? red : metric === "value" ? ink : green, background: "var(--card)" }}
+          />
+        )}
         {hi != null && (
           <div className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 whitespace-nowrap" style={{ left: `${tipLeft}%` }}>
             <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].label}</div>
