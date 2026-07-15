@@ -168,8 +168,65 @@ function DesktopNav({ pathname }: { pathname: string }) {
   );
 }
 
+// Left-edge swipe to open the drawer, swipe-left to close it — the phone gesture the
+// hamburger stands in for. `start` must land within EDGE px of the screen's left edge,
+// then travel DISTANCE px sideways while drifting less than SLOP vertically (so a diagonal
+// scroll doesn't trip it). Only meaningful in the mobile layout; the drawer doesn't exist
+// from lg up, so the open-gesture bails there. Refs, not state, so tracking a drag never
+// re-renders. In a standalone PWA the left edge is ours — iOS only reserves it for
+// back-swipe inside a Safari tab.
+const EDGE_PX = 28;
+const SWIPE_DISTANCE = 60;
+const SWIPE_SLOP = 40;
+
 function MobileNav({ pathname }: { pathname: string }) {
   const [open, setOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const lg = window.matchMedia('(min-width: 1024px)');
+    let fromEdge = false;
+    let startX = 0;
+    let startY = 0;
+
+    const onStart = (e: TouchEvent) => {
+      if (lg.matches || open) return;
+      const t = e.touches[0];
+      fromEdge = t.clientX <= EDGE_PX;
+      startX = t.clientX;
+      startY = t.clientY;
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (!fromEdge) return;
+      fromEdge = false;
+      const t = e.changedTouches[0];
+      if (t.clientX - startX > SWIPE_DISTANCE && Math.abs(t.clientY - startY) < SWIPE_SLOP) {
+        setOpen(true);
+      }
+    };
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchend', onEnd);
+    };
+  }, [open]);
+
+  // Swipe left on the open drawer to dismiss it.
+  const closeStart = React.useRef<{ x: number; y: number } | null>(null);
+  const onPopupTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    closeStart.current = { x: t.clientX, y: t.clientY };
+  };
+  const onPopupTouchEnd = (e: React.TouchEvent) => {
+    const s = closeStart.current;
+    closeStart.current = null;
+    if (!s) return;
+    const t = e.changedTouches[0];
+    if (s.x - t.clientX > SWIPE_DISTANCE && Math.abs(t.clientY - s.y) < SWIPE_SLOP) {
+      setOpen(false);
+    }
+  };
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Trigger render={<Button variant='ghost' size='icon' aria-label='Open menu' />}>
@@ -177,7 +234,10 @@ function MobileNav({ pathname }: { pathname: string }) {
       </DialogPrimitive.Trigger>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-black/40 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0' />
-        <DialogPrimitive.Popup className='fixed inset-y-0 left-0 z-50 flex w-64 max-w-[80%] flex-col gap-1 bg-card p-4 ring-1 ring-border duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
+        <DialogPrimitive.Popup
+          onTouchStart={onPopupTouchStart}
+          onTouchEnd={onPopupTouchEnd}
+          className='fixed inset-y-0 left-0 z-50 flex w-64 max-w-[80%] flex-col gap-1 bg-card p-4 ring-1 ring-border duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
           <DialogPrimitive.Title className='mb-2 flex items-center gap-2.5 px-1.5'>
             <span className='size-[9px] rounded-[2px] bg-foreground' />
             <span className='font-serif text-base font-semibold tracking-tight'>Netlens</span>

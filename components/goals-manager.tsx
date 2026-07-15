@@ -609,6 +609,7 @@ export function GoalsManager({
 }) {
   const active = goals.filter((g) => g.goal.archived === 0);
   const archived = goals.filter((g) => g.goal.archived === 1);
+  const [addOpen, setAddOpen] = React.useState(false);
 
   return (
     <div className="flex flex-col gap-4">
@@ -637,10 +638,18 @@ export function GoalsManager({
         />
       ))}
 
-      <div className="rounded-xl border border-border bg-card px-6 py-[22px]">
-        <div className="mb-[18px] font-serif text-[17px] font-semibold">New goal</div>
-        <GoalForm action={addGoal} current={current} />
-      </div>
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogTrigger render={<Button variant="outline" className="w-full" />}>
+          <Plus className="size-4" />
+          New goal
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>New goal</DialogTitle>
+          </DialogHeader>
+          <GoalForm action={addGoal} current={current} onDone={() => setAddOpen(false)} />
+        </DialogContent>
+      </Dialog>
 
       {archived.length > 0 && (
         <>
