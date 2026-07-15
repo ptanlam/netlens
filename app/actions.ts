@@ -422,6 +422,13 @@ export async function updateHolding(name: string, fd: FormData) {
   return { ok: true, message: "Holding updated." };
 }
 
+export async function setHoldingArchived(name: string, archived: boolean) {
+  if (!db.getInstrument(name)) return { ok: false, message: "Holding not found." };
+  db.setInstrumentArchived(name, archived);
+  revalidateAll();
+  return { ok: true, message: archived ? "Holding archived." : "Holding restored." };
+}
+
 export async function deleteHolding(name: string) {
   if (db.instrumentInUse(name))
     return { ok: false, message: "Remove its transactions and recurring rules first." };

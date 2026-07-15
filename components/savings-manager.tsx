@@ -9,6 +9,7 @@ import { fmtVND } from "@/lib/format";
 import { currentValue, isMatured, maturityDate, maturityValue, summarize } from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/tooltip";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -198,9 +199,11 @@ function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
         </div>
         <div className="flex gap-1">
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit deposit" />}>
-              <Pencil className="size-3.5" />
-            </DialogTrigger>
+            <IconTooltip label="Edit deposit">
+              <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit deposit" />}>
+                <Pencil className="size-3.5" />
+              </DialogTrigger>
+            </IconTooltip>
             <DialogContent className="sm:max-w-xl">
               <DialogHeader>
                 <DialogTitle>Edit deposit</DialogTitle>
@@ -208,22 +211,24 @@ function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
               <SavingForm action={(fd) => updateSaving(saving.id, fd)} saving={saving} funds={funds} onDone={() => setEditOpen(false)} />
             </DialogContent>
           </Dialog>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Delete deposit"
-            disabled={pending}
-            onClick={() => {
-              if (!confirm(`Delete the ${fmtVND(saving.principal)} deposit${saving.bank ? ` at ${saving.bank}` : ""}?`)) return;
-              startTransition(async () => {
-                const res = await deleteSaving(saving.id);
-                if (res.ok) toast.success(res.message);
-                else toast.error(res.message);
-              });
-            }}
-          >
-            <Trash2 className="size-3.5 text-destructive" />
-          </Button>
+          <IconTooltip label="Delete deposit">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Delete deposit"
+              disabled={pending}
+              onClick={() => {
+                if (!confirm(`Delete the ${fmtVND(saving.principal)} deposit${saving.bank ? ` at ${saving.bank}` : ""}?`)) return;
+                startTransition(async () => {
+                  const res = await deleteSaving(saving.id);
+                  if (res.ok) toast.success(res.message);
+                  else toast.error(res.message);
+                });
+              }}
+            >
+              <Trash2 className="size-3.5 text-destructive" />
+            </Button>
+          </IconTooltip>
         </div>
       </div>
     </div>

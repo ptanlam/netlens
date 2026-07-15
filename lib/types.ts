@@ -61,6 +61,8 @@ export interface Instrument {
   last_price: number | null;
   last_price_at: string | null;
   updated_at: string | null;
+  /** 1 once fully sold and tidied away — kept for its transaction and P&L history. */
+  archived: number;
 }
 
 export interface RecurringRule {

@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { IconTooltip } from '@/components/ui/tooltip';
 import { LivePrices } from '@/components/live-prices';
 import { logout } from '@/app/actions';
 import { cn } from '@/lib/utils';
@@ -229,9 +230,11 @@ function MobileNav({ pathname }: { pathname: string }) {
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
-      <DialogPrimitive.Trigger render={<Button variant='ghost' size='icon' aria-label='Open menu' />}>
-        <Menu className='size-5' />
-      </DialogPrimitive.Trigger>
+      <IconTooltip label='Open menu'>
+        <DialogPrimitive.Trigger render={<Button variant='ghost' size='icon' aria-label='Open menu' />}>
+          <Menu className='size-5' />
+        </DialogPrimitive.Trigger>
+      </IconTooltip>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-black/40 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0' />
         <DialogPrimitive.Popup
@@ -273,9 +276,11 @@ function MobileNav({ pathname }: { pathname: string }) {
 function LogoutButton() {
   return (
     <form action={logout}>
-      <Button variant='ghost' size='icon' type='submit' aria-label='Sign out' title='Sign out'>
-        <LogOut className='size-4' />
-      </Button>
+      <IconTooltip label='Sign out'>
+        <Button variant='ghost' size='icon' type='submit' aria-label='Sign out'>
+          <LogOut className='size-4' />
+        </Button>
+      </IconTooltip>
     </form>
   );
 }
@@ -299,17 +304,18 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
         </div>
         <div className='flex shrink-0 items-center gap-2'>
           <LivePrices />
-          <Button
-            variant='ghost'
-            size='icon'
-            aria-label='Settings'
-            title='Settings'
-            nativeButton={false}
-            className='hidden sm:inline-flex'
-            render={<Link href='/settings' />}
-          >
-            <Settings className='size-4' />
-          </Button>
+          <IconTooltip label='Settings'>
+            <Button
+              variant='ghost'
+              size='icon'
+              aria-label='Settings'
+              nativeButton={false}
+              className='hidden sm:inline-flex'
+              render={<Link href='/settings' />}
+            >
+              <Settings className='size-4' />
+            </Button>
+          </IconTooltip>
           {authEnabled && <LogoutButton />}
         </div>
       </div>

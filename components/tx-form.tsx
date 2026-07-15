@@ -34,6 +34,7 @@ export function TxForm({
   const today = new Date().toLocaleDateString("sv-SE");
 
   const [instrument, setInstrument] = React.useState(tx?.instrument ?? instruments[0]?.name ?? "");
+  const [direction, setDirection] = React.useState((tx?.amount ?? 1) < 0 ? "sell" : "buy");
   // Asset type is inherited from the chosen holding — a transaction can't drift from it.
   const assetType =
     instruments.find((i) => i.name === instrument)?.asset_type ?? tx?.asset_type ?? "Funds";
@@ -50,6 +51,7 @@ export function TxForm({
             if (!tx) {
               formRef.current?.reset();
               setInstrument(instruments[0]?.name ?? "");
+              setDirection("buy");
             }
             onDone?.();
           } else toast.error(res.message);
@@ -63,7 +65,7 @@ export function TxForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="direction">Direction</Label>
-        <Select name="direction" defaultValue={(tx?.amount ?? 1) < 0 ? "sell" : "buy"}>
+        <Select name="direction" value={direction} onValueChange={(v) => v != null && setDirection(v as string)}>
           <SelectTrigger id="direction" className="w-full">
             <SelectValue />
           </SelectTrigger>

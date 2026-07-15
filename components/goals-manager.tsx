@@ -19,6 +19,7 @@ import { fmtVND } from "@/lib/format";
 import { shortfall, verdict, type GoalView } from "@/lib/goals";
 import { GoalBar, GoalStatusChip } from "@/components/goal-strip";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/tooltip";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -361,15 +362,17 @@ function FundPanel({
                   {c.amount < 0 ? "−" : "+"}
                   {fmtVND(Math.abs(c.amount))}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Delete entry"
-                  disabled={pending}
-                  onClick={() => run(() => deleteGoalContribution(c.id))}
-                >
-                  <Trash2 className="size-3 text-destructive" />
-                </Button>
+                <IconTooltip label="Delete entry">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete entry"
+                    disabled={pending}
+                    onClick={() => run(() => deleteGoalContribution(c.id))}
+                  >
+                    <Trash2 className="size-3 text-destructive" />
+                  </Button>
+                </IconTooltip>
               </span>
             </div>
           ))}
@@ -495,9 +498,11 @@ function GoalCard({
         </div>
         <div className="flex gap-1">
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit goal" />}>
-              <Pencil className="size-3.5" />
-            </DialogTrigger>
+            <IconTooltip label="Edit goal">
+              <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit goal" />}>
+                <Pencil className="size-3.5" />
+              </DialogTrigger>
+            </IconTooltip>
             <DialogContent className="sm:max-w-xl">
               <DialogHeader>
                 <DialogTitle>Edit goal</DialogTitle>
@@ -510,28 +515,31 @@ function GoalCard({
               />
             </DialogContent>
           </Dialog>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={archived ? "Restore goal" : "Archive goal"}
-            title={archived ? "Restore goal" : "Archive goal"}
-            disabled={pending}
-            onClick={() => run(() => archiveGoal(goal.id, !archived))}
-          >
-            {archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Delete goal"
-            disabled={pending}
-            onClick={() => {
-              if (!confirm(`Delete the goal "${goal.name}"?`)) return;
-              run(() => deleteGoal(goal.id));
-            }}
-          >
-            <Trash2 className="size-3.5 text-destructive" />
-          </Button>
+          <IconTooltip label={archived ? "Restore goal" : "Archive goal"}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={archived ? "Restore goal" : "Archive goal"}
+              disabled={pending}
+              onClick={() => run(() => archiveGoal(goal.id, !archived))}
+            >
+              {archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
+            </Button>
+          </IconTooltip>
+          <IconTooltip label="Delete goal">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Delete goal"
+              disabled={pending}
+              onClick={() => {
+                if (!confirm(`Delete the goal "${goal.name}"?`)) return;
+                run(() => deleteGoal(goal.id));
+              }}
+            >
+              <Trash2 className="size-3.5 text-destructive" />
+            </Button>
+          </IconTooltip>
         </div>
       </div>
 

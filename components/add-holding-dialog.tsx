@@ -7,6 +7,7 @@ import { ASSET_TYPES, MANUAL_SOURCE, type Instrument } from "@/lib/types";
 import { addHolding, updateHolding } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/tooltip";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -165,9 +166,11 @@ export function EditHoldingDialog({ holding, sources }: { holding: Instrument; s
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit holding" />}>
-        <Pencil className="size-3.5" />
-      </DialogTrigger>
+      <IconTooltip label="Edit holding">
+        <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit holding" />}>
+          <Pencil className="size-3.5" />
+        </DialogTrigger>
+      </IconTooltip>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit holding</DialogTitle>

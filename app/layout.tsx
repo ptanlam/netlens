@@ -3,6 +3,7 @@ import { Newsreader, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { Nav } from '@/components/nav';
 import { ThemeProvider } from '@/components/theme-provider';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import './globals.css';
 
 const plexSans = IBM_Plex_Sans({
@@ -55,11 +56,13 @@ export default function RootLayout({
     >
       <body className='min-h-full flex flex-col'>
         <ThemeProvider>
-          <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
-          <main className='mx-auto w-full max-w-[1180px] flex-1 px-5 pt-8 pb-18 sm:px-8 xl:max-w-[1400px] 2xl:max-w-[1640px]'>
-            {children}
-          </main>
-          <Toaster richColors position='top-center' />
+          <TooltipProvider delay={200} closeDelay={0}>
+            <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
+            <main className='mx-auto w-full max-w-[1180px] flex-1 px-5 pt-8 pb-18 sm:px-8 xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+              {children}
+            </main>
+            <Toaster richColors position='top-center' />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

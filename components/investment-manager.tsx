@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight, Download, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Instrument, RecurringRule, Tx } from "@/lib/types";
-import { deleteHolding } from "@/app/actions";
+import { deleteHolding, setHoldingArchived } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/tooltip";
 import { AddHoldingDialog, EditHoldingDialog } from "@/components/add-holding-dialog";
 import { AddTxDialog } from "@/components/add-tx-dialog";
 import { AddRecurringDialog } from "@/components/add-recurring-dialog";
@@ -37,22 +38,47 @@ const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
 function DeleteHoldingButton({ name }: { name: string }) {
   const [pending, startTransition] = React.useTransition();
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label="Delete holding"
-      disabled={pending}
-      onClick={() => {
-        if (!confirm(`Delete the holding "${name}"? Only works if it has no transactions or rules.`)) return;
-        startTransition(async () => {
-          const res = await deleteHolding(name);
-          if (res.ok) toast.success(res.message);
-          else toast.error(res.message);
-        });
-      }}
-    >
-      <Trash2 className="size-3.5 text-destructive" />
-    </Button>
+    <IconTooltip label="Delete holding">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Delete holding"
+        disabled={pending}
+        onClick={() => {
+          if (!confirm(`Delete the holding "${name}"? Only works if it has no transactions or rules.`)) return;
+          startTransition(async () => {
+            const res = await deleteHolding(name);
+            if (res.ok) toast.success(res.message);
+            else toast.error(res.message);
+          });
+        }}
+      >
+        <Trash2 className="size-3.5 text-destructive" />
+      </Button>
+    </IconTooltip>
+  );
+}
+
+function ArchiveHoldingButton({ name, archived }: { name: string; archived: boolean }) {
+  const [pending, startTransition] = React.useTransition();
+  return (
+    <IconTooltip label={archived ? "Restore to active holdings" : "Archive — hides it, keeps its history"}>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={archived ? "Restore holding" : "Archive holding"}
+        disabled={pending}
+        onClick={() => {
+          startTransition(async () => {
+            const res = await setHoldingArchived(name, !archived);
+            if (res.ok) toast.success(res.message);
+            else toast.error(res.message);
+          });
+        }}
+      >
+        {archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5 text-muted-foreground" />}
+      </Button>
+    </IconTooltip>
   );
 }
 
@@ -125,7 +151,10 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
   const [open, setOpen] = React.useState(false);
   const { inst, value, pnl, cost, live } = holding;
   const option: InstrumentOption = { name: inst.name, asset_type: inst.asset_type };
-  const pnlPct = cost ? (pnl / cost) * 100 : 0;
+  // A percentage only means something against real money put in. Once a holding is sold
+  // out its net cost goes negative (you took out more than you put in), so the ratio is
+  // nonsense — show just the absolute realised P&L there.
+  const pnlPct = cost > 0 ? (pnl / cost) * 100 : null;
   const usesFallback = inst.price_source !== "manual" && !live;
 
   return (
@@ -162,7 +191,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
         <div className="text-right">
           <div className="font-mono text-[14px] tabular-nums">{fmtVND(value)}</div>
           <div className={cn("mt-1 font-mono text-[11.5px] tabular-nums", pnl >= 0 ? "text-accent-brand" : "text-(--chart-negative)")}>
-            {pnl >= 0 ? "+" : ""}{fmtVND(pnl)} ({pnl >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%)
+            {pnl >= 0 ? "+" : ""}{fmtVND(pnl)}{pnlPct != null && ` (${pnl >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)`}
           </div>
         </div>
       </div>
@@ -175,6 +204,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
             <span>Cost: {fmtVND(cost)}</span>
             <div className="ml-auto flex items-center gap-1">
               <EditHoldingDialog holding={inst} sources={sourceKeys} />
+              <ArchiveHoldingButton name={inst.name} archived={inst.archived === 1} />
               <DeleteHoldingButton name={inst.name} />
             </div>
           </div>
@@ -233,13 +263,18 @@ export function InvestmentManager({
   rulesByInstrument: Record<string, RuleView[]>;
   sourceKeys: string[];
 }) {
+  // Totals stay over every holding so archiving a sold-out one never moves a KPI — its
+  // value is 0 and its realised P&L is preserved. Archived rows only leave the live list.
   const totalValue = holdings.reduce((a, h) => a + h.value, 0);
   const totalCost = holdings.reduce((a, h) => a + h.cost, 0);
   const totalPnl = totalValue - totalCost;
   const pnlPct = totalCost ? (totalPnl / totalCost) * 100 : 0;
-  const options: InstrumentOption[] = holdings.map((h) => ({ name: h.inst.name, asset_type: h.inst.asset_type }));
-  const groups = groupByType(holdings);
-  const typeCount = new Set(holdings.map((h) => h.inst.asset_type)).size;
+
+  const active = holdings.filter((h) => h.inst.archived !== 1);
+  const archived = holdings.filter((h) => h.inst.archived === 1);
+  const options: InstrumentOption[] = active.map((h) => ({ name: h.inst.name, asset_type: h.inst.asset_type }));
+  const groups = groupByType(active);
+  const typeCount = new Set(active.map((h) => h.inst.asset_type)).size;
 
   const kpis = [
     { label: "Portfolio value", value: fmtVND(totalValue) },
@@ -251,7 +286,7 @@ export function InvestmentManager({
       sub: `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`,
       subCls: totalPnl >= 0 ? "text-accent-brand" : "text-(--chart-negative)",
     },
-    { label: "Holdings", value: String(holdings.length), sub: `across ${typeCount} asset type${typeCount === 1 ? "" : "s"}` },
+    { label: "Holdings", value: String(active.length), sub: `across ${typeCount} asset type${typeCount === 1 ? "" : "s"}` },
   ];
 
   return (
@@ -293,8 +328,12 @@ export function InvestmentManager({
         <div className="mt-0.5 text-[12.5px] text-muted-foreground">Select a holding to see its transactions</div>
       </div>
 
-      {holdings.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">No holdings yet — add one to start tracking.</p>
+      {active.length === 0 ? (
+        <p className="text-[13px] text-muted-foreground">
+          {archived.length > 0
+            ? "No active holdings — they're all archived."
+            : "No holdings yet — add one to start tracking."}
+        </p>
       ) : (
         <div className="flex flex-col gap-[22px]">
           {groups.map((group) => (
@@ -329,6 +368,63 @@ export function InvestmentManager({
           ))}
         </div>
       )}
+
+      {archived.length > 0 && (
+        <ArchivedHoldings
+          holdings={archived}
+          txsByInstrument={txsByInstrument}
+          rulesByInstrument={rulesByInstrument}
+          sourceKeys={sourceKeys}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Archived holdings, tucked below the live portfolio and collapsed by default. Archiving
+ * only hides a holding from the active list — its value and P&L still count in the KPIs
+ * above and in net worth. Reversible any time via Restore.
+ */
+function ArchivedHoldings({
+  holdings,
+  txsByInstrument,
+  rulesByInstrument,
+  sourceKeys,
+}: {
+  holdings: HoldingView[];
+  txsByInstrument: Record<string, Tx[]>;
+  rulesByInstrument: Record<string, RuleView[]>;
+  sourceKeys: string[];
+}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <section className="mt-8">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2.5 px-1 pb-2.5 text-left"
+      >
+        <Archive className="size-3.5 text-faint" />
+        <span className="text-[14px] font-semibold text-muted-foreground">Archived</span>
+        <span className="text-[12px] text-faint">
+          {holdings.length} holding{holdings.length === 1 ? "" : "s"}
+        </span>
+        <span className={cn("ml-1 font-mono text-[12px] text-faint transition-transform", open && "rotate-90")}>▸</span>
+      </button>
+      {open && (
+        <div className="overflow-hidden rounded-xl border border-border bg-card opacity-80">
+          {holdings.map((h) => (
+            <HoldingRow
+              key={h.inst.name}
+              holding={h}
+              txs={txsByInstrument[h.inst.name] ?? []}
+              rules={rulesByInstrument[h.inst.name] ?? []}
+              sourceKeys={sourceKeys}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

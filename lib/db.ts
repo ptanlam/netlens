@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS instruments (
   manual_value  INTEGER,
   last_price    REAL,
   last_price_at TEXT,
-  updated_at    TEXT
+  updated_at    TEXT,
+  archived      INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS recurring_rules (
@@ -218,6 +219,8 @@ function migrate(db: Database.Database) {
     db.exec("ALTER TABLE debts ADD COLUMN monthly_payment INTEGER");
   if (!hasColumn("savings", "goal_id"))
     db.exec("ALTER TABLE savings ADD COLUMN goal_id INTEGER");
+  if (!hasColumn("instruments", "archived"))
+    db.exec("ALTER TABLE instruments ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
   if (!hasColumn("goals", "position")) {
     db.exec("ALTER TABLE goals ADD COLUMN position INTEGER NOT NULL DEFAULT 0");
     // Seed the ranking from the order goals were already listed in, so an existing board
@@ -456,6 +459,14 @@ export function updateInstrumentFields(
       "UPDATE instruments SET asset_type=?, price_source=?, symbol=?, quantity=?, manual_value=?, updated_at=? WHERE name=?",
     )
     .run(assetType, priceSource, symbol || null, quantity, manualValue, nowIso(), name);
+}
+
+/** Hide a fully-sold holding from the active list without losing its transaction or
+ *  P&L history. Reversible — net worth already ignores it since its value is 0. */
+export function setInstrumentArchived(name: string, archived: boolean) {
+  getDb()
+    .prepare("UPDATE instruments SET archived=?, updated_at=? WHERE name=?")
+    .run(archived ? 1 : 0, nowIso(), name);
 }
 
 export function updatePrice(name: string, price: number) {

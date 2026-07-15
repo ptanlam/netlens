@@ -15,6 +15,7 @@ import { debtOwed, isMatured, isRevolving, maturityDate, paidThisMonth } from "@
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/tooltip";
 import { DataTable } from "@/components/data-table";
 import { cn } from "@/lib/utils";
 import {
@@ -199,9 +200,11 @@ function EditDebtDialog({ debt }: { debt: Debt }) {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit debt" />}>
-        <Pencil className="size-3.5" />
-      </DialogTrigger>
+      <IconTooltip label="Edit debt">
+        <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit debt" />}>
+          <Pencil className="size-3.5" />
+        </DialogTrigger>
+      </IconTooltip>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit debt</DialogTitle>
@@ -247,24 +250,28 @@ function PaymentRow({ payment }: { payment: DebtPayment }) {
         −{fmtVND(payment.amount)}
       </span>
       <span className="flex-1 truncate text-muted-foreground">{payment.note}</span>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Edit payment"
-        disabled={pending}
-        onClick={() => setEditing(true)}
-      >
-        <Pencil className="size-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Delete payment"
-        disabled={pending}
-        onClick={() => run(() => deleteDebtPayment(payment.id))}
-      >
-        <Trash2 className="size-3.5 text-destructive" />
-      </Button>
+      <IconTooltip label="Edit payment">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Edit payment"
+          disabled={pending}
+          onClick={() => setEditing(true)}
+        >
+          <Pencil className="size-3.5" />
+        </Button>
+      </IconTooltip>
+      <IconTooltip label="Delete payment">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Delete payment"
+          disabled={pending}
+          onClick={() => run(() => deleteDebtPayment(payment.id))}
+        >
+          <Trash2 className="size-3.5 text-destructive" />
+        </Button>
+      </IconTooltip>
     </div>
   );
 }
@@ -289,9 +296,11 @@ function PaymentDialog({ debt, payments }: { debt: Debt; payments: DebtPayment[]
 
   return (
     <Dialog>
-      <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Record payment" />}>
-        <Wallet className="size-3.5" />
-      </DialogTrigger>
+      <IconTooltip label="Record payment">
+        <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Record payment" />}>
+          <Wallet className="size-3.5" />
+        </DialogTrigger>
+      </IconTooltip>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Payments — {debt.lender ?? "Loan"}</DialogTitle>
@@ -350,23 +359,25 @@ function PaymentDialog({ debt, payments }: { debt: Debt; payments: DebtPayment[]
 function DeleteDebtButton({ debt }: { debt: Debt }) {
   const [pending, startTransition] = React.useTransition();
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label="Delete debt"
-      disabled={pending}
-      onClick={() => {
-        if (!confirm(`Delete the ${fmtVND(debt.principal)} debt${debt.lender ? ` (${debt.lender})` : ""}? Its payments are removed too.`))
-          return;
-        startTransition(async () => {
-          const res = await deleteDebt(debt.id);
-          if (res.ok) toast.success(res.message);
-          else toast.error(res.message);
-        });
-      }}
-    >
-      <Trash2 className="size-3.5 text-destructive" />
-    </Button>
+    <IconTooltip label="Delete debt">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Delete debt"
+        disabled={pending}
+        onClick={() => {
+          if (!confirm(`Delete the ${fmtVND(debt.principal)} debt${debt.lender ? ` (${debt.lender})` : ""}? Its payments are removed too.`))
+            return;
+          startTransition(async () => {
+            const res = await deleteDebt(debt.id);
+            if (res.ok) toast.success(res.message);
+            else toast.error(res.message);
+          });
+        }}
+      >
+        <Trash2 className="size-3.5 text-destructive" />
+      </Button>
+    </IconTooltip>
   );
 }
 

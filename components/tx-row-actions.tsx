@@ -10,6 +10,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { IconTooltip } from "@/components/ui/tooltip";
 import { TxForm, type InstrumentOption } from "@/components/tx-form";
 
 export function TxRowActions({ tx, instruments }: { tx: Tx; instruments: InstrumentOption[] }) {
@@ -19,11 +20,13 @@ export function TxRowActions({ tx, instruments }: { tx: Tx; instruments: Instrum
   return (
     <div className="flex justify-end gap-1">
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger
-          render={<Button variant="ghost" size="icon-sm" aria-label="Edit transaction" />}
-        >
-          <Pencil className="size-3.5" />
-        </DialogTrigger>
+        <IconTooltip label="Edit transaction">
+          <DialogTrigger
+            render={<Button variant="ghost" size="icon-sm" aria-label="Edit transaction" />}
+          >
+            <Pencil className="size-3.5" />
+          </DialogTrigger>
+        </IconTooltip>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit transaction</DialogTitle>
@@ -40,23 +43,25 @@ export function TxRowActions({ tx, instruments }: { tx: Tx; instruments: Instrum
           />
         </DialogContent>
       </Dialog>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Delete transaction"
-        disabled={pending}
-        onClick={() => {
-          if (!confirm(`Delete ${tx.date} ${tx.instrument} (${tx.amount.toLocaleString()} VND)?`))
-            return;
-          startTransition(async () => {
-            const res = await deleteTx(tx.id);
-            if (res.ok) toast.success(res.message);
-            else toast.error(res.message);
-          });
-        }}
-      >
-        <Trash2 className="size-3.5 text-destructive" />
-      </Button>
+      <IconTooltip label="Delete transaction">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Delete transaction"
+          disabled={pending}
+          onClick={() => {
+            if (!confirm(`Delete ${tx.date} ${tx.instrument} (${tx.amount.toLocaleString()} VND)?`))
+              return;
+            startTransition(async () => {
+              const res = await deleteTx(tx.id);
+              if (res.ok) toast.success(res.message);
+              else toast.error(res.message);
+            });
+          }}
+        >
+          <Trash2 className="size-3.5 text-destructive" />
+        </Button>
+      </IconTooltip>
     </div>
   );
 }

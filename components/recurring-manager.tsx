@@ -8,6 +8,7 @@ import { addRule, deleteRule, toggleRule, updateRule } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/tooltip";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -168,21 +169,25 @@ function RuleRow({
         </div>
       </div>
       <div className="flex gap-1">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={rule.active ? "Pause rule" : "Resume rule"}
-          disabled={pending}
-          onClick={() => run(() => toggleRule(rule.id))}
-        >
-          {rule.active ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-        </Button>
-        <Dialog open={editOpen} onOpenChange={setEditOpen}>
-          <DialogTrigger
-            render={<Button variant="ghost" size="icon-sm" aria-label="Edit rule" />}
+        <IconTooltip label={rule.active ? "Pause rule" : "Resume rule"}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={rule.active ? "Pause rule" : "Resume rule"}
+            disabled={pending}
+            onClick={() => run(() => toggleRule(rule.id))}
           >
-            <Pencil className="size-3.5" />
-          </DialogTrigger>
+            {rule.active ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+          </Button>
+        </IconTooltip>
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <IconTooltip label="Edit rule">
+            <DialogTrigger
+              render={<Button variant="ghost" size="icon-sm" aria-label="Edit rule" />}
+            >
+              <Pencil className="size-3.5" />
+            </DialogTrigger>
+          </IconTooltip>
           <DialogContent className="sm:max-w-xl">
             <DialogHeader>
               <DialogTitle>Edit rule</DialogTitle>
@@ -195,19 +200,21 @@ function RuleRow({
             />
           </DialogContent>
         </Dialog>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Delete rule"
-          disabled={pending}
-          onClick={() => {
-            if (!confirm(`Delete the ${rule.freq} rule for ${rule.instrument}? Already-created transactions stay.`))
-              return;
-            run(() => deleteRule(rule.id));
-          }}
-        >
-          <Trash2 className="size-3.5 text-destructive" />
-        </Button>
+        <IconTooltip label="Delete rule">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Delete rule"
+            disabled={pending}
+            onClick={() => {
+              if (!confirm(`Delete the ${rule.freq} rule for ${rule.instrument}? Already-created transactions stay.`))
+                return;
+              run(() => deleteRule(rule.id));
+            }}
+          >
+            <Trash2 className="size-3.5 text-destructive" />
+          </Button>
+        </IconTooltip>
       </div>
     </div>
   );

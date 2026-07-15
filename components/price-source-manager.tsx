@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { PriceSource } from "@/lib/types";
 import { addPriceSource, deletePriceSource, testPriceSource, updatePriceSource } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/tooltip";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -202,9 +203,11 @@ function EditSourceDialog({ source }: { source: PriceSource }) {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit price source" />}>
-        <Pencil className="size-3.5" />
-      </DialogTrigger>
+      <IconTooltip label="Edit price source">
+        <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit price source" />}>
+          <Pencil className="size-3.5" />
+        </DialogTrigger>
+      </IconTooltip>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Edit {source.label}</DialogTitle>
@@ -220,17 +223,19 @@ function EditSourceDialog({ source }: { source: PriceSource }) {
 function DeleteSourceButton({ source }: { source: PriceSource }) {
   const [pending, startTransition] = React.useTransition();
   return (
-    <Button variant="ghost" size="icon-sm" aria-label="Delete price source" disabled={pending}
-      onClick={() => {
-        if (!confirm(`Delete the price source "${source.label}"? This can't be undone.`)) return;
-        startTransition(async () => {
-          const res = await deletePriceSource(source.key);
-          if (res.ok) toast.success(res.message);
-          else toast.error(res.message);
-        });
-      }}>
-      <Trash2 className="size-3.5" />
-    </Button>
+    <IconTooltip label="Delete price source">
+      <Button variant="ghost" size="icon-sm" aria-label="Delete price source" disabled={pending}
+        onClick={() => {
+          if (!confirm(`Delete the price source "${source.label}"? This can't be undone.`)) return;
+          startTransition(async () => {
+            const res = await deletePriceSource(source.key);
+            if (res.ok) toast.success(res.message);
+            else toast.error(res.message);
+          });
+        }}>
+        <Trash2 className="size-3.5" />
+      </Button>
+    </IconTooltip>
   );
 }
 
