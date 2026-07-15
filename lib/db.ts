@@ -237,6 +237,16 @@ function nowIso(): string {
 
 // ---------- transactions ----------
 
+/** Roll a signed unit delta into a holding's running total. `quantity` is already
+ *  signed (a sale is negative), so a buy grows the holding and a sell shrinks it.
+ *  COALESCE lets a brand-new holding start accumulating from a null quantity. */
+function adjustHoldingQuantity(instrument: string, delta: number) {
+  if (delta === 0) return;
+  getDb()
+    .prepare("UPDATE instruments SET quantity = COALESCE(quantity, 0) + ?, updated_at=? WHERE name=?")
+    .run(delta, nowIso(), instrument.trim());
+}
+
 export function addTransaction(
   date: string, assetType: string, instrument: string,
   amount: number, quantity: number | null = null, note: string | null = null,
@@ -246,6 +256,7 @@ export function addTransaction(
     "INSERT INTO transactions(date, asset_type, instrument, amount, quantity, note) VALUES (?,?,?,?,?,?)",
   ).run(date, assetType, instrument.trim(), Math.round(amount), quantity, note);
   ensureInstrument(instrument.trim(), assetType);
+  if (quantity != null) adjustHoldingQuantity(instrument, quantity);
 }
 
 export function updateTransaction(
@@ -253,14 +264,28 @@ export function updateTransaction(
   amount: number, quantity: number | null, note: string | null,
 ) {
   const db = getDb();
+  // Read the prior row first so we can move units between holdings and net the delta.
+  const prev = getTransaction(id);
   db.prepare(
     "UPDATE transactions SET date=?, asset_type=?, instrument=?, amount=?, quantity=?, note=? WHERE id=?",
   ).run(date, assetType, instrument.trim(), Math.round(amount), quantity, note, id);
   ensureInstrument(instrument.trim(), assetType);
+  if (prev) {
+    const sameHolding = prev.instrument.trim() === instrument.trim();
+    if (sameHolding) {
+      adjustHoldingQuantity(instrument, (quantity ?? 0) - (prev.quantity ?? 0));
+    } else {
+      // Instrument changed: pull the old units out of the old holding, add to the new.
+      if (prev.quantity != null) adjustHoldingQuantity(prev.instrument, -prev.quantity);
+      if (quantity != null) adjustHoldingQuantity(instrument, quantity);
+    }
+  }
 }
 
 export function deleteTransaction(id: number) {
+  const tx = getTransaction(id);
   getDb().prepare("DELETE FROM transactions WHERE id=?").run(id);
+  if (tx?.quantity != null) adjustHoldingQuantity(tx.instrument, -tx.quantity);
 }
 
 export function getTransaction(id: number): Tx | undefined {
