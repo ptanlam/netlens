@@ -86,7 +86,10 @@ function useRefreshPrices() {
       inFlight.current = true;
       startTransition(async () => {
         try {
-          const res = await refreshPrices();
+          // A hand-triggered refresh also pulls recent history, so a fund's just-published
+          // NAV lands now rather than whenever the 12h backfill next runs; the silent
+          // every-tick refresh stays live-prices-only.
+          const res = await refreshPrices(!silent);
           lastRun.current = Date.now();
           // Every server-rendered stat (KPIs, allocation, P&L by holding, net worth) is
           // computed from the DB at render time, so re-render the tree to pick up the

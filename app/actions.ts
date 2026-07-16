@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import * as db from "@/lib/db";
-import { refreshAll, testPriceSource as runPriceSourceTest } from "@/lib/prices";
+import {
+  refreshAll, refreshRecentHistory, testPriceSource as runPriceSourceTest,
+} from "@/lib/prices";
 import { authToken, COOKIE_NAME } from "@/lib/auth";
 import { fmtVND } from "@/lib/format";
 import { GOAL_METRICS, type GoalMetric } from "@/lib/types";
@@ -455,8 +457,13 @@ export async function saveHoldings(fd: FormData) {
   return { ok: true, message: "Holdings saved." };
 }
 
-export async function refreshPrices() {
+/** `withHistory` also pulls the last couple of days of closes/NAVs — a fund publishes its
+ *  NAV a day late, so a live refresh alone can't move it and the day would otherwise sit
+ *  unsettled until the 12h backfill. Only a deliberate refresh asks for it; the every-tick
+ *  auto-refresh doesn't, since that would hit each upstream history feed every minute. */
+export async function refreshPrices(withHistory = false) {
   const [updated, errors] = await refreshAll();
+  if (withHistory) errors.push(...(await refreshRecentHistory())[1]);
   revalidateAll();
   return {
     ok: errors.length === 0,

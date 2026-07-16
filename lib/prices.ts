@@ -287,12 +287,14 @@ export async function fetchCoingeckoHistory(
   return out;
 }
 
-export async function fetchFmarketNavHistory(productId: number): Promise<Record<string, number>> {
+export async function fetchFmarketNavHistory(
+  productId: number, fromIso?: string,
+): Promise<Record<string, number>> {
   const today = new Date();
   const toDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
   const data = await postJson<{ data: { navDate: string; nav?: number }[] }>(
     FMARKET_NAV_HISTORY_URL,
-    { isAllData: 0, productId, fromDate: HISTORY_FROM, toDate },
+    { isAllData: 0, productId, fromDate: fromIso?.replaceAll("-", "") ?? HISTORY_FROM, toDate },
   );
   const out: Record<string, number> = {};
   // fmarket's navDate is the *report* date; the value is the previous trading day's NAV.
@@ -326,9 +328,10 @@ export function parseDcvfmCodes(url: string): { fundCode: string; fundReportCode
 }
 
 export async function fetchDcvfmNavHistory(
-  fundCode: string, fundReportCode: string,
+  fundCode: string, fundReportCode: string, fromIso?: string,
 ): Promise<Record<string, number>> {
-  const from = `${HISTORY_FROM.slice(0, 4)}-${HISTORY_FROM.slice(4, 6)}-${HISTORY_FROM.slice(6, 8)}`;
+  const from =
+    fromIso ?? `${HISTORY_FROM.slice(0, 4)}-${HISTORY_FROM.slice(4, 6)}-${HISTORY_FROM.slice(6, 8)}`;
   const params = JSON.stringify({
     endDateIsoString: `${todayIso()}T23:59:59.000Z`,
     fundCode, fundReportCode,
@@ -349,16 +352,13 @@ export async function fetchDcvfmNavHistory(
   return out;
 }
 
-/** Fetch daily history for every price-tracked instrument, at most every maxAgeHours.
- *  Each source's `history_strategy` selects which built-in fetcher to use. */
-export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[]]> {
-  getDb();
-  const last = metaGet("history_fetched_at");
-  if (last) {
-    const age = Date.now() - new Date(last).getTime();
-    if (age < maxAgeHours * 3600 * 1000) return [0, []];
-  }
-
+/** Pull each price-tracked instrument's daily series and upsert it.
+ *  `lookbackDays` null = the full backfill from HISTORY_FROM; a number narrows every
+ *  fetch to roughly that many days back, which is all a just-published close/NAV needs
+ *  and cheap enough to run on demand. Upserts either way, so a narrow window can only
+ *  add or correct recent days — it never drops the deep history already stored. */
+async function fetchHistoryInto(lookbackDays: number | null): Promise<[number, string[]]> {
+  const fromIso = lookbackDays == null ? undefined : isoAddDays(todayIso(), -lookbackDays);
   let updated = 0;
   const errors: string[] = [];
   let fmIds: Record<string, number> | null = null;
@@ -371,21 +371,22 @@ export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[
     try {
       let history: Record<string, number> | null = null;
       if (strat === "yahoo" && row.symbol)
-        history = await fetchYahooHistory(row.symbol);
+        history = await fetchYahooHistory(row.symbol, yahooRange(lookbackDays));
       else if (strat === "coingecko" && row.symbol)
-        history = await fetchCoingeckoHistory(row.symbol);
+        history = await fetchCoingeckoHistory(row.symbol, lookbackDays ?? 365);
       else if (strat === "fmarket") {
         if (!fmIds) {
           fmIds = {};
           for (const r of await fmarketRows()) fmIds[r.shortName] = r.id;
         }
         const pid = fmIds[row.symbol ?? row.name];
-        if (pid) history = await fetchFmarketNavHistory(pid);
+        if (pid) history = await fetchFmarketNavHistory(pid, fromIso);
         else errors.push(`${row.name}: not found on fmarket`);
       }
       else if (strat === "dcvfm") {
         const codes = src ? parseDcvfmCodes(src.url) : null;
-        if (codes) history = await fetchDcvfmNavHistory(codes.fundCode, codes.fundReportCode);
+        if (codes)
+          history = await fetchDcvfmNavHistory(codes.fundCode, codes.fundReportCode, fromIso);
         else errors.push(`${row.name}: cannot read DCVFM fund codes from source URL`);
       }
       if (history && Object.keys(history).length) {
@@ -396,7 +397,37 @@ export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[
       errors.push(`${row.name}: ${(e as Error).message}`);
     }
   }
-
-  metaSet("history_fetched_at", new Date().toISOString());
   return [updated, errors];
+}
+
+/** Yahoo takes a range keyword, not a date — widen to the smallest one that covers
+ *  `lookbackDays` (plus a weekend, so a Monday still reaches Friday's close). */
+function yahooRange(lookbackDays: number | null): string {
+  if (lookbackDays == null) return "2y";
+  if (lookbackDays <= 5) return "5d";
+  if (lookbackDays <= 30) return "1mo";
+  return "3mo";
+}
+
+/** The full backfill, at most every maxAgeHours. Each source's `history_strategy`
+ *  selects which built-in fetcher to use. */
+export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[]]> {
+  getDb();
+  const last = metaGet("history_fetched_at");
+  if (last) {
+    const age = Date.now() - new Date(last).getTime();
+    if (age < maxAgeHours * 3600 * 1000) return [0, []];
+  }
+  const res = await fetchHistoryInto(null);
+  metaSet("history_fetched_at", new Date().toISOString());
+  return res;
+}
+
+/** The last few days only — for a manual price refresh, where waiting up to 12h for a
+ *  close that has already been published is the whole complaint. Deliberately does NOT
+ *  stamp `history_fetched_at`: that key gates the full backfill, and a narrow fetch must
+ *  never convince it that the deep history is up to date. */
+export async function refreshRecentHistory(days = 2): Promise<[number, string[]]> {
+  getDb();
+  return fetchHistoryInto(days);
 }
