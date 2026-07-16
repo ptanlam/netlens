@@ -461,6 +461,9 @@ export async function refreshPrices() {
   return {
     ok: errors.length === 0,
     message: `Updated ${updated} price(s).` + (errors.length ? ` ${errors.length} failed.` : ""),
+    // Per-source failure reasons, so the client can log them (a silent auto-refresh shows
+    // no toast but still writes an error log).
+    errors,
   };
 }
 

@@ -11,10 +11,12 @@ import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "pf.auto-refresh-ms";
 
-/** Live refresh hits CoinGecko / Yahoo / fmarket on every tick, so the shortest option
- *  is 1m — fast enough for crypto, slow enough to stay under free-tier limits. */
+/** Live refresh hits CoinGecko / Yahoo / fmarket on every tick. 5s is the fastest — handy
+ *  for watching crypto move in near-real-time, but it leans on the free-tier limits, so the
+ *  slower steps stay the sensible default for leaving a tab open all day. */
 const INTERVALS = [
   { ms: 0, label: "Off" },
+  { ms: 5_000, label: "5s" },
   { ms: 60_000, label: "1m" },
   { ms: 300_000, label: "5m" },
   { ms: 900_000, label: "15m" },
@@ -96,7 +98,15 @@ function useRefreshPrices() {
           if (res.ok) {
             setLastUpdated(new Date());
             if (!silent) toast.success(res.message);
-          } else toast.warning(res.message);
+          } else {
+            // Failures always go to the console as an error log — including silent
+            // auto-refreshes, which show no toast panel. A manual refresh also gets a toast.
+            console.error(
+              `[price-refresh] ${res.message}` +
+                (res.errors.length ? `\n  - ${res.errors.join("\n  - ")}` : ""),
+            );
+            if (!silent) toast.warning(res.message);
+          }
         } finally {
           inFlight.current = false;
         }

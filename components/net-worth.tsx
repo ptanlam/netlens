@@ -1,3 +1,6 @@
+"use client";
+
+import * as React from "react";
 import { fmtVND } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +22,23 @@ export function NetWorthPanel({
 }) {
   const net = investments + savings + funds - debts;
 
+  // Flash the figure — green up, red down — whenever it moves. A price refresh re-renders
+  // this panel with a new total; we compare against the last one we showed and, on a real
+  // change, restart the tick animation (bumping `n` remounts the node so it replays even on
+  // back-to-back refreshes). First mount seeds `prev` with the current value, so nothing
+  // flashes on load. `onAnimationEnd` clears the state; reduced-motion users just see the
+  // number update, since the animation utilities are gated behind that media query.
+  const prev = React.useRef(net);
+  const seq = React.useRef(0);
+  const [flash, setFlash] = React.useState<{ dir: "up" | "down"; n: number } | null>(null);
+  React.useEffect(() => {
+    if (net === prev.current) return;
+    const dir = net > prev.current ? "up" : "down";
+    prev.current = net;
+    seq.current += 1;
+    setFlash({ dir, n: seq.current });
+  }, [net]);
+
   // The set-aside line only earns its place once there's something in it — an empty rail
   // row on every dashboard would be noise for anyone not saving up for anything. Rounded,
   // so a fund that's been spent down to sub-₫1 dust doesn't leave a "₫0" line behind.
@@ -38,8 +58,32 @@ export function NetWorthPanel({
         <div className="font-mono text-[11px] tracking-[0.14em] text-faint uppercase">
           Net worth
         </div>
-        <div className="mt-2.5 font-mono text-[44px] leading-[0.95] font-medium tracking-[-0.03em] text-foreground tabular-nums sm:text-[56px]">
-          {fmtVND(net)}
+        <div className="mt-2.5 flex items-center gap-3">
+          <div
+            key={flash?.n ?? "static"}
+            onAnimationEnd={() => setFlash(null)}
+            className={cn(
+              "font-mono text-[44px] leading-[0.95] font-medium tracking-[-0.03em] text-foreground tabular-nums will-change-transform sm:text-[56px]",
+              flash?.dir === "up" && "animate-nw-flash-up",
+              flash?.dir === "down" && "animate-nw-flash-down",
+            )}
+          >
+            {fmtVND(net)}
+          </div>
+          {/* Direction arrow, shown only while a refresh's flash is playing — same green/red
+              cue as the figure, so the move reads at a glance. Sibling (not child) of the
+              number so its own animation-end never clears the flash early. */}
+          {flash && (
+            <span
+              aria-hidden
+              className={cn(
+                "animate-fade-in font-mono text-[26px] leading-none sm:text-[32px]",
+                flash.dir === "up" ? "text-accent-brand" : "text-(--chart-negative)",
+              )}
+            >
+              {flash.dir === "up" ? "▲" : "▼"}
+            </span>
+          )}
         </div>
         <div className="mt-3.5 flex flex-wrap items-center gap-3.5">
           <span className="text-[13px] text-muted-foreground">

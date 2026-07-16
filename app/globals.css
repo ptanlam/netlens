@@ -330,6 +330,42 @@
   }
 }
 
+/* The net-worth hero ticks green (up) / red (down) and nudges into place whenever a price
+ * refresh moves the total — colour + motion make a refresh legible without reading digits. */
+@keyframes nw-flash-up {
+  0% {
+    color: var(--accent-brand);
+    transform: translateY(0.16em);
+  }
+  28% {
+    transform: translateY(0);
+  }
+  65% {
+    color: var(--accent-brand);
+  }
+  100% {
+    color: var(--foreground);
+    transform: translateY(0);
+  }
+}
+
+@keyframes nw-flash-down {
+  0% {
+    color: var(--chart-negative);
+    transform: translateY(-0.16em);
+  }
+  28% {
+    transform: translateY(0);
+  }
+  65% {
+    color: var(--chart-negative);
+  }
+  100% {
+    color: var(--foreground);
+    transform: translateY(0);
+  }
+}
+
 /* Only animate when the visitor hasn't asked to reduce motion. */
 @media (prefers-reduced-motion: no-preference) {
   .animate-pop-in {
@@ -347,5 +383,11 @@
   }
   .animate-fade-in {
     animation: fade-in 0.9s ease both;
+  }
+  .animate-nw-flash-up {
+    animation: nw-flash-up 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-nw-flash-down {
+    animation: nw-flash-down 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
