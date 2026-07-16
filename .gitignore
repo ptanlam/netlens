@@ -26,6 +26,8 @@
 # misc
 .DS_Store
 *.pem
+# ...but public CA intermediates for incomplete upstream TLS chains must ship (lib/tls.ts).
+!certs/*.pem
 
 # debug
 npm-debug.log*
