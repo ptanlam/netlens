@@ -20,6 +20,8 @@ ENV NODE_ENV=production
 COPY --from=build /app/public ./public
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Extra CA intermediates for upstreams that serve incomplete TLS chains (lib/tls.ts).
+COPY --from=build /app/certs ./certs
 
 EXPOSE 3000
 ENV HOSTNAME=0.0.0.0

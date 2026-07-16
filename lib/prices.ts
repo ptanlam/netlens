@@ -13,6 +13,10 @@ import {
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
 import { MANUAL_SOURCE } from "./types";
+import { installExtraCAs } from "./tls";
+
+// Repair incomplete upstream TLS chains (e.g. dragoncapital.com.vn) before any fetch.
+installExtraCAs();
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)";
 const FMARKET_URL = "https://api.fmarket.vn/res/products/filter";
