@@ -289,10 +289,13 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   const pathname = usePathname();
   if (pathname === '/login') return null;
   return (
-    <header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) backdrop-blur-[10px]'>
+    <header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[10px]'>
       {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
-          than the content beneath it. */}
-      <div className='mx-auto flex h-[58px] w-full max-w-[1180px] items-center justify-between gap-3 px-5 sm:px-8 xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+          than the content beneath it. The left/right padding also clears the safe areas:
+          the iPhone notch in landscape and, on iPadOS 26, the window-control traffic
+          lights overlaid on the top-left of a windowed/split web app — without this they
+          sit on top of the drawer's hamburger. */}
+      <div className='mx-auto flex h-[58px] w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
         {/* The pills only clear the price controls from ~1024px up; below that they
             collide with them, so the drawer holds the links until lg. */}
         <div className='flex min-w-0 items-center gap-3 lg:gap-7'>

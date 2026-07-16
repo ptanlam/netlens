@@ -37,6 +37,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // Extend under the system UI so we control the safe areas ourselves — required for
+  // env(safe-area-inset-*) to report the iPhone notch/home-indicator AND the window
+  // controls (traffic lights) that iPadOS 26 overlays on a windowed/split web app.
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#f4f2ee' },
     { media: '(prefers-color-scheme: dark)', color: '#14130f' },
@@ -58,7 +62,7 @@ export default function RootLayout({
         <ThemeProvider>
           <TooltipProvider delay={200} closeDelay={0}>
             <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
-            <main className='mx-auto w-full max-w-[1180px] flex-1 px-5 pt-8 pb-18 sm:px-8 xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+            <main className='mx-auto w-full max-w-[1180px] flex-1 pt-8 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
               {children}
             </main>
             <Toaster richColors position='top-center' />
