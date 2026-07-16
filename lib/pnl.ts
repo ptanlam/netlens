@@ -53,6 +53,9 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
     events: [string, number][];
     offset: number;
     first: string;
+    /** Last day this instrument has a real stored close. Any later day is carried
+     *  forward (not yet settled) — drives each day's "complete/partial" status. */
+    lastClose: string;
   }
   const tracked: Record<string, Tracked> = {};
   const manual: { name: string; type: string; value: number; first: string }[] = [];
@@ -79,6 +82,7 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
         events,
         offset: qtyNow - totalUnits,
         first,
+        lastClose: points[points.length - 1][0],
       };
     } else {
       manual.push({ name: inst.name, type: inst.asset_type, value: inst.manual_value ?? 0, first });
@@ -111,6 +115,7 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
     }
 
     let value = 0;
+    let held = 0, settled = 0; // holdings contributing today, and how many are settled
     const dayHoldings: HoldingPnlPoint["holdings"] = [];
     for (const [name, tr] of Object.entries(tracked)) {
       while (cursors[name] < tr.events.length && tr.events[cursors[name]][0] <= ds) {
@@ -122,7 +127,13 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
         const units = Math.max(tr.offset + cumUnits[name], 0);
         // Today is priced live; every earlier day is settled, so it uses the stored close.
         const price = ds === end && tr.livePrice != null ? tr.livePrice : tr.priceAt(ds);
-        if (units) raw = units * price;
+        if (units) {
+          raw = units * price;
+          held += 1;
+          // Settled once the instrument has a real close on/through this day; later days
+          // are carried forward from the last close and may still move.
+          if (ds <= tr.lastClose) settled += 1;
+        }
       }
       value += raw;
       const v = Math.round(raw);
@@ -133,6 +144,7 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
     }
     for (const m of manual) {
       const v = ds >= m.first ? m.value : 0;
+      if (v !== 0) { held += 1; settled += 1; } // static value is always settled
       value += v;
       const pnl = v - prevValue[m.name] - (contribToday[m.name] ?? 0);
       if (v !== 0 || pnl !== 0)
@@ -140,7 +152,8 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
       prevValue[m.name] = v;
     }
 
-    series.push({ date: ds, invested, value: Math.round(value), pnl: Math.round(value) - invested });
+    const status = ds === end ? "live" : settled === held ? "complete" : "partial";
+    series.push({ date: ds, invested, value: Math.round(value), pnl: Math.round(value) - invested, status });
     holdings.push({ date: ds, holdings: dayHoldings });
     day.setDate(day.getDate() + 1);
   }

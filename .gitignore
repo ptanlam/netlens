@@ -22,6 +22,9 @@
 
 # financial data — back up via Export CSV
 /data/
+# local pulls of the production DB (railway) and their backups — never commit
+/production*.db*
+/*.db.bak-*
 
 # misc
 .DS_Store

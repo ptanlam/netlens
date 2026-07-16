@@ -35,6 +35,28 @@ function isoFromEpoch(seconds: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Add `days` to a YYYY-MM-DD string (UTC math, no timezone drift). */
+function isoAddDays(iso: string, days: number): string {
+  return new Date(new Date(`${iso}T00:00:00Z`).valueOf() + days * 86400000).toISOString().slice(0, 10);
+}
+
+/** True for Saturday/Sunday — funds never strike a NAV on a weekend, so such a
+ *  date is always a data artifact and must not enter a fund's price history. */
+function isWeekendIso(iso: string): boolean {
+  const dow = new Date(`${iso}T00:00:00Z`).getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
+/** The trading day before `iso` (steps back over weekends). A fund's NAV is struck at
+ *  the close of a trading day and only *reported* the next day, so the value a feed
+ *  publishes under date D is the valuation for the previous trading day — this maps a
+ *  reported date to that true valuation date, keeping the daily P&L calendar precise. */
+function prevTradingDayIso(iso: string): string {
+  let d = isoAddDays(iso, -1);
+  while (isWeekendIso(d)) d = isoAddDays(d, -1);
+  return d;
+}
+
 // ---------- generic config engine (live prices) ----------
 
 /** Substitute `{name}` placeholders in a URL/body template. */
@@ -273,7 +295,57 @@ export async function fetchFmarketNavHistory(productId: number): Promise<Record<
     { isAllData: 0, productId, fromDate: HISTORY_FROM, toDate },
   );
   const out: Record<string, number> = {};
-  for (const r of data.data ?? []) if (r.nav) out[r.navDate] = r.nav;
+  // fmarket's navDate is the *report* date; the value is the previous trading day's NAV.
+  for (const r of data.data ?? []) if (r.nav) out[prevTradingDayIso(r.navDate)] = r.nav;
+  return out;
+}
+
+// DCVFM (dragoncapital.com.vn) daily NAV series. Two DCVFM-intrinsic fix-ups (no
+// cross-checking another source):
+//   1. DCVFM labels every NAV one day EARLY — its dates run Sun–Thu, not Mon–Fri — so
+//      +1 day recovers the report date it should carry (Sun→Mon).
+//   2. That report date's value is the previous trading day's valuation (funds report
+//      T+1), so prevTradingDayIso maps it to the true valuation date for the P&L calendar.
+// `getFundData` (the live source) bakes the fund's { fundCode, fundReportCode } into its
+// URL params; we reuse those here so the strategy works for any DC fund without config.
+const DCVFM_HISTORY_URL =
+  "https://www.dragoncapital.com.vn/individual/vi/webruntime/api/apex/execute?cacheable=true&classname=%40udd%2F01pJ2000000CgSu&isContinuation=false&method=getFundRelatedDataByDateRange&namespace=&language=vi&asGuest=true&htmlEncode=false";
+const DCVFM_SITE_ID = "0DMJ2000000oLukOAE";
+
+/** Pull { fundCode, fundReportCode } out of a getFundData source URL's `params` blob. */
+export function parseDcvfmCodes(url: string): { fundCode: string; fundReportCode: string } | null {
+  try {
+    const raw = new URL(url).searchParams.get("params");
+    if (!raw) return null;
+    const p = JSON.parse(raw) as { fundCode?: string; fundReportCode?: string };
+    if (p.fundCode && p.fundReportCode) return { fundCode: p.fundCode, fundReportCode: p.fundReportCode };
+  } catch {
+    // Not a DCVFM getFundData URL — caller reports the miss.
+  }
+  return null;
+}
+
+export async function fetchDcvfmNavHistory(
+  fundCode: string, fundReportCode: string,
+): Promise<Record<string, number>> {
+  const from = `${HISTORY_FROM.slice(0, 4)}-${HISTORY_FROM.slice(4, 6)}-${HISTORY_FROM.slice(6, 8)}`;
+  const params = JSON.stringify({
+    endDateIsoString: `${todayIso()}T23:59:59.000Z`,
+    fundCode, fundReportCode,
+    orderBy: "navDate__c", orderDirection: "desc",
+    pageNumber: 1, pageSize: 1000,
+    siteId: DCVFM_SITE_ID, startDateIsoString: from,
+  });
+  const data = await getJson<{ returnValue?: { navDate__c?: string; navPerShare__c?: number }[] }>(
+    `${DCVFM_HISTORY_URL}&params=${encodeURIComponent(params)}`,
+  );
+  const out: Record<string, number> = {};
+  for (const r of data.returnValue ?? []) {
+    if (!r.navDate__c || !r.navPerShare__c) continue;
+    // +1 recovers the report date (DCVFM is a day early); prevTradingDay → valuation date.
+    const date = prevTradingDayIso(isoAddDays(r.navDate__c.slice(0, 10), 1));
+    out[date] = r.navPerShare__c;
+  }
   return out;
 }
 
@@ -293,7 +365,8 @@ export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[
 
   for (const row of listInstruments()) {
     if (!row.price_source || row.price_source === MANUAL_SOURCE) continue;
-    const strat = getPriceSource(row.price_source)?.history_strategy ?? "none";
+    const src = getPriceSource(row.price_source);
+    const strat = src?.history_strategy ?? "none";
     if (strat === "none") continue;
     try {
       let history: Record<string, number> | null = null;
@@ -309,6 +382,11 @@ export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[
         const pid = fmIds[row.symbol ?? row.name];
         if (pid) history = await fetchFmarketNavHistory(pid);
         else errors.push(`${row.name}: not found on fmarket`);
+      }
+      else if (strat === "dcvfm") {
+        const codes = src ? parseDcvfmCodes(src.url) : null;
+        if (codes) history = await fetchDcvfmNavHistory(codes.fundCode, codes.fundReportCode);
+        else errors.push(`${row.name}: cannot read DCVFM fund codes from source URL`);
       }
       if (history && Object.keys(history).length) {
         upsertPriceHistory(row.name, history);

@@ -194,12 +194,14 @@ const BUILTIN_PRICE_SOURCES: PriceSource[] = [
     // Salesforce SPA (no NAV in the raw HTML), but its guest Apex endpoint returns
     // clean JSON, so we hit that directly instead of scraping. fundCode "VF1" +
     // fundReportCode "DCDS" identify the fund; navPerShare__c is the NAV in whole VND.
-    // History still comes from fmarket (shortName "DCDS"), same as vcbf above.
+    // Both live NAV and history come from DCVFM (single-source, no cross-checking).
+    // DCVFM labels every NAV one day early (Sun–Thu instead of Mon–Fri), so the history
+    // fetcher shifts navDate +1 day to the true trading date — see fetchDcvfmNavHistory.
     key: "dcvfm", label: "DCVFM-DCDS (NAV)", kind: "json", method: "GET",
     url: "https://www.dragoncapital.com.vn/individual/vi/webruntime/api/apex/execute?cacheable=true&classname=%40udd%2F01pJ2000000DF0h&isContinuation=false&method=getFundData&namespace=&params=%7B%22fundCode%22%3A%22VF1%22%2C%22fundReportCode%22%3A%22DCDS%22%7D&language=vi&asGuest=true&htmlEncode=false",
     body: null, batch: 0, rows_path: null, key_field: null, price_field: null,
     price_path: "returnValue.latestFundData.navPerShare__c", price_regex: null,
-    history_strategy: "fmarket", builtin: 1, created_at: null,
+    history_strategy: "dcvfm", builtin: 1, created_at: null,
   },
 ];
 

@@ -1,9 +1,47 @@
 "use client";
 
 import * as React from "react";
-import type { HoldingPnlPoint, PnlPoint } from "@/lib/types";
+import type { HoldingPnlPoint, PnlDayStatus, PnlPoint } from "@/lib/types";
 import { fmtVND, MONTHS } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+/** Corner indicator for a day's settlement status (month view). "live" pulses via a
+ *  radar ping; "partial" breathes; "complete" is a quiet solid dot. */
+function StatusDot({ status, tracked }: { status?: PnlDayStatus; tracked: boolean }) {
+  if (status === "live") {
+    return (
+      <span title="In-progress — priced live, still moving" className="pointer-events-none absolute top-1 right-1 flex size-1.5">
+        <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent-brand opacity-70" />
+        <span className="relative inline-flex size-1.5 rounded-full bg-accent-brand" />
+      </span>
+    );
+  }
+  if (status === "partial") {
+    return <span title="Partial — awaiting final NAV" className="pointer-events-none absolute top-1 right-1 size-1.5 animate-pulse rounded-full bg-warning" />;
+  }
+  if (status === "complete" && tracked) {
+    return <span title="Complete — settled" className="pointer-events-none absolute top-1 right-1 size-1.5 rounded-full bg-muted-foreground/40" />;
+  }
+  return null;
+}
+
+/** Key for the three status indicators, shown under the calendar grid. */
+function StatusLegend() {
+  const item = "flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground";
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-3">
+      <span className={item}>
+        <span className="relative flex size-1.5">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent-brand opacity-70" />
+          <span className="relative inline-flex size-1.5 rounded-full bg-accent-brand" />
+        </span>
+        In-progress
+      </span>
+      <span className={item}><span className="size-1.5 animate-pulse rounded-full bg-warning" /> Partial</span>
+      <span className={item}><span className="size-1.5 rounded-full bg-muted-foreground/40" /> Complete</span>
+    </div>
+  );
+}
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = [
@@ -319,6 +357,7 @@ export function PnlCalendar({
         <p className="py-10 text-center text-sm text-muted-foreground">No P&amp;L history yet — add transactions to see daily moves.</p>
       ) : (
         <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[1.7fr_1fr]">
+          <div className="flex flex-col">
           {view === "year" ? (
             // A year is 53 weeks: too many for a 7-wide grid, so weeks run as columns and
             // weekdays as rows. Cells carry no text at this size — the colour is the datum
@@ -359,8 +398,15 @@ export function PnlCalendar({
                           key={i}
                           onClick={c.tracked ? () => setSelected(c.date) : undefined}
                           style={cellStyle(c)}
-                          title={`${c.date} · ${c.tracked ? fmtSigned(c.delta) : "no change"}`}
-                          className={cn("size-[14px] rounded-[3px]", c.tracked && "cursor-pointer")}
+                          title={`${c.date} · ${c.tracked ? fmtSigned(c.delta) : "no change"}${
+                            c.point.status === "live" ? " · in-progress" : c.point.status === "partial" ? " · partial" : ""
+                          }`}
+                          className={cn(
+                            "size-[14px] rounded-[3px]",
+                            c.tracked && "cursor-pointer",
+                            c.point.status === "live" && "animate-pulse ring-1 ring-accent-brand",
+                            c.point.status === "partial" && "ring-1 ring-warning/60",
+                          )}
                         />
                       ),
                     )}
@@ -385,10 +431,11 @@ export function PnlCalendar({
                       onClick={c.tracked ? () => setSelected(c.date) : undefined}
                       style={cellStyle(c)}
                       className={cn(
-                        "flex min-h-[50px] flex-col justify-between rounded-md px-2 py-1.5",
+                        "relative flex min-h-[50px] flex-col justify-between rounded-md px-2 py-1.5",
                         c.tracked && "cursor-pointer",
                       )}
                     >
+                      <StatusDot status={c.point.status} tracked={c.tracked} />
                       <div className={cn("font-mono text-[11px]", c.tracked ? "text-muted-foreground" : "text-faint")}>{c.day}</div>
                       {c.tracked && (
                         <div className={cn("hidden text-right font-mono text-[10px] tabular-nums sm:block", c.delta >= 0 ? "text-positive-strong" : "text-negative-strong")}>
@@ -401,6 +448,8 @@ export function PnlCalendar({
               </div>
             </div>
           )}
+            <StatusLegend />
+          </div>
 
           <div className="flex min-h-[200px] flex-col border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-[22px]">
             {selHas && selDate ? (

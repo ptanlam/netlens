@@ -6,7 +6,7 @@ export type AssetType = (typeof ASSET_TYPES)[number];
 export const MANUAL_SOURCE = "manual";
 
 export type PriceSourceKind = "json" | "html";
-export type HistoryStrategy = "none" | "yahoo" | "coingecko" | "fmarket";
+export type HistoryStrategy = "none" | "yahoo" | "coingecko" | "fmarket" | "dcvfm";
 
 /**
  * A user-defined price feed, stored in the DB and driving `lib/prices.ts`.
@@ -189,11 +189,19 @@ export interface Payload {
   generated: string;
 }
 
+/** How settled a day's P&L is:
+ *  - "complete": every held instrument has a real close on/through this day.
+ *  - "partial":  some instruments are still carried-forward (their NAV for this day
+ *                hasn't published yet — typical of the T+1 fund lag).
+ *  - "live":     today — priced from live quotes, still moving. */
+export type PnlDayStatus = "complete" | "partial" | "live";
+
 export interface PnlPoint {
   date: string;
   invested: number;
   value: number;
   pnl: number;
+  status?: PnlDayStatus;
 }
 
 /** One holding's contribution to a single day's P&L move. */
