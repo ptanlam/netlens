@@ -8,6 +8,14 @@ export const MANUAL_SOURCE = "manual";
 export type PriceSourceKind = "json" | "html";
 export type HistoryStrategy = "none" | "yahoo" | "coingecko" | "fmarket" | "dcvfm";
 
+/** Fund sources: they publish a NAV *struck at the close of an earlier valuation day*
+ *  (T+1 reporting), so `instruments.last_price` for these is never today's value — it's
+ *  a past day's, and the live and history feeds publish it at different times. Pricing
+ *  today from it (`buildDaily`) books the disagreement between the two feeds as a phantom
+ *  move on today, so these price today from the stored close like any other day.
+ *  Everything else (crypto around the clock, stocks intraday) quotes today for real. */
+export const NAV_STRATEGIES: ReadonlySet<string> = new Set<HistoryStrategy>(["fmarket", "dcvfm"]);
+
 /**
  * A user-defined price feed, stored in the DB and driving `lib/prices.ts`.
  * `kind`:  'json' extracts a number via dot-paths; 'html' via a regex capture group.

@@ -4,12 +4,14 @@
  * per transaction (recorded quantity, else amount / price(tx date)), anchored
  * to current holdings so the last point matches the live P&L card.
  *
- * Past days are priced from the stored daily close; today is priced from each
- * instrument's live `last_price`, so today's move (and its per-holding breakdown)
- * tracks every price refresh rather than only the sources that stamp a daily bar.
+ * Past days are priced from the stored daily close. Today is priced from the live
+ * `last_price` wherever that really is today's price (crypto, and stocks intraday), so
+ * today's move tracks every price refresh. Funds are the exception: they report NAV a day
+ * late, so today uses the stored close for them too (see NAV_STRATEGIES in lib/types.ts).
  */
-import { getDb, listInstruments, priceHistoryByInstrument, todayIso } from "./db";
+import { getDb, getPriceSource, listInstruments, priceHistoryByInstrument, todayIso } from "./db";
 import type { HoldingPnlPoint, PnlPoint } from "./types";
+import { NAV_STRATEGIES } from "./types";
 
 export type { HoldingPnlPoint, PnlPoint } from "./types";
 
@@ -44,11 +46,12 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
   interface Tracked {
     type: string;
     priceAt: (d: string) => number;
-    /** Live price from the last refresh. Only `price_history` knows past days, but for
-     *  *today* this is the truest price we have — and the only one that moves when the
-     *  user hits refresh, since a quote on a closed market is never stamped into the
-     *  daily history (see CONTINUOUS_STRATEGIES in lib/prices.ts). Using it here is also
-     *  what makes the series' last point agree with the live P&L card. */
+    /** Live price from the last refresh — for *today* the truest price we have, and the
+     *  only one that moves when the user hits refresh, since a stock quote mid-session is
+     *  never stamped into the daily history (see CONTINUOUS_STRATEGIES in lib/prices.ts).
+     *  Using it is also what keeps the series' last point level with the live P&L card.
+     *  Null for funds: their last_price is the NAV of a past valuation day, not today's,
+     *  so today falls back to the stored close (see NAV_STRATEGIES in lib/types.ts). */
     livePrice: number | null;
     events: [string, number][];
     offset: number;
@@ -75,10 +78,11 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
         totalUnits += units;
       }
       const qtyNow = inst.quantity != null ? inst.quantity : totalUnits;
+      const strat = getPriceSource(inst.price_source)?.history_strategy ?? "none";
       tracked[inst.name] = {
         type: inst.asset_type,
         priceAt,
-        livePrice: inst.last_price,
+        livePrice: NAV_STRATEGIES.has(strat) ? null : inst.last_price,
         events,
         offset: qtyNow - totalUnits,
         first,
@@ -125,7 +129,8 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
       let raw = 0;
       if (ds >= tr.first) {
         const units = Math.max(tr.offset + cumUnits[name], 0);
-        // Today is priced live; every earlier day is settled, so it uses the stored close.
+        // Today is priced live where a live quote really means today (crypto, stocks);
+        // every earlier day — and today for funds — uses the stored close.
         const price = ds === end && tr.livePrice != null ? tr.livePrice : tr.priceAt(ds);
         if (units) {
           raw = units * price;
