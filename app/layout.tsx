@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { Nav } from '@/components/nav';
 import { ThemeProvider } from '@/components/theme-provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { SafeAreaDebug } from '@/components/safe-area-debug';
 import './globals.css';
 
 const plexSans = IBM_Plex_Sans({
@@ -61,6 +62,7 @@ export default function RootLayout({
       <body className='min-h-full flex flex-col'>
         <ThemeProvider>
           <TooltipProvider delay={200} closeDelay={0}>
+            {process.env.NODE_ENV !== 'production' && <SafeAreaDebug />}
             <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
             <main className='mx-auto w-full max-w-[1180px] flex-1 pt-8 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
               {children}
