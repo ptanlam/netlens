@@ -10,7 +10,7 @@ export default async function DebtsPage() {
   return (
     <div>
       <div className="mb-3.5">
-        <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Debts</div>
+        <div className="text-[26px] font-bold tracking-[-0.01em]">Debts</div>
         <div className="mt-0.5 max-w-[820px] text-[13px] text-muted-foreground">
           Loans and credit accounts. <span className="italic">Fixed</span> charges interest on
           the original amount, <span className="italic">Flexible</span> recomputes on the

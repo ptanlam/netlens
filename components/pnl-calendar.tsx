@@ -272,11 +272,11 @@ export function PnlCalendar({
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-border bg-card px-6 py-[22px]">
+    <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-5">
           <div>
-            <div className="font-serif text-[17px] font-semibold">P&amp;L calendar</div>
+            <div className="text-[17px] font-bold">P&amp;L calendar</div>
             <div className="mt-0.5 text-[12px] text-muted-foreground">
               Daily change in unrealized P&amp;L — select a day for the breakdown
             </div>
@@ -325,15 +325,15 @@ export function PnlCalendar({
         </div>
         <div className="flex items-center gap-4">
           {active && (
-            <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
+            <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
               {(["month", "year"] as const).map((v) => (
                 <button
                   key={v}
                   type="button"
                   onClick={() => setView(v)}
                   className={cn(
-                    "rounded-md px-2.5 py-1 font-mono text-[11.5px] capitalize transition-colors",
-                    view === v ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground",
+                    "rounded-full px-3 py-[5px] text-[12px] font-semibold capitalize transition-colors",
+                    view === v ? "bg-card text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {v}
@@ -418,7 +418,7 @@ export function PnlCalendar({
             <div>
               <div className="mb-1.5 grid grid-cols-7 gap-1.5">
                 {WEEKDAYS.map((w) => (
-                  <div key={w} className="text-center font-mono text-[10px] tracking-[0.06em] text-faint uppercase">{w}</div>
+                  <div key={w} className="text-center text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">{w}</div>
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-1.5">
@@ -454,7 +454,7 @@ export function PnlCalendar({
           <div className="flex min-h-[200px] flex-col border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-[22px]">
             {selHas && selDate ? (
               <>
-                <div className="shrink-0 font-mono text-[11px] tracking-[0.06em] text-faint uppercase">
+                <div className="shrink-0 text-[11px] font-semibold tracking-[0.16em] text-faint uppercase">
                   {MONTHS[Number(selDate.slice(5, 7)) - 1]} {Number(selDate.slice(8, 10))},{" "}
                   {selDate.slice(0, 4)}
                 </div>

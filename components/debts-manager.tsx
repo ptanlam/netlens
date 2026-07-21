@@ -477,7 +477,7 @@ const columns: ColumnDef<DebtRow>[] = [
 function KpiTile({ label, value, valueCls, last }: { label: string; value: string; valueCls?: string; last?: boolean }) {
   return (
     <div className={cn("px-5 py-[18px]", !last && "border-b border-divider sm:border-r sm:border-b-0")}>
-      <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{label}</div>
+      <div className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">{label}</div>
       <div className={cn("mt-[7px] font-mono text-[22px] tabular-nums", valueCls)}>{value}</div>
     </div>
   );
@@ -544,7 +544,7 @@ export function DebtsManager({
         </div>
       )}
 
-      <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-3">
+      <div className="grid grid-cols-1 overflow-hidden card-surface sm:grid-cols-3">
         <KpiTile label="Currently owed" value={fmtVND(owedSum)} valueCls="text-(--chart-negative)" />
         <KpiTile label="Total paid" value={fmtVND(paidSum)} />
         <KpiTile label="Est. interest accrued" value={`+${fmtVND(interest)}`} valueCls="text-(--chart-negative)" last />
@@ -569,7 +569,7 @@ export function DebtsManager({
         <AddDebtDialog />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="overflow-hidden card-surface">
         <DataTable
           columns={columns}
           data={rows}

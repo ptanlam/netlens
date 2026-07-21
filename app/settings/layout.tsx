@@ -6,7 +6,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   return (
     <div>
       <div className="mb-5">
-        <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Settings</div>
+        <div className="text-[26px] font-bold tracking-[-0.01em]">Settings</div>
         <div className="mt-0.5 text-[13px] text-muted-foreground">
           How Netlens fetches and displays your data.
         </div>

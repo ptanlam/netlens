@@ -27,8 +27,15 @@
   `components/ui/chart.tsx`. Set `isAnimationActive={false}` (matches existing charts).
 - Toasts: `sonner` (`toast.success` / `toast.error`), configured in `app/layout.tsx`.
 - Theme: `next-themes`, `class` attribute, system default. Picked on
-  `/settings/appearance` (`components/appearance-settings.tsx`) — Match system / Paper
-  (light) / Ink (dark). Colors come from CSS vars in `app/globals.css`.
+  `/settings/appearance` (`components/appearance-settings.tsx`) — Match system / Daylight
+  (light) / Midnight (dark). Colors come from CSS vars in `app/globals.css`.
+- Every panel is `card-surface` — a custom utility in `app/globals.css` carrying the
+  radius, hairline border and lift. Don't re-spell it as `rounded-xl border bg-card`, or
+  the card ends up flat while everything around it is raised.
+- Typography is two families: **Space Grotesk** (`font-sans`, and `font-heading`/
+  `font-serif` alias to it) and **JetBrains Mono** (`font-mono`) for every figure.
+  Section headings are `text-[NNpx] font-bold`; micro-labels are sans
+  `text-[10.5px] font-semibold tracking-[0.14em] uppercase text-faint`, never mono.
 
 ## Colors
 - **Never hardcode a color.** Every colour must resolve to a CSS var from
@@ -42,8 +49,10 @@
   text uses `--tooltip-positive/negative/neutral`, which flip in `.dark` to stay legible.
 - Asset types have fixed slots: `TYPE_COLORS` in `dashboard-charts.tsx`
   (Funds=chart-1, Stocks=chart-2, Crypto=chart-3, Real Estate=chart-4). Color follows
-  the entity, never its rank. Stocks is near-black on paper and inverts to near-white in
-  dark, so it stays visible.
+  the entity, never its rank.
+- `--brand` (violet) is the **action** colour — primary buttons, the active nav pill, the
+  value line on charts. Gains stay `--accent-brand` green. Don't reach for green to mean
+  "primary", or a neutral control starts reading as a profit.
 - Gains/losses: `text-(--chart-positive)` / `text-(--chart-negative)` (Tailwind v4
   arbitrary-property syntax). Debts/owed amounts render negative-colored.
 

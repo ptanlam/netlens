@@ -161,41 +161,43 @@ export function DashboardCharts({
   ];
 
   return (
-    <div>
+    <div className="flex flex-col gap-5">
       <NetWorthPanel
         investments={payload.portfolioTotal}
         savings={savings}
         funds={funds}
         debts={debts}
         todayDelta={todayDelta}
+        spark={series?.map((p) => p.value) ?? null}
       />
 
-      <GoalStrip goals={goals} />
-
-      {/* KPI strip — the two P&L tiles are emphasized, tinted by sign (gain/loss). */}
-      <div className="mt-[30px] grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-4">
-        {kpis.map((k, i) => {
+      {/* KPI strip — the two P&L tiles are emphasized, washed by sign (gain/loss). Separate
+          cards rather than one divided block: the wash then has its own edges, so a green
+          and a red tile never share a border. */}
+      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+        {kpis.map((k) => {
           const tone = k.positive ? "text-accent-brand" : "text-(--chart-negative)";
-          const tint = k.emph ? (k.positive ? "bg-positive-wash" : "bg-negative-wash") : "";
-          // Divider to the right: tint it when it sits between two emphasized
-          // tiles, so a rust/green wash isn't split by a muddy neutral gray line.
-          const between = k.emph && kpis[i + 1]?.emph;
-          const divider = between ? (k.positive ? "border-positive-border" : "border-negative-border") : "border-divider";
+          const tint = k.emph
+            ? k.positive
+              ? "bg-[linear-gradient(160deg,var(--positive-wash),transparent)]"
+              : "bg-[linear-gradient(160deg,var(--negative-wash),transparent)]"
+            : "";
           return (
-            <div key={k.label} className={cn("px-4 py-4 sm:px-5 sm:py-[18px]", tint, divider, i < 3 && "lg:border-r", i % 2 === 0 && "border-r lg:border-r")}>
-              <div className={cn("font-mono text-[10.5px] tracking-[0.08em] uppercase", k.emph ? cn("font-semibold", tone) : "text-faint")}>{k.label}</div>
+            <div key={k.label} className={cn("card-surface px-4 py-[18px] sm:px-6 sm:py-[22px]", tint)}>
+              <div className={cn("text-[10.5px] font-semibold tracking-[0.14em] uppercase", k.emph ? tone : "text-faint")}>{k.label}</div>
+              {/* Two per row on a phone leaves ~130px of usable width, which a signed
+                  nine-figure VND amount overruns — it has to shrink rather than wrap, or
+                  the minus sign ends up stranded on its own line. */}
               <div
                 className={cn(
-                  "mt-[7px] font-mono tracking-[-0.01em] tabular-nums",
-                  k.emph
-                    ? cn("text-[19px] font-semibold sm:text-[26px]", tone)
-                    : "text-[17px] sm:text-[22px]",
+                  "mt-3 font-mono text-[15px] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-[24px]",
+                  k.emph && tone,
                 )}
               >
                 {k.value}
               </div>
               {k.sub && (
-                <div className={cn("mt-[3px] text-[11.5px]", k.subEmph ? cn("font-semibold", tone) : "text-muted-foreground")}>
+                <div className={cn("mt-1.5 text-[12px]", k.subEmph ? tone : "text-muted-foreground")}>
                   {k.sub}
                 </div>
               )}
@@ -204,10 +206,12 @@ export function DashboardCharts({
         })}
       </div>
 
+      <GoalStrip goals={goals} />
+
       {pending > 0 && (
         <Link
           href="/investments"
-          className="mt-4 flex items-start gap-2.5 rounded-xl border border-warning-border bg-card px-4 py-3.5 transition-colors hover:bg-muted"
+          className="flex items-start gap-2.5 rounded-2xl border border-warning-border bg-warning-bg px-5 py-4 transition-colors hover:border-warning"
         >
           <TriangleAlert className="mt-0.5 size-4 text-warning" />
           <div>
@@ -222,7 +226,7 @@ export function DashboardCharts({
       )}
 
       {/* Activity cards */}
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
         <ActivityCard label="Invested YTD" value={fmtVND(activity.total)} />
         <ActivityCard label="Monthly average" value={fmtVND(activity.avg)} />
         <ActivityCard label="Best month" value={activity.bestLabel} />
@@ -231,14 +235,14 @@ export function DashboardCharts({
       <PortfolioChart series={series} error={seriesError} />
 
       {/* Current portfolio */}
-      <div className="mt-9 mb-4">
-        <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Current portfolio</div>
+      <div className="mt-4">
+        <div className="text-[26px] font-bold tracking-[-0.01em]">Current portfolio</div>
         <div className="mt-0.5 text-[13px] text-muted-foreground">
           Live snapshot across all years — independent of the selected range
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-[0.85fr_1.15fr]">
         <AllocationCard payload={payload} />
         <HoldingsCard payload={payload} />
       </div>
@@ -252,8 +256,8 @@ export function DashboardCharts({
 
 function ActivityCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-5 py-4">
-      <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{label}</div>
+    <div className="card-surface px-5 py-4">
+      <div className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">{label}</div>
       <div className="mt-[5px] font-mono text-[17px] tabular-nums">{value}</div>
     </div>
   );
@@ -274,8 +278,8 @@ function AllocationCard({ payload }: { payload: Payload }) {
   const C = 2 * Math.PI * R;
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-border bg-card px-6 py-[22px]">
-      <div className="font-serif text-[17px] font-semibold">Allocation</div>
+    <div className="flex h-full flex-col card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
+      <div className="text-[17px] font-bold">Allocation</div>
       <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Current value by asset type</div>
       <div className="mb-[22px] flex justify-center">
         <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="animate-fade-in">
@@ -332,8 +336,8 @@ function HoldingsCard({ payload }: { payload: Payload }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-border bg-card px-6 py-[22px]">
-      <div className="font-serif text-[17px] font-semibold">Holdings</div>
+    <div className="flex h-full flex-col card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
+      <div className="text-[17px] font-bold">Holdings</div>
       <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Position values, largest first</div>
       <div className="flex flex-col gap-[11px]">
         {rows.map((h, i) => (
@@ -361,8 +365,8 @@ function PnlByHoldingCard({ payload }: { payload: Payload }) {
 
   if (rows.length === 0) {
     return (
-      <div className="mt-4 rounded-xl border border-border bg-card px-6 py-[22px]">
-        <div className="font-serif text-[17px] font-semibold">Profit &amp; loss by holding</div>
+      <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
+        <div className="text-[17px] font-bold">Profit &amp; loss by holding</div>
         <p className="py-8 text-center text-sm text-muted-foreground">
           No gains or losses yet — set live quantities or holding values to see P&amp;L.
         </p>
@@ -376,8 +380,8 @@ function PnlByHoldingCard({ payload }: { payload: Payload }) {
   const zeroPct = (maxNeg / span) * 100;
 
   return (
-    <div className="mt-4 rounded-xl border border-border bg-card px-6 py-[22px]">
-      <div className="font-serif text-[17px] font-semibold">Profit &amp; loss by holding</div>
+    <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
+      <div className="text-[17px] font-bold">Profit &amp; loss by holding</div>
       <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Total gain / loss per position, net of any proceeds</div>
       <div className="flex flex-col gap-2.5">
         {rows.map((p, i) => {

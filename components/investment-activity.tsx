@@ -111,21 +111,21 @@ export function InvestmentActivity({
     "h-7 rounded-lg border border-input bg-card px-2.5 font-mono text-[12px] outline-none focus:border-ring";
   const pill = (active: boolean) =>
     cn(
-      "cursor-pointer rounded-md border-0 px-[11px] py-[5px] font-mono text-[11.5px] transition-colors",
-      active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+      "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
+      active ? "bg-card text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
     );
 
   return (
-    <div className="mt-6 rounded-xl border border-border bg-card px-6 py-[22px]">
+    <div className="mt-6 card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="font-serif text-[19px] font-semibold">Activity</div>
+          <div className="text-[19px] font-bold">Activity</div>
           <div className="mt-0.5 text-[12.5px] text-muted-foreground">
             Transactions across all holdings in the selected date range
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex gap-[3px] rounded-lg bg-background p-[3px]">
+          <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
             {presets.map((p) => (
               <button
                 key={p.label}
@@ -146,7 +146,7 @@ export function InvestmentActivity({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2.5">
-        <span className="font-mono text-[10px] tracking-[0.06em] text-faint uppercase">Filter</span>
+        <span className="text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">Filter</span>
         <select value={filterHolding} onChange={(e) => { setFilterHolding(e.target.value); setPage(0); }} className={selectCls}>
           <option value="All">All holdings</option>
           {holdingNames.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -166,12 +166,12 @@ export function InvestmentActivity({
         <SummaryTile label="Net deployed" value={fmtVND(net)} />
       </div>
 
-      <div className="mt-6 mb-3 font-mono text-[10px] tracking-[0.08em] text-faint uppercase">
+      <div className="mt-6 mb-3 text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">
         Cumulative capital deployed
       </div>
       <CumulativeChart txs={filtered} from={from} to={to} />
 
-      <div className="mt-6 mb-2.5 font-mono text-[10px] tracking-[0.08em] text-faint uppercase">
+      <div className="mt-6 mb-2.5 text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">
         Capital deployed by month
       </div>
       {/* Bars stretch to fill on desktop, but hold a floor width and scroll sideways once
@@ -193,7 +193,7 @@ export function InvestmentActivity({
       {/* Transactions table */}
       <div className="mt-6 overflow-x-auto border-t border-divider">
         <div className="min-w-[720px]">
-          <div className="grid grid-cols-[88px_128px_58px_1fr_1fr_118px_56px] gap-3 py-3 font-mono text-[10px] tracking-[0.06em] text-faint uppercase">
+          <div className="grid grid-cols-[88px_128px_58px_1fr_1fr_118px_56px] gap-3 py-3 text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">
             <span>Date</span><span>Holding</span><span>Type</span>
             <span className="text-right">Units</span><span className="text-right">Price</span>
             <span className="text-right">Amount</span><span />
@@ -267,7 +267,7 @@ export function InvestmentActivity({
 function SummaryTile({ label, value, valueCls }: { label: string; value: string; valueCls?: string }) {
   return (
     <div className="bg-card px-4 py-3.5">
-      <div className="font-mono text-[10px] tracking-[0.08em] text-faint uppercase">{label}</div>
+      <div className="text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">{label}</div>
       <div className={cn("mt-1.5 font-mono text-[19px] tabular-nums", valueCls)}>{value}</div>
     </div>
   );

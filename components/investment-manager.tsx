@@ -292,17 +292,17 @@ export function InvestmentManager({
   return (
     <div>
       <div className="mb-3.5">
-        <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Investments</div>
+        <div className="text-[26px] font-bold tracking-[-0.01em]">Investments</div>
         <div className="mt-0.5 text-[13px] text-muted-foreground">
           Your holdings, their transactions, and the recurring rules that automate them — grouped by asset type.
         </div>
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-4">
+      <div className="grid grid-cols-2 overflow-hidden card-surface lg:grid-cols-4">
         {kpis.map((k, i) => (
           <div key={k.label} className={cn("px-4 py-4 sm:px-5 sm:py-[18px]", i % 2 === 0 && "border-r border-divider", i < 3 && "lg:border-r lg:border-divider")}>
-            <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{k.label}</div>
+            <div className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">{k.label}</div>
             <div className={cn("mt-[7px] font-mono text-[17px] tracking-[-0.01em] tabular-nums sm:text-[22px]", k.valueCls)}>{k.value}</div>
             {k.sub && <div className={cn("mt-[3px] text-[11.5px] text-muted-foreground", k.subCls)}>{k.sub}</div>}
           </div>
@@ -324,7 +324,7 @@ export function InvestmentManager({
       <InvestmentActivity txs={allTxs} options={options} />
 
       <div className="mt-6 mb-3.5">
-        <div className="font-serif text-[19px] font-semibold">Holdings</div>
+        <div className="text-[19px] font-bold">Holdings</div>
         <div className="mt-0.5 text-[12.5px] text-muted-foreground">Select a holding to see its transactions</div>
       </div>
 
@@ -353,7 +353,7 @@ export function InvestmentManager({
                   </span>
                 </div>
               </div>
-              <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="overflow-hidden card-surface">
                 {group.holdings.map((h) => (
                   <HoldingRow
                     key={h.inst.name}
@@ -413,7 +413,7 @@ function ArchivedHoldings({
         <span className={cn("ml-1 font-mono text-[12px] text-faint transition-transform", open && "rotate-90")}>▸</span>
       </button>
       {open && (
-        <div className="overflow-hidden rounded-xl border border-border bg-card opacity-80">
+        <div className="overflow-hidden card-surface opacity-80">
           {holdings.map((h) => (
             <HoldingRow
               key={h.inst.name}

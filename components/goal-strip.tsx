@@ -44,9 +44,9 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
   if (goals.length === 0) return null;
 
   return (
-    <div className="mt-[26px] rounded-xl border border-border bg-card">
+    <div className="card-surface">
       <div className="flex items-center justify-between px-5 pt-4 pb-3">
-        <span className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">Goals</span>
+        <span className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">Goals</span>
         <Link href="/goals" className="text-[12px] text-muted-foreground hover:text-foreground">
           Manage →
         </Link>

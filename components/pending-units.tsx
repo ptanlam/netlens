@@ -77,7 +77,7 @@ export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
   const [open, setOpen] = React.useState(false);
 
   return (
-    <div className="rounded-xl border border-border bg-card px-6 py-5">
+    <div className="card-surface px-6 py-5">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -89,7 +89,7 @@ export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-warning opacity-75" />
           <span className="relative inline-flex size-1.5 rounded-full bg-warning" />
         </span>
-        <span className="font-serif text-[17px] font-semibold">Awaiting fund units</span>
+        <span className="text-[17px] font-bold">Awaiting fund units</span>
         <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
           {pending.length}
         </span>

@@ -165,7 +165,7 @@ function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
   const earmarked = funds.find((f) => f.id === saving.goal_id);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card px-5 py-4">
+    <div className="flex flex-wrap items-center justify-between gap-4 card-surface px-5 py-4">
       <div>
         <div className="flex items-center gap-2">
           <span className="text-[14px] font-semibold">{saving.bank ?? "Term deposit"}</span>
@@ -238,7 +238,7 @@ function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
 function KpiTile({ label, value, valueCls, last }: { label: string; value: string; valueCls?: string; last?: boolean }) {
   return (
     <div className={cn("px-5 py-[18px]", !last && "border-b border-divider sm:border-r sm:border-b-0")}>
-      <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{label}</div>
+      <div className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">{label}</div>
       <div className={cn("mt-[7px] font-mono text-[22px] tabular-nums", valueCls)}>{value}</div>
     </div>
   );
@@ -250,7 +250,7 @@ export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: F
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-3">
+      <div className="grid grid-cols-1 overflow-hidden card-surface sm:grid-cols-3">
         <KpiTile label="Total principal" value={fmtVND(s.principal)} />
         <KpiTile label="Current est. value" value={fmtVND(s.currentValue)} />
         <KpiTile

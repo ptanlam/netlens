@@ -39,8 +39,10 @@ function Wordmark() {
       className='hidden shrink-0 items-center gap-2.5 text-foreground min-[360px]:flex'
       aria-label='Netlens — home'
     >
-      <span className='size-[9px] shrink-0 rounded-[2px] bg-foreground' />
-      <span className='font-serif text-[17px] font-semibold whitespace-nowrap tracking-[-0.01em]'>Netlens</span>
+      {/* The mark is the only place the brand violet gets to glow — it's what fixes the
+          accent in the eye before any chart uses it. */}
+      <span className='size-[13px] shrink-0 rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
+      <span className='text-[17px] font-bold whitespace-nowrap tracking-[-0.01em]'>Netlens</span>
     </Link>
   );
 }
@@ -69,9 +71,9 @@ function NavPill({
       onClick={onClick}
       data-active={active}
       className={cn(
-        'relative z-10 flex items-center gap-1.5 rounded-[7px] px-[11px] py-1.5 text-[13.5px] whitespace-nowrap transition-colors',
+        'relative z-10 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] whitespace-nowrap transition-colors',
         active
-          ? cn('font-medium text-background', variant === 'solid' && 'bg-foreground')
+          ? cn('font-semibold text-foreground', variant === 'solid' && 'bg-brand-soft ring-1 ring-input ring-inset')
           : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
       )}
     >
@@ -130,9 +132,8 @@ function DesktopNav({ pathname }: { pathname: string }) {
     ro.observe(nav);
     // Every pill is measured, so anything that changes their width has to re-place the
     // slider — and the web font lands *after* first paint, widening each label. Without
-    // this the slider can stay frozen at the icon-only width it measured pre-font, and
-    // since the active label is `text-background` (dark), the part sticking out past the
-    // stale pill is dark-on-dark and reads as a missing label.
+    // this the slider can stay frozen at the icon-only width it measured pre-font, leaving
+    // the tail of the active label hanging outside its own highlight.
     let live = true;
     document.fonts?.ready.then(() => {
       if (live) place();
@@ -147,13 +148,12 @@ function DesktopNav({ pathname }: { pathname: string }) {
   return (
     <nav ref={navRef} className='relative hidden items-center gap-0.5 lg:flex'>
       {/* Animates `left`/`width`, not `transform`: a transformed layer whose width changes
-          doesn't reliably re-rasterize (the pill paints at its stale width, cutting the
-          active label off into dark-on-dark). The nav is five items — laying them out is
-          cheap, and it always paints what it measured. */}
+          doesn't reliably re-rasterize, so the pill paints at its stale width. The nav is
+          five items — laying them out is cheap, and it always paints what it measured. */}
       <span
         ref={sliderRef}
         aria-hidden
-        className='absolute inset-y-0 left-0 z-0 w-0 rounded-[7px] bg-foreground opacity-0 transition-[left,width,opacity] duration-300 ease-out motion-reduce:transition-none'
+        className='absolute inset-y-0 left-0 z-0 w-0 rounded-full bg-brand-soft opacity-0 ring-1 ring-input ring-inset transition-[left,width,opacity] duration-300 ease-out motion-reduce:transition-none'
       />
       {LINKS.map((l) => (
         <NavPill
@@ -231,7 +231,7 @@ function MobileNav({ pathname }: { pathname: string }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <IconTooltip label='Open menu'>
-        <DialogPrimitive.Trigger render={<Button variant='ghost' size='icon' aria-label='Open menu' />}>
+        <DialogPrimitive.Trigger render={<Button variant='ghost' size='icon' aria-label='Open menu' className='rounded-full' />}>
           <Menu className='size-5' />
         </DialogPrimitive.Trigger>
       </IconTooltip>
@@ -242,8 +242,8 @@ function MobileNav({ pathname }: { pathname: string }) {
           onTouchEnd={onPopupTouchEnd}
           className='fixed inset-y-0 left-0 z-50 flex w-64 max-w-[80%] flex-col gap-1 bg-card p-4 ring-1 ring-border duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
           <DialogPrimitive.Title className='mb-2 flex items-center gap-2.5 px-1.5'>
-            <span className='size-[9px] rounded-[2px] bg-foreground' />
-            <span className='font-serif text-base font-semibold tracking-tight'>Netlens</span>
+            <span className='size-[13px] rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
+            <span className='text-base font-bold tracking-tight'>Netlens</span>
           </DialogPrimitive.Title>
           <nav className='flex flex-col gap-1'>
             {LINKS.map((l) => (
@@ -257,9 +257,9 @@ function MobileNav({ pathname }: { pathname: string }) {
               href='/settings'
               onClick={() => setOpen(false)}
               className={cn(
-                'flex items-center gap-2 rounded-[7px] px-[11px] py-1.5 text-[13.5px] transition-colors',
+                'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] transition-colors',
                 isActive(pathname, '/settings')
-                  ? 'bg-foreground font-medium text-background'
+                  ? 'bg-brand-soft font-semibold text-foreground ring-1 ring-input ring-inset'
                   : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
               )}
             >
@@ -277,7 +277,7 @@ function LogoutButton() {
   return (
     <form action={logout}>
       <IconTooltip label='Sign out'>
-        <Button variant='ghost' size='icon' type='submit' aria-label='Sign out'>
+        <Button variant='ghost' size='icon' type='submit' aria-label='Sign out' className='rounded-full'>
           <LogOut className='size-4' />
         </Button>
       </IconTooltip>
@@ -289,13 +289,13 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   const pathname = usePathname();
   if (pathname === '/login') return null;
   return (
-    <header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[10px]'>
+    <header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
       {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
           than the content beneath it. The left/right padding also clears the safe areas:
           the iPhone notch in landscape and, on iPadOS 26, the window-control traffic
           lights overlaid on the top-left of a windowed/split web app — without this they
           sit on top of the drawer's hamburger. */}
-      <div className='mx-auto flex h-[58px] w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+      <div className='mx-auto flex h-[64px] w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
         {/* The pills only clear the price controls from ~1024px up; below that they
             collide with them, so the drawer holds the links until lg. */}
         <div className='flex min-w-0 items-center gap-3 lg:gap-7'>
@@ -313,7 +313,7 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
               size='icon'
               aria-label='Settings'
               nativeButton={false}
-              className='hidden sm:inline-flex'
+              className='hidden rounded-full sm:inline-flex'
               render={<Link href='/settings' />}
             >
               <Settings className='size-4' />

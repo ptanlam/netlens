@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Newsreader, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
+import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { Nav } from '@/components/nav';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -7,23 +7,18 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { SafeAreaDebug } from '@/components/safe-area-debug';
 import './globals.css';
 
-const plexSans = IBM_Plex_Sans({
-  variable: '--font-plex-sans',
+// One face for everything that isn't a number, one for everything that is. Space Grotesk
+// carries headings as well, so there's no third family to load.
+const grotesk = Space_Grotesk({
+  variable: '--font-grotesk',
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
+  weight: ['400', '500', '600', '700'],
 });
 
-const plexMono = IBM_Plex_Mono({
-  variable: '--font-plex-mono',
+const jetbrains = JetBrains_Mono({
+  variable: '--font-jetbrains',
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
-});
-
-const newsreader = Newsreader({
-  variable: '--font-newsreader',
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
+  weight: ['400', '500', '600', '700'],
 });
 
 export const metadata: Metadata = {
@@ -43,8 +38,8 @@ export const viewport: Viewport = {
   // controls (traffic lights) that iPadOS 26 overlays on a windowed/split web app.
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f4f2ee' },
-    { media: '(prefers-color-scheme: dark)', color: '#14130f' },
+    { media: '(prefers-color-scheme: light)', color: '#f1efe9' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b0c10' },
   ],
 };
 
@@ -57,7 +52,7 @@ export default function RootLayout({
     <html
       lang='en'
       suppressHydrationWarning
-      className={`${plexSans.variable} ${plexMono.variable} ${newsreader.variable} h-full antialiased`}
+      className={`${grotesk.variable} ${jetbrains.variable} h-full antialiased`}
     >
       <body className='min-h-full flex flex-col'>
         <ThemeProvider>

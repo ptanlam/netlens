@@ -201,7 +201,7 @@ export function LivePrices() {
       {/* The nav pills gained icons and now need the width the clock used to take at lg,
           so it waits for xl. */}
       <div className="hidden text-right leading-tight xl:block">
-        <div className="font-mono text-[10px] tracking-[0.06em] text-faint uppercase">Live prices</div>
+        <div className="text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">Live prices</div>
         <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
       </div>
 
@@ -213,13 +213,13 @@ export function LivePrices() {
           size="sm"
           aria-label={live ? `Live refresh every ${label}` : "Live refresh off"}
           className={cn(
-            "h-7 gap-1.5 rounded-lg px-2.5 font-mono text-[11.5px] sm:px-3",
+            "h-7 gap-1.5 rounded-full px-3 text-[12px] font-semibold sm:px-3.5",
             live
-              ? "border-accent-brand/40 bg-accent text-accent-foreground"
+              ? "border-transparent bg-accent text-accent-foreground"
               : "border-input bg-card text-muted-foreground hover:bg-muted",
           )}
         >
-          <span className={cn("size-1.5 rounded-full", live ? "animate-pulse bg-accent-brand" : "bg-disabled-foreground")} />
+          <span className={cn("size-[7px] rounded-full", live ? "animate-pulse-dot bg-accent-brand" : "bg-disabled-foreground")} />
           <span className="hidden sm:inline">Live</span>
           {live ? (
             <span className="tabular-nums">
@@ -245,10 +245,9 @@ export function LivePrices() {
         disabled={pending}
         aria-label="Refresh prices"
         title="Refresh prices"
-        className="flex h-7 items-center gap-1.5 rounded-lg border border-input bg-card px-2 font-mono text-[11.5px] text-foreground transition-colors hover:bg-muted disabled:opacity-60 sm:px-3"
+        className="flex h-7 items-center gap-1.5 rounded-full border border-input bg-transparent px-2 text-[12px] font-semibold text-foreground transition-colors hover:border-brand hover:text-brand disabled:opacity-60 sm:px-3.5"
       >
-        <RefreshCw className={cn("size-3.5 sm:hidden", pending && "animate-spin")} />
-        <span className={cn("hidden size-1.5 rounded-full bg-accent-brand sm:block", pending && "animate-ping")} />
+        <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
         <span className="hidden sm:inline">Refresh</span>
       </button>
     </div>

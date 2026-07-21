@@ -14,7 +14,7 @@ export default async function SavingsPage() {
   return (
     <div>
       <div className="mb-3.5">
-        <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Savings</div>
+        <div className="text-[26px] font-bold tracking-[-0.01em]">Savings</div>
         <div className="mt-0.5 text-[13px] text-muted-foreground">
           Term deposits — principal, annual rate, and term. Value accrues to maturity
           (simple pays at maturity; compound accrues monthly).
