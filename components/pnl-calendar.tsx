@@ -43,11 +43,79 @@ function StatusLegend() {
   );
 }
 
+/**
+ * Four discrete steps instead of a continuous alpha. At year-view cell size a smooth ramp
+ * is unreadable — neighbouring days differ by a couple of percent of opacity — and stepping
+ * it is also what makes a legend possible: four swatches you can actually match a cell to.
+ */
+const LEVEL_ALPHA = [0.2, 0.42, 0.66, 0.92];
+const intensityLevel = (ratio: number) =>
+  ratio <= 0.25 ? 0 : ratio <= 0.5 ? 1 : ratio <= 0.75 ? 2 : 3;
+
+/**
+ * The year grid's colour key. A heatmap whose shades aren't quantified is decoration, and
+ * the year view is the one place a cell carries no number of its own — so the ramp has to
+ * be spelled out: loss deepening leftward, gain deepening rightward, off a neutral middle.
+ */
+function RampLegend() {
+  const swatch = "size-[11px] rounded-[3px]";
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-3.5 font-mono text-[10px] text-muted-foreground">
+      <span>More loss</span>
+      {[...LEVEL_ALPHA].reverse().map((a) => (
+        <span key={`l${a}`} className={swatch} style={{ background: `rgb(var(--negative-rgb) / ${a})` }} />
+      ))}
+      <span className={swatch} style={{ background: "var(--divider)" }} title="No change" />
+      {LEVEL_ALPHA.map((a) => (
+        <span key={`g${a}`} className={swatch} style={{ background: `rgb(var(--positive-rgb) / ${a})` }} />
+      ))}
+      <span>More gain</span>
+    </div>
+  );
+}
+
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** Width at which a second month fits without the cells getting cramped. */
+const TWO_UP_QUERY = "(min-width: 1180px)";
+
+/**
+ * Whether a media query currently matches. This can't be pure CSS: the second month is
+ * real data — it feeds the period total, the bar scale and the default selection — so
+ * rendering it and hiding it with `hidden` would silently fold an invisible month into the
+ * figures above. `useSyncExternalStore` gives server=false / client=real without the
+ * set-state-in-effect that the React Compiler lint forbids.
+ */
+function useMediaQuery(query: string): boolean {
+  const subscribe = React.useCallback(
+    (cb: () => void) => {
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", cb);
+      return () => mql.removeEventListener("change", cb);
+    },
+    [query],
+  );
+  return React.useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
+
+/** Step a `YYYY-MM` key by whole months. */
+function shiftMonthKey(ym: string, delta: number): string {
+  const d = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+
+/** Net move across a month's cells — the per-grid caption when two months are shown. */
+function monthTotal(cells: (DayCell | null)[]): number {
+  return cells.reduce((a, c) => (c?.tracked ? a + c.delta : a), 0);
+}
 
 /** Compact signed VND for tight calendar cells: +2.4tr / -830k. */
 function fmtCompact(v: number): string {
@@ -63,50 +131,73 @@ function fmtSigned(v: number): string {
   return `${v < 0 ? "−" : "+"}${fmtVND(Math.abs(v))}`;
 }
 
-const CONTRIB_PAGE_SIZE = 5;
-
-/** Per-holding breakdown, paginated so the panel keeps a stable height at every
- *  width. Mount with a `key` on the selected date to reset to the first page. */
+/**
+ * Per-holding breakdown: one diverging bar per holding, growing out from a shared centre
+ * axis — losses left, gains right. The sign is then legible from the shape alone, before
+ * you read a single digit, and the holding that actually moved the day is the longest bar
+ * rather than just another row in a list.
+ *
+ * Bars are scaled against the largest absolute move on the day, so each side uses its full
+ * half-width; the two halves are deliberately *not* on a shared scale, since the question
+ * is "what dominated the gains / the losses", not "did gains outweigh losses" (the day
+ * total above already answers that).
+ *
+ * Every holding that moved is listed — a portfolio has few enough positions that the whole
+ * day fits, and a bar chart you have to page through can't be compared at a glance.
+ * Mount with a `key` on the selected date so the bars re-draw when you pick another day.
+ */
 function ContribList({ rows }: { rows: HoldingPnlPoint["holdings"] }) {
-  const [page, setPage] = React.useState(0);
-  const pageCount = Math.max(1, Math.ceil(rows.length / CONTRIB_PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const start = safePage * CONTRIB_PAGE_SIZE;
-  const end = Math.min(start + CONTRIB_PAGE_SIZE, rows.length);
-  const paged = pageCount > 1;
-
-  const navBtn =
-    "rounded-md border border-input bg-card px-2 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40";
+  const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
 
   return (
     <div>
-      {/* Fix the body height only when paging, so a short single page stays
-          compact (no wasted space / no overflow) but multi-page rows don't jump. */}
-      <div className={paged ? "h-[158px] overflow-hidden" : undefined}>
-        {rows.slice(start, end).map((r) => (
-          <div key={r.name} className="flex items-center justify-between border-b border-divider py-[7px]">
-            <span className="font-mono text-[11px]">{r.name}</span>
-            <span className={cn("font-mono text-[11px] tabular-nums", r.pnl < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
-              {fmtSigned(r.pnl)}
-            </span>
-          </div>
-        ))}
+      <div className="flex flex-col gap-2.5">
+        {rows.map((r, i) => {
+          const neg = r.pnl < 0;
+          const pct = (Math.abs(r.pnl) / maxAbs) * 100;
+          return (
+            <div
+              key={r.name}
+              className="grid grid-cols-[84px_1fr_86px] items-center gap-3 sm:grid-cols-[132px_1fr_112px] sm:gap-4"
+            >
+              <span className="truncate font-mono text-[11.5px] text-muted-foreground sm:text-[12.5px]" title={r.name}>
+                {r.name}
+              </span>
+              {/* Two mirrored halves either side of a hairline axis: the loss half fills
+                  from its right edge inward, the gain half from its left. */}
+              <div className="flex h-3.5 items-center">
+                <div className="flex flex-1 justify-end">
+                  {neg && (
+                    <div
+                      className="animate-grow-x h-3.5 rounded-l-[3px] bg-(--chart-negative)"
+                      // Inline, because `.animate-grow-x` sets transform-origin itself and
+                      // a utility class wouldn't reliably win against it.
+                      style={{ width: `${pct}%`, transformOrigin: "right", animationDelay: `${i * 45}ms` }}
+                    />
+                  )}
+                </div>
+                <div className="h-3.5 w-px shrink-0 bg-input" />
+                <div className="flex flex-1 justify-start">
+                  {!neg && (
+                    <div
+                      className="animate-grow-x h-3.5 rounded-r-[3px] bg-accent-brand"
+                      style={{ width: `${pct}%`, animationDelay: `${i * 45}ms` }}
+                    />
+                  )}
+                </div>
+              </div>
+              <span
+                className={cn(
+                  "text-right font-mono text-[11.5px] whitespace-nowrap tabular-nums sm:text-[12.5px]",
+                  neg ? "text-(--chart-negative)" : "text-accent-brand",
+                )}
+              >
+                {fmtSigned(r.pnl)}
+              </span>
+            </div>
+          );
+        })}
       </div>
-      {paged && (
-        <div className="mt-2.5 flex items-center justify-between text-[10px] text-muted-foreground">
-          <span className="font-mono tabular-nums">
-            {start + 1}–{end} of {rows.length}
-          </span>
-          <div className="flex gap-1.5">
-            <button type="button" onClick={() => setPage(safePage - 1)} disabled={safePage === 0} className={navBtn}>
-              ‹ Prev
-            </button>
-            <button type="button" onClick={() => setPage(safePage + 1)} disabled={safePage >= pageCount - 1} className={navBtn}>
-              Next ›
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -163,25 +254,49 @@ export function PnlCalendar({
   // outside the active month.
   const [selected, setSelected] = React.useState<string | null>(null);
 
-  const cells = React.useMemo(() => {
-    if (!active) return [] as (DayCell | null)[];
-    const first = new Date(year, mon - 1, 1);
-    const daysInMonth = new Date(year, mon, 0).getDate();
-    const out: (DayCell | null)[] = Array(mondayIndex(first)).fill(null);
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = `${year}-${String(mon).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const hit = byDate.get(date);
-      out.push({
-        date,
-        day,
-        delta: hit?.delta ?? 0,
-        point: hit?.point ?? { date, invested: 0, value: 0, pnl: 0 },
-        tracked: byDate.has(date) && (hit?.delta ?? 0) !== 0,
-      });
-    }
-    while (out.length % 7 !== 0) out.push(null);
-    return out;
-  }, [active, year, mon, byDate]);
+  // From `--breakpoint-xl` up there's room for two months side by side, which is the
+  // difference between reading a month and reading a trend — most of what you want from a
+  // P&L calendar is "is this month worse than last".
+  const twoUp = useMediaQuery(TWO_UP_QUERY) && view === "month";
+
+  /** The month keys on screen, oldest first. The active month is always the last one. */
+  const monthKeys = React.useMemo(() => {
+    if (!active) return [] as string[];
+    if (!twoUp) return [active];
+    const prev = shiftMonthKey(active, -1);
+    // Don't open on a month that predates the data — it'd be a blank half.
+    return bounds && prev < bounds.min ? [active] : [prev, active];
+  }, [active, twoUp, bounds]);
+
+  /** Cells for one `YYYY-MM`, padded so the first row starts on a Monday. */
+  const buildMonth = React.useCallback(
+    (ym: string): (DayCell | null)[] => {
+      const y = Number(ym.slice(0, 4));
+      const m = Number(ym.slice(5, 7));
+      const out: (DayCell | null)[] = Array(mondayIndex(new Date(y, m - 1, 1))).fill(null);
+      const daysInMonth = new Date(y, m, 0).getDate();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = `${ym}-${String(day).padStart(2, "0")}`;
+        const hit = byDate.get(date);
+        out.push({
+          date,
+          day,
+          delta: hit?.delta ?? 0,
+          point: hit?.point ?? { date, invested: 0, value: 0, pnl: 0 },
+          tracked: byDate.has(date) && (hit?.delta ?? 0) !== 0,
+        });
+      }
+      while (out.length % 7 !== 0) out.push(null);
+      return out;
+    },
+    [byDate],
+  );
+
+  const months = React.useMemo(
+    () => monthKeys.map((ym) => ({ ym, cells: buildMonth(ym) })),
+    [monthKeys, buildMonth],
+  );
+  const cells = React.useMemo(() => months.flatMap((m) => m.cells), [months]);
 
   /** Every day of the active year, Jan 1 → Dec 31, padded so week 1 starts on a Monday. */
   const yearCells = React.useMemo(() => {
@@ -271,12 +386,38 @@ export function PnlCalendar({
     return { background: `rgb(${hue} / ${alpha})`, border };
   }
 
+  /**
+   * Year-view colour scale, anchored to the 90th percentile of the year's absolute moves
+   * rather than its maximum. Over 365 days one crash or one spike is usually several times
+   * the typical day, and dividing by that outlier pins every ordinary day to the bottom of
+   * the ramp — which is exactly why the year read as one flat wash. Anything at or past the
+   * p90 clamps to full strength; losing the top-end gradation costs nothing, because those
+   * days are already the darkest thing on screen.
+   */
+  const yearScale = React.useMemo(() => {
+    const mags = yearCells
+      .filter((c): c is DayCell => !!c?.tracked)
+      .map((c) => Math.abs(c.delta))
+      .sort((a, b) => a - b);
+    if (!mags.length) return 1;
+    return mags[Math.min(mags.length - 1, Math.floor(mags.length * 0.9))] || 1;
+  }, [yearCells]);
+
+  function yearCellStyle(c: DayCell): React.CSSProperties {
+    // Untracked days recede rather than reading as empty boxes: at this size a 1px border
+    // on a faint fill is most of the cell, so the whole year looked like graph paper.
+    if (!c.tracked) return { background: "var(--divider)" };
+    const level = intensityLevel(Math.abs(c.delta) / yearScale);
+    const hue = c.delta >= 0 ? "var(--positive-rgb)" : "var(--negative-rgb)";
+    return { background: `rgb(${hue} / ${LEVEL_ALPHA[level]})` };
+  }
+
   return (
-    <div className="mt-4 rounded-xl border border-border bg-card px-6 py-[22px]">
+    <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-5">
           <div>
-            <div className="font-serif text-[17px] font-semibold">P&amp;L calendar</div>
+            <div className="text-[17px] font-bold">P&amp;L calendar</div>
             <div className="mt-0.5 text-[12px] text-muted-foreground">
               Daily change in unrealized P&amp;L — select a day for the breakdown
             </div>
@@ -325,15 +466,15 @@ export function PnlCalendar({
         </div>
         <div className="flex items-center gap-4">
           {active && (
-            <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
+            <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
               {(["month", "year"] as const).map((v) => (
                 <button
                   key={v}
                   type="button"
                   onClick={() => setView(v)}
                   className={cn(
-                    "rounded-md px-2.5 py-1 font-mono text-[11.5px] capitalize transition-colors",
-                    view === v ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground",
+                    "rounded-full px-3 py-[5px] text-[12px] font-semibold capitalize transition-colors",
+                    view === v ? "bg-card text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {v}
@@ -342,9 +483,16 @@ export function PnlCalendar({
             </div>
           )}
           {active && (
-            <span className={cn("font-mono text-[14px] tabular-nums", periodTotal < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
-              {fmtSigned(periodTotal)}
-            </span>
+            // Labelled, because the figure covers whatever is on screen — and that's two
+            // months once the grid goes side by side, not the one the picker names.
+            <div className="text-right">
+              <div className="text-[9.5px] font-semibold tracking-[0.14em] text-faint uppercase">
+                {view === "year" ? "Year P&L" : months.length > 1 ? "2 months P&L" : "Month P&L"}
+              </div>
+              <div className={cn("mt-1 font-mono text-[15px] font-semibold tabular-nums", periodTotal < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
+                {fmtSigned(periodTotal)}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -356,123 +504,165 @@ export function PnlCalendar({
       ) : !active ? (
         <p className="py-10 text-center text-sm text-muted-foreground">No P&amp;L history yet — add transactions to see daily moves.</p>
       ) : (
-        <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[1.7fr_1fr]">
+        <div>
           <div className="flex flex-col">
           {view === "year" ? (
             // A year is 53 weeks: too many for a 7-wide grid, so weeks run as columns and
             // weekdays as rows. Cells carry no text at this size — the colour is the datum
             // and the title gives the number.
+            //
+            // Columns are fractional rather than a fixed 14px, so the grid grows into the
+            // card instead of stranding a small block against a wide empty right-hand side.
+            // The cap stops a 1600px viewport from inflating the cells into chunky tiles,
+            // and the floor makes it scroll on a phone rather than shrink to specks.
             <div className="overflow-x-auto">
-              <div className="flex min-w-max gap-1.5">
-                <div className="mt-[18px] grid grid-rows-7 gap-[3px]">
-                  {WEEKDAYS.map((w, i) => (
-                    <div
-                      key={w}
-                      className="flex h-[14px] items-center font-mono text-[9px] text-faint"
+              <div className="mx-auto min-w-[720px] max-w-[1120px]">
+                {/* Offset by the weekday gutter (w-7) plus its gap (gap-2), so a month label
+                    sits over the week column its month actually starts in. */}
+                <div
+                  className="mb-1.5 ml-9 grid gap-[3px]"
+                  style={{ gridTemplateColumns: `repeat(${yearCells.length / 7}, minmax(0,1fr))` }}
+                >
+                  {monthStarts.map((m) => (
+                    <span
+                      key={m.label}
+                      className="font-mono text-[9.5px] leading-none whitespace-nowrap text-faint"
+                      style={{ gridColumnStart: m.week + 1, gridColumnEnd: "span 4" }}
                     >
-                      {i % 2 === 0 ? w : ""}
-                    </div>
+                      {m.label}
+                    </span>
                   ))}
                 </div>
-                <div>
-                  <div
-                    className="mb-1 grid gap-[3px]"
-                    style={{ gridTemplateColumns: `repeat(${yearCells.length / 7}, 14px)` }}
-                  >
-                    {monthStarts.map((m) => (
-                      <span
-                        key={m.label}
-                        className="font-mono text-[9px] whitespace-nowrap text-faint"
-                        style={{ gridColumnStart: m.week + 1 }}
-                      >
-                        {m.label}
-                      </span>
+                {/* The weekday gutter and the grid are siblings in this row and nothing
+                    else, so the gutter stretches to exactly the grid's height and its seven
+                    equal rows line up with the seven rows of cells. */}
+                <div className="flex gap-2">
+                  <div className="grid w-7 shrink-0 grid-rows-7 gap-[3px]">
+                    {WEEKDAYS.map((w, i) => (
+                      <div key={w} className="flex items-center font-mono text-[9px] leading-none text-faint">
+                        {i % 2 === 0 ? w : ""}
+                      </div>
                     ))}
                   </div>
-                  <div className="grid grid-flow-col grid-rows-7 gap-[3px]" style={{ gridAutoColumns: "14px" }}>
+                  <div
+                    className="grid min-w-0 flex-1 grid-flow-col grid-rows-7 gap-[3px]"
+                    style={{ gridAutoColumns: "minmax(0,1fr)" }}
+                  >
                     {yearCells.map((c, i) =>
                       !c ? (
-                        <div key={i} className="size-[14px]" />
+                        <div key={i} className="aspect-square" />
                       ) : (
                         <div
                           key={i}
                           onClick={c.tracked ? () => setSelected(c.date) : undefined}
-                          style={cellStyle(c)}
+                          style={yearCellStyle(c)}
                           title={`${c.date} · ${c.tracked ? fmtSigned(c.delta) : "no change"}${
                             c.point.status === "live" ? " · in-progress" : c.point.status === "partial" ? " · partial" : ""
                           }`}
                           className={cn(
-                            "size-[14px] rounded-[3px]",
+                            "aspect-square rounded-[3px]",
                             c.tracked && "cursor-pointer",
-                            c.point.status === "live" && "animate-pulse ring-1 ring-accent-brand",
-                            c.point.status === "partial" && "ring-1 ring-warning/60",
+                            // The selected day has to win over the status rings below it.
+                            c.date === selDate
+                              ? "ring-2 ring-foreground"
+                              : c.point.status === "live"
+                                ? "animate-pulse ring-1 ring-accent-brand"
+                                : c.point.status === "partial" && "ring-1 ring-warning/60",
                           )}
                         />
                       ),
                     )}
                   </div>
                 </div>
+                <div className="ml-9">
+                  <RampLegend />
+                </div>
               </div>
             </div>
           ) : (
-            <div>
-              <div className="mb-1.5 grid grid-cols-7 gap-1.5">
-                {WEEKDAYS.map((w) => (
-                  <div key={w} className="text-center font-mono text-[10px] tracking-[0.06em] text-faint uppercase">{w}</div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-1.5">
-                {cells.map((c, i) =>
-                  !c ? (
-                    <div key={i} className="min-h-[50px]" />
-                  ) : (
-                    <div
-                      key={i}
-                      onClick={c.tracked ? () => setSelected(c.date) : undefined}
-                      style={cellStyle(c)}
-                      className={cn(
-                        "relative flex min-h-[50px] flex-col justify-between rounded-md px-2 py-1.5",
-                        c.tracked && "cursor-pointer",
-                      )}
-                    >
-                      <StatusDot status={c.point.status} tracked={c.tracked} />
-                      <div className={cn("font-mono text-[11px]", c.tracked ? "text-muted-foreground" : "text-faint")}>{c.day}</div>
-                      {c.tracked && (
-                        <div className={cn("hidden text-right font-mono text-[10px] tabular-nums sm:block", c.delta >= 0 ? "text-positive-strong" : "text-negative-strong")}>
-                          {fmtCompact(c.delta)}
-                        </div>
-                      )}
+            <div className={cn("grid gap-x-8 gap-y-6", months.length > 1 && "grid-cols-2")}>
+              {months.map(({ ym, cells: monthCells }) => (
+                <div key={ym}>
+                  {/* Only worth naming when there are two to tell apart — with one month the
+                      picker in the header already says which. */}
+                  {months.length > 1 && (
+                    <div className="mb-2.5 flex items-baseline justify-between">
+                      <span className="text-[12.5px] font-bold">
+                        {MONTH_NAMES[Number(ym.slice(5, 7)) - 1]} {ym.slice(0, 4)}
+                      </span>
+                      <span className={cn("font-mono text-[11.5px] tabular-nums", monthTotal(monthCells) < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
+                        {fmtCompact(monthTotal(monthCells))}
+                      </span>
                     </div>
-                  ),
-                )}
-              </div>
+                  )}
+                  <div className="mb-1.5 grid grid-cols-7 gap-1.5">
+                    {WEEKDAYS.map((w) => (
+                      <div key={w} className="text-center text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">{w}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {monthCells.map((c, i) =>
+                      !c ? (
+                        <div key={i} className="min-h-[50px]" />
+                      ) : (
+                        <div
+                          key={i}
+                          onClick={c.tracked ? () => setSelected(c.date) : undefined}
+                          style={cellStyle(c)}
+                          className={cn(
+                            "relative flex min-h-[50px] flex-col justify-between rounded-md px-2 py-1.5",
+                            c.tracked && "cursor-pointer",
+                          )}
+                        >
+                          <StatusDot status={c.point.status} tracked={c.tracked} />
+                          <div className={cn("font-mono text-[11px]", c.tracked ? "text-muted-foreground" : "text-faint")}>{c.day}</div>
+                          {c.tracked && (
+                            <div className={cn("hidden text-right font-mono text-[10px] tabular-nums sm:block", c.delta >= 0 ? "text-positive-strong" : "text-negative-strong")}>
+                              {fmtCompact(c.delta)}
+                            </div>
+                          )}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
             <StatusLegend />
           </div>
 
-          <div className="flex min-h-[200px] flex-col border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-[22px]">
-            {selHas && selDate ? (
-              <>
-                <div className="shrink-0 font-mono text-[11px] tracking-[0.06em] text-faint uppercase">
-                  {MONTHS[Number(selDate.slice(5, 7)) - 1]} {Number(selDate.slice(8, 10))},{" "}
-                  {selDate.slice(0, 4)}
+          <div className="mt-[22px] border-t border-border pt-[22px]">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="text-[9.5px] font-semibold tracking-[0.16em] text-faint uppercase">
+                  Selected day · per holding
                 </div>
-                <div className={cn("mt-1.5 shrink-0 font-mono text-[21px] tracking-[-0.01em] tabular-nums", selHit!.delta < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
+                <div className="mt-1.5 text-[18px] font-bold">
+                  {selHas && selDate
+                    ? `${MONTHS[Number(selDate.slice(5, 7)) - 1]} ${Number(selDate.slice(8, 10))}, ${selDate.slice(0, 4)}`
+                    : "No day selected"}
+                </div>
+              </div>
+              {selHas && (
+                <div className={cn("font-mono text-[21px] tracking-[-0.01em] tabular-nums", selHit!.delta < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
                   {fmtSigned(selHit!.delta)}
                 </div>
-                <div className="mt-3.5 mb-2 shrink-0 text-[12px] text-muted-foreground">Per-holding contribution</div>
-                {detailRows.length === 0 ? (
-                  <p className="py-2 text-[13px] text-faint">No per-holding breakdown for this day.</p>
-                ) : (
-                  <ContribList key={selDate} rows={detailRows} />
-                )}
-              </>
-            ) : (
-              <p className="pt-2 text-[13px] text-faint">
+              )}
+            </div>
+            {!selHas ? (
+              <p className="py-2 text-[13px] text-faint">
                 Select a day with activity to see the per-holding breakdown.
               </p>
+            ) : detailRows.length === 0 ? (
+              <p className="py-2 text-[13px] text-faint">No per-holding breakdown for this day.</p>
+            ) : (
+              <ContribList key={selDate} rows={detailRows} />
             )}
+            <div className="mt-4 text-[11.5px] text-faint">
+              Click any day in the calendar to inspect that day&apos;s per-holding P&amp;L · gains
+              right, losses left
+            </div>
           </div>
         </div>
       )}

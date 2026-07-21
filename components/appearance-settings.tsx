@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 
 const THEMES = [
   { value: "system", label: "Match system", hint: "Follows your OS setting", icon: Monitor },
-  { value: "light", label: "Paper", hint: "Light", icon: Sun },
-  { value: "dark", label: "Ink", hint: "Dark", icon: Moon },
+  { value: "light", label: "Daylight", hint: "Light", icon: Sun },
+  { value: "dark", label: "Midnight", hint: "Dark", icon: Moon },
 ] as const;
 
 type Choice = (typeof THEMES)[number]["value"];
@@ -30,8 +30,8 @@ export function AppearanceSettings() {
   const current = (THEMES.some((t) => t.value === theme) ? theme : "system") as Choice;
 
   return (
-    <div className="rounded-xl border border-border bg-card px-6 py-6">
-      <div className="font-serif text-[18px] font-semibold tracking-[-0.01em]">Appearance</div>
+    <div className="card-surface px-6 py-6">
+      <div className="text-[18px] font-bold tracking-[-0.01em]">Appearance</div>
       <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
         The theme this browser uses. Stored on this device, not in your data.
       </div>

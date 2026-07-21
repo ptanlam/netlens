@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { DataTable } from "@/components/data-table";
-import { cn } from "@/lib/utils";
+import { SummaryCards } from "@/components/stat-card";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -474,15 +474,6 @@ const columns: ColumnDef<DebtRow>[] = [
   },
 ];
 
-function KpiTile({ label, value, valueCls, last }: { label: string; value: string; valueCls?: string; last?: boolean }) {
-  return (
-    <div className={cn("px-5 py-[18px]", !last && "border-b border-divider sm:border-r sm:border-b-0")}>
-      <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{label}</div>
-      <div className={cn("mt-[7px] font-mono text-[22px] tabular-nums", valueCls)}>{value}</div>
-    </div>
-  );
-}
-
 export function DebtsManager({
   debts,
   payments,
@@ -544,11 +535,15 @@ export function DebtsManager({
         </div>
       )}
 
-      <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-3">
-        <KpiTile label="Currently owed" value={fmtVND(owedSum)} valueCls="text-(--chart-negative)" />
-        <KpiTile label="Total paid" value={fmtVND(paidSum)} />
-        <KpiTile label="Est. interest accrued" value={`+${fmtVND(interest)}`} valueCls="text-(--chart-negative)" last />
-      </div>
+      {/* "Total paid" is the one neutral figure here — it's progress, not a liability, so
+          it stays unwashed between the two red tiles. */}
+      <SummaryCards
+        stats={[
+          { label: "Currently owed", value: fmtVND(owedSum), tone: "loss" },
+          { label: "Total paid", value: fmtVND(paidSum) },
+          { label: "Est. interest accrued", value: `+${fmtVND(interest)}`, tone: "loss" },
+        ]}
+      />
 
       {series.length > 1 && (
         <ValueOverTime
@@ -569,7 +564,7 @@ export function DebtsManager({
         <AddDebtDialog />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="overflow-hidden card-surface">
         <DataTable
           columns={columns}
           data={rows}

@@ -15,6 +15,7 @@ import { TxRowActions } from "@/components/tx-row-actions";
 import { type InstrumentOption } from "@/components/tx-form";
 import { RecurringManager } from "@/components/recurring-manager";
 import { InvestmentActivity } from "@/components/investment-activity";
+import { SummaryCards, type Stat } from "@/components/stat-card";
 import { cn } from "@/lib/utils";
 
 export interface HoldingView {
@@ -213,8 +214,8 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-[13px] font-semibold">Transactions</h4>
               <div className="flex flex-wrap items-center gap-2">
-                <AddTxDialog instruments={[option]} />
                 <AddRecurringDialog instruments={[option]} />
+                <AddTxDialog instruments={[option]} />
               </div>
             </div>
             {txs.length === 0 ? (
@@ -276,15 +277,14 @@ export function InvestmentManager({
   const groups = groupByType(active);
   const typeCount = new Set(active.map((h) => h.inst.asset_type)).size;
 
-  const kpis = [
-    { label: "Portfolio value", value: fmtVND(totalValue) },
-    { label: "Total invested", value: fmtVND(totalCost) },
+  const kpis: Stat[] = [
+    { label: "Portfolio value", value: fmtVND(totalValue), sub: "Live · quantity × price" },
+    { label: "Total invested", value: fmtVND(totalCost), sub: "Cost basis, all time" },
     {
       label: "Total P&L",
       value: `${totalPnl >= 0 ? "+" : "−"}₫${Math.abs(Math.round(totalPnl)).toLocaleString("de-DE")}`,
-      valueCls: totalPnl >= 0 ? "text-accent-brand" : "text-(--chart-negative)",
+      tone: totalPnl >= 0 ? "gain" : "loss",
       sub: `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`,
-      subCls: totalPnl >= 0 ? "text-accent-brand" : "text-(--chart-negative)",
     },
     { label: "Holdings", value: String(active.length), sub: `across ${typeCount} asset type${typeCount === 1 ? "" : "s"}` },
   ];
@@ -292,22 +292,13 @@ export function InvestmentManager({
   return (
     <div>
       <div className="mb-3.5">
-        <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Investments</div>
+        <div className="text-[26px] font-bold tracking-[-0.01em]">Investments</div>
         <div className="mt-0.5 text-[13px] text-muted-foreground">
           Your holdings, their transactions, and the recurring rules that automate them — grouped by asset type.
         </div>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card lg:grid-cols-4">
-        {kpis.map((k, i) => (
-          <div key={k.label} className={cn("px-4 py-4 sm:px-5 sm:py-[18px]", i % 2 === 0 && "border-r border-divider", i < 3 && "lg:border-r lg:border-divider")}>
-            <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">{k.label}</div>
-            <div className={cn("mt-[7px] font-mono text-[17px] tracking-[-0.01em] tabular-nums sm:text-[22px]", k.valueCls)}>{k.value}</div>
-            {k.sub && <div className={cn("mt-[3px] text-[11.5px] text-muted-foreground", k.subCls)}>{k.sub}</div>}
-          </div>
-        ))}
-      </div>
+      <SummaryCards stats={kpis} />
 
       {/* Actions — price refresh lives in the nav, so it isn't repeated here. */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -316,15 +307,15 @@ export function InvestmentManager({
           Export CSV
         </Button>
         <div className="flex-1" />
+        <AddHoldingDialog sources={sourceKeys} />
         <AddRecurringDialog instruments={options} />
         <AddTxDialog instruments={options} />
-        <AddHoldingDialog sources={sourceKeys} />
       </div>
 
       <InvestmentActivity txs={allTxs} options={options} />
 
       <div className="mt-6 mb-3.5">
-        <div className="font-serif text-[19px] font-semibold">Holdings</div>
+        <div className="text-[19px] font-bold">Holdings</div>
         <div className="mt-0.5 text-[12.5px] text-muted-foreground">Select a holding to see its transactions</div>
       </div>
 
@@ -353,7 +344,7 @@ export function InvestmentManager({
                   </span>
                 </div>
               </div>
-              <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="overflow-hidden card-surface">
                 {group.holdings.map((h) => (
                   <HoldingRow
                     key={h.inst.name}
@@ -413,7 +404,7 @@ function ArchivedHoldings({
         <span className={cn("ml-1 font-mono text-[12px] text-faint transition-transform", open && "rotate-90")}>▸</span>
       </button>
       {open && (
-        <div className="overflow-hidden rounded-xl border border-border bg-card opacity-80">
+        <div className="overflow-hidden card-surface opacity-80">
           {holdings.map((h) => (
             <HoldingRow
               key={h.inst.name}

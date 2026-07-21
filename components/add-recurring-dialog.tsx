@@ -15,7 +15,7 @@ export function AddRecurringDialog({ instruments }: { instruments: InstrumentOpt
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
+      <DialogTrigger render={<Button size="sm" variant="outline" />}>
         <Repeat className="size-3.5" />
         Add recurring
       </DialogTrigger>

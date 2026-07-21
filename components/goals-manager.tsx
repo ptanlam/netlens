@@ -210,7 +210,7 @@ function LinkedDeposits({ deposits }: { deposits: Saving[] }) {
   if (deposits.length === 0) return null;
   return (
     <div className="mt-3">
-      <div className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">
+      <div className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">
         Deposits ({deposits.length})
       </div>
       {deposits.map((s) => (
@@ -273,7 +273,7 @@ function FundPanel({
   return (
     <div className="mt-3.5 border-t border-divider pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">
+        <span className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">
           Cash set aside{" "}
           <span className="text-muted-foreground normal-case">{fmtVND(cash)}</span>
         </span>
@@ -475,7 +475,7 @@ function GoalCard({
     });
 
   return (
-    <div className={cn("rounded-xl border border-border bg-card px-5 py-4", archived && "opacity-60")}>
+    <div className={cn("card-surface px-5 py-4", archived && "opacity-60")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 gap-3">
           {rank != null && (
@@ -661,7 +661,7 @@ export function GoalsManager({
 
       {archived.length > 0 && (
         <>
-          <div className="mt-2 font-mono text-[10.5px] tracking-[0.08em] text-faint uppercase">
+          <div className="mt-2 text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">
             Archived
           </div>
           {archived.map((view) => (

@@ -103,20 +103,20 @@ export function ValueOverTime({
     "h-7 rounded-lg border border-input bg-card px-2.5 font-mono text-[12px] outline-none focus:border-ring";
   const pill = (active: boolean) =>
     cn(
-      "cursor-pointer rounded-md border-0 px-[11px] py-[5px] font-mono text-[11.5px] transition-colors",
-      active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+      "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
+      active ? "bg-card text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
     );
 
   return (
-    <div className="rounded-xl border border-border bg-card px-6 py-[22px]">
+    <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="font-serif text-[19px] font-semibold tracking-[-0.01em]">{title}</div>
+          <div className="text-[19px] font-bold tracking-[-0.01em]">{title}</div>
           <div className="mt-0.5 text-[12.5px] text-muted-foreground">{subtitle}</div>
         </div>
         {series.length > 1 && (
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex gap-[3px] rounded-lg bg-background p-[3px]">
+            <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
               {presets.map((p) => (
                 <button
                   key={p.label}

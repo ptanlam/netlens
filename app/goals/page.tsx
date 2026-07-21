@@ -33,7 +33,7 @@ export default async function GoalsPage() {
   return (
     <div>
       <div className="mb-3.5">
-        <div className="font-serif text-[22px] font-semibold tracking-[-0.01em]">Goals</div>
+        <div className="text-[26px] font-bold tracking-[-0.01em]">Goals</div>
         <div className="mt-0.5 text-[13px] text-muted-foreground">
           A target on a figure you already track — or a sinking fund you pay into by hand.
           Progress is read live from your data, and the projection uses money you&apos;ve
