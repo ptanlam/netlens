@@ -144,7 +144,7 @@ export function AddHoldingDialog({ sources }: { sources: string[] }) {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
+      <DialogTrigger render={<Button size="sm" variant="outline" />}>
         <Plus className="size-3.5" />
         Add holding
       </DialogTrigger>

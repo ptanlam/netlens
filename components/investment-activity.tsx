@@ -92,6 +92,14 @@ export function InvestmentActivity({
   }, [filtered, from, to]);
   const maxBar = Math.max(1, ...bars.map((b) => b.amt));
 
+  // Averaged over the month buckets actually in range, not over the ones that had a buy —
+  // a month you deployed nothing in is a real zero, and dropping it would flatter the pace.
+  const monthlyAvg = bars.length ? bars.reduce((a, b) => a + b.amt, 0) / bars.length : 0;
+  const best = bars.reduce<(typeof bars)[number] | null>(
+    (b, m) => (m.amt > 0 && (!b || m.amt > b.amt) ? m : b),
+    null,
+  );
+
   const presets: { label: string; from: string }[] = [
     { label: "1M", from: shiftMonths(today, -1) },
     { label: "3M", from: shiftMonths(today, -3) },
@@ -158,12 +166,15 @@ export function InvestmentActivity({
         </select>
       </div>
 
-      {/* Summary tiles */}
-      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-divider bg-divider lg:grid-cols-4">
+      {/* Summary tiles. Monthly average and Best month are scoped to the selected range
+          like everything else here, so they move with the 1M/3M/YTD/All picker. */}
+      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-divider bg-divider lg:grid-cols-3">
         <SummaryTile label="Transactions" value={String(filtered.length)} />
         <SummaryTile label="Invested" value={fmtVND(invested)} />
         <SummaryTile label="Proceeds" value={proceeds > 0 ? fmtVND(proceeds) : "₫0"} valueCls="text-accent-brand" />
         <SummaryTile label="Net deployed" value={fmtVND(net)} />
+        <SummaryTile label="Monthly average" value={fmtVND(monthlyAvg)} />
+        <SummaryTile label="Best month" value={best ? `${best.label} · ${fmtVND(best.amt)}` : "—"} />
       </div>
 
       <div className="mt-6 mb-3 text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">
@@ -268,7 +279,11 @@ function SummaryTile({ label, value, valueCls }: { label: string; value: string;
   return (
     <div className="bg-card px-4 py-3.5">
       <div className="text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">{label}</div>
-      <div className={cn("mt-1.5 font-mono text-[19px] tabular-nums", valueCls)}>{value}</div>
+      {/* "Best month" carries a month label as well as an amount, so it's the widest thing
+          in the grid — the whole row steps down rather than letting that one tile wrap. */}
+      <div className={cn("mt-1.5 font-mono text-[15px] whitespace-nowrap tabular-nums sm:text-[19px]", valueCls)}>
+        {value}
+      </div>
     </div>
   );
 }

@@ -214,8 +214,8 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-[13px] font-semibold">Transactions</h4>
               <div className="flex flex-wrap items-center gap-2">
-                <AddTxDialog instruments={[option]} />
                 <AddRecurringDialog instruments={[option]} />
+                <AddTxDialog instruments={[option]} />
               </div>
             </div>
             {txs.length === 0 ? (
@@ -307,9 +307,9 @@ export function InvestmentManager({
           Export CSV
         </Button>
         <div className="flex-1" />
+        <AddHoldingDialog sources={sourceKeys} />
         <AddRecurringDialog instruments={options} />
         <AddTxDialog instruments={options} />
-        <AddHoldingDialog sources={sourceKeys} />
       </div>
 
       <InvestmentActivity txs={allTxs} options={options} />
