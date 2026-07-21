@@ -7,6 +7,7 @@ import type { HoldingPnlPoint, Payload, PnlPoint } from "@/lib/types";
 import { fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel } from "@/components/net-worth";
 import { GoalStrip } from "@/components/goal-strip";
+import { SummaryCards, type Stat } from "@/components/stat-card";
 import type { GoalView } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
@@ -133,29 +134,20 @@ export function DashboardCharts({
     };
   }, [payload]);
 
-  const kpis: {
-    label: string;
-    value: string;
-    sub?: string;
-    emph?: boolean;
-    positive?: boolean;
-    subEmph?: boolean;
-  }[] = [
-    { label: "Portfolio value", value: fmtVND(payload.portfolioTotal), sub: "Live · quantity × price" },
+  // No "Portfolio value" tile here, unlike the Investments page: the hero's rail already
+  // carries that exact figure as its Investments row, directly above this strip.
+  const kpis: Stat[] = [
     { label: "Total invested", value: fmtVND(payload.investedTotal), sub: "Cost basis, all time" },
     {
       label: "Total P&L",
       value: `${payload.pnl >= 0 ? "+" : "−"}₫${Math.abs(Math.round(payload.pnl)).toLocaleString("de-DE")}`,
-      emph: true,
-      positive: payload.pnl >= 0,
+      tone: payload.pnl >= 0 ? "gain" : "loss",
       sub: `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`,
-      subEmph: true,
     },
     {
       label: "This month P&L",
       value: series ? fmtSigned(monthPnl) : "—",
-      emph: true,
-      positive: monthPnl >= 0,
+      tone: monthPnl >= 0 ? "gain" : "loss",
       sub: monthLabel ? `${monthLabel}, unrealized` : "unrealized",
     },
   ];
@@ -171,40 +163,7 @@ export function DashboardCharts({
         spark={series?.map((p) => p.value) ?? null}
       />
 
-      {/* KPI strip — the two P&L tiles are emphasized, washed by sign (gain/loss). Separate
-          cards rather than one divided block: the wash then has its own edges, so a green
-          and a red tile never share a border. */}
-      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-        {kpis.map((k) => {
-          const tone = k.positive ? "text-accent-brand" : "text-(--chart-negative)";
-          const tint = k.emph
-            ? k.positive
-              ? "bg-[linear-gradient(160deg,var(--positive-wash),transparent)]"
-              : "bg-[linear-gradient(160deg,var(--negative-wash),transparent)]"
-            : "";
-          return (
-            <div key={k.label} className={cn("card-surface px-4 py-[18px] sm:px-6 sm:py-[22px]", tint)}>
-              <div className={cn("text-[10.5px] font-semibold tracking-[0.14em] uppercase", k.emph ? tone : "text-faint")}>{k.label}</div>
-              {/* Two per row on a phone leaves ~130px of usable width, which a signed
-                  nine-figure VND amount overruns — it has to shrink rather than wrap, or
-                  the minus sign ends up stranded on its own line. */}
-              <div
-                className={cn(
-                  "mt-3 font-mono text-[15px] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-[24px]",
-                  k.emph && tone,
-                )}
-              >
-                {k.value}
-              </div>
-              {k.sub && (
-                <div className={cn("mt-1.5 text-[12px]", k.subEmph ? tone : "text-muted-foreground")}>
-                  {k.sub}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <SummaryCards stats={kpis} />
 
       <GoalStrip goals={goals} />
 

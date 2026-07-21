@@ -15,6 +15,7 @@ import { TxRowActions } from "@/components/tx-row-actions";
 import { type InstrumentOption } from "@/components/tx-form";
 import { RecurringManager } from "@/components/recurring-manager";
 import { InvestmentActivity } from "@/components/investment-activity";
+import { SummaryCards, type Stat } from "@/components/stat-card";
 import { cn } from "@/lib/utils";
 
 export interface HoldingView {
@@ -276,15 +277,14 @@ export function InvestmentManager({
   const groups = groupByType(active);
   const typeCount = new Set(active.map((h) => h.inst.asset_type)).size;
 
-  const kpis = [
-    { label: "Portfolio value", value: fmtVND(totalValue) },
-    { label: "Total invested", value: fmtVND(totalCost) },
+  const kpis: Stat[] = [
+    { label: "Portfolio value", value: fmtVND(totalValue), sub: "Live · quantity × price" },
+    { label: "Total invested", value: fmtVND(totalCost), sub: "Cost basis, all time" },
     {
       label: "Total P&L",
       value: `${totalPnl >= 0 ? "+" : "−"}₫${Math.abs(Math.round(totalPnl)).toLocaleString("de-DE")}`,
-      valueCls: totalPnl >= 0 ? "text-accent-brand" : "text-(--chart-negative)",
+      tone: totalPnl >= 0 ? "gain" : "loss",
       sub: `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`,
-      subCls: totalPnl >= 0 ? "text-accent-brand" : "text-(--chart-negative)",
     },
     { label: "Holdings", value: String(active.length), sub: `across ${typeCount} asset type${typeCount === 1 ? "" : "s"}` },
   ];
@@ -298,16 +298,7 @@ export function InvestmentManager({
         </div>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 overflow-hidden card-surface lg:grid-cols-4">
-        {kpis.map((k, i) => (
-          <div key={k.label} className={cn("px-4 py-4 sm:px-5 sm:py-[18px]", i % 2 === 0 && "border-r border-divider", i < 3 && "lg:border-r lg:border-divider")}>
-            <div className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">{k.label}</div>
-            <div className={cn("mt-[7px] font-mono text-[17px] tracking-[-0.01em] tabular-nums sm:text-[22px]", k.valueCls)}>{k.value}</div>
-            {k.sub && <div className={cn("mt-[3px] text-[11.5px] text-muted-foreground", k.subCls)}>{k.sub}</div>}
-          </div>
-        ))}
-      </div>
+      <SummaryCards stats={kpis} />
 
       {/* Actions — price refresh lives in the nav, so it isn't repeated here. */}
       <div className="mt-4 flex flex-wrap items-center gap-2">

@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { SummaryCards } from "@/components/stat-card";
 import { cn } from "@/lib/utils";
 
 type ActionResult = { ok: boolean; message: string };
@@ -235,31 +236,23 @@ function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
   );
 }
 
-function KpiTile({ label, value, valueCls, last }: { label: string; value: string; valueCls?: string; last?: boolean }) {
-  return (
-    <div className={cn("px-5 py-[18px]", !last && "border-b border-divider sm:border-r sm:border-b-0")}>
-      <div className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">{label}</div>
-      <div className={cn("mt-[7px] font-mono text-[22px] tabular-nums", valueCls)}>{value}</div>
-    </div>
-  );
-}
-
 export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: FundOption[] }) {
   const s = summarize(savings);
   const series = buildDailySeries(savings, currentValue);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 overflow-hidden card-surface sm:grid-cols-3">
-        <KpiTile label="Total principal" value={fmtVND(s.principal)} />
-        <KpiTile label="Current est. value" value={fmtVND(s.currentValue)} />
-        <KpiTile
-          label="Est. interest earned"
-          value={`${s.interest >= 0 ? "+" : ""}${fmtVND(s.interest)}`}
-          valueCls={s.interest >= 0 ? "text-accent-brand" : "text-(--chart-negative)"}
-          last
-        />
-      </div>
+    <div className="flex flex-col gap-5">
+      <SummaryCards
+        stats={[
+          { label: "Total principal", value: fmtVND(s.principal) },
+          { label: "Current est. value", value: fmtVND(s.currentValue) },
+          {
+            label: "Est. interest earned",
+            value: `${s.interest >= 0 ? "+" : ""}${fmtVND(s.interest)}`,
+            tone: s.interest >= 0 ? "gain" : "loss",
+          },
+        ]}
+      />
 
       {series.length > 1 && (
         <ValueOverTime
