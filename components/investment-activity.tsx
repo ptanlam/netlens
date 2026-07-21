@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { Tx } from "@/lib/types";
-import { fmtVND, MONTHS } from "@/lib/format";
+import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
 import { TxRowActions } from "@/components/tx-row-actions";
 import type { InstrumentOption } from "@/components/tx-form";
 import { cn } from "@/lib/utils";
@@ -20,9 +20,6 @@ const PER_PAGE = 6;
 function isoNow(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function numFmt(n: number): string {
-  return n.toLocaleString("de-DE", { maximumFractionDigits: 4 });
 }
 function trVND(n: number): string {
   const abs = Math.abs(n);
@@ -235,8 +232,8 @@ export function InvestmentActivity({
                     >
                       {isBuy ? "Buy" : "Sell"}
                     </span>
-                    <span className="text-right font-mono text-[12px] text-muted-foreground tabular-nums">{t.quantity != null ? numFmt(t.quantity) : "—"}</span>
-                    <span className="text-right font-mono text-[12px] text-muted-foreground tabular-nums">{price != null ? numFmt(Math.round(price)) : "—"}</span>
+                    <span className="text-right font-mono text-[12px] text-muted-foreground tabular-nums">{t.quantity != null ? fmtUnits(t.quantity) : "—"}</span>
+                    <span className="text-right font-mono text-[12px] text-muted-foreground tabular-nums">{price != null ? Math.round(price).toLocaleString("de-DE") : "—"}</span>
                     <span className="text-right font-mono text-[12.5px] tabular-nums">{fmtVND(t.amount)}</span>
                     <TxRowActions tx={t} instruments={options} />
                   </div>

@@ -5,7 +5,7 @@ import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Download, Trash2 } 
 import { toast } from "sonner";
 import type { Instrument, RecurringRule, Tx } from "@/lib/types";
 import { deleteHolding, setHoldingArchived } from "@/app/actions";
-import { fmtVND } from "@/lib/format";
+import { fmtUnits, fmtVND } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { AddHoldingDialog, EditHoldingDialog } from "@/components/add-holding-dialog";
@@ -91,7 +91,7 @@ function TxRow({ tx, option }: { tx: Tx; option: InstrumentOption }) {
         {fmtVND(tx.amount)}
       </span>
       <span className="font-mono whitespace-nowrap tabular-nums text-muted-foreground">
-        {tx.quantity != null ? `${tx.quantity} u` : "—"}
+        {tx.quantity != null ? `${fmtUnits(tx.quantity)} u` : "—"}
       </span>
       <span className="flex-1 truncate text-muted-foreground">{tx.note}</span>
       <TxRowActions tx={tx} instruments={[option]} />
@@ -182,7 +182,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
             </div>
             <div className="mt-1 font-mono text-[11.5px] text-faint tabular-nums">
               {inst.quantity != null && inst.last_price != null
-                ? `${inst.quantity} × ${inst.last_price.toLocaleString("de-DE")}`
+                ? `${fmtUnits(inst.quantity)} × ${inst.last_price.toLocaleString("de-DE")}`
                 : "manual value"}
               {" · "}{txs.length} tx{txs.length === 1 ? "" : "s"}
               {rules.length > 0 && ` · ${rules.length} rule${rules.length === 1 ? "" : "s"}`}

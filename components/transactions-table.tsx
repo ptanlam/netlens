@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Tx } from "@/lib/types";
-import { fmtVND } from "@/lib/format";
+import { fmtUnits, fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table";
 import { TxRowActions } from "@/components/tx-row-actions";
@@ -48,7 +48,7 @@ export function TransactionsTable({
         header: "Quantity",
         meta: { align: "right" },
         cell: ({ row }) => (
-          <span className="font-mono tabular-nums">{row.original.quantity ?? "—"}</span>
+          <span className="font-mono tabular-nums">{row.original.quantity != null ? fmtUnits(row.original.quantity) : "—"}</span>
         ),
       },
       {

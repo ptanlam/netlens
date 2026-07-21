@@ -223,6 +223,19 @@ function seedPriceSources(db: Database.Database) {
   db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('price_sources_seeded', ?)").run(now);
 }
 
+/** Decimal places a holding's unit count is kept to. Eight covers a satoshi (1e-8) — the
+ *  finest unit anything here is quoted in — while sitting far above the ~1e-13 noise that
+ *  double addition introduces, so rounding here can only remove error, never real data. */
+const UNIT_DP = 8;
+
+/** Normalise a unit count on the way in, so every path that writes `quantity` — hand-typed
+ *  or accumulated — lands on the same grid and the invariant holds for the whole column. */
+function roundUnits(v: number | null): number | null {
+  if (v == null) return null;
+  const f = 10 ** UNIT_DP;
+  return Math.round(v * f) / f;
+}
+
 /** Idempotent column additions for tables that predate a new column. */
 function migrate(db: Database.Database) {
   const hasColumn = (table: string, col: string) =>
@@ -241,6 +254,12 @@ function migrate(db: Database.Database) {
     // doesn't reshuffle itself the first time it loads.
     db.exec("UPDATE goals SET position = id");
   }
+  // Scrub drift that earlier un-rounded writes already banked. Only touches rows that
+  // actually differ, so it's a no-op on every boot after the first.
+  db.exec(
+    `UPDATE instruments SET quantity = ROUND(quantity, ${UNIT_DP})
+     WHERE quantity IS NOT NULL AND quantity <> ROUND(quantity, ${UNIT_DP})`,
+  );
 }
 
 export function todayIso(): string {
@@ -256,11 +275,16 @@ function nowIso(): string {
 
 /** Roll a signed unit delta into a holding's running total. `quantity` is already
  *  signed (a sale is negative), so a buy grows the holding and a sell shrinks it.
- *  COALESCE lets a brand-new holding start accumulating from a null quantity. */
+ *  COALESCE lets a brand-new holding start accumulating from a null quantity.
+ *
+ *  Rounded on every write, because this is a *running* total in IEEE-754 doubles and the
+ *  error compounds: 1237.9 + 26.45 is 1264.3500000000001, and the next buy builds on that.
+ *  Valuation never noticed (it rounds to whole VND), but the noise is stored, so it leaked
+ *  into anything showing units — including the edit form, which would then save it back. */
 function adjustHoldingQuantity(instrument: string, delta: number) {
   if (delta === 0) return;
   getDb()
-    .prepare("UPDATE instruments SET quantity = COALESCE(quantity, 0) + ?, updated_at=? WHERE name=?")
+    .prepare(`UPDATE instruments SET quantity = ROUND(COALESCE(quantity, 0) + ?, ${UNIT_DP}), updated_at=? WHERE name=?`)
     .run(delta, nowIso(), instrument.trim());
 }
 
@@ -443,7 +467,7 @@ export function addInstrument(
     .prepare(
       "INSERT INTO instruments(name, asset_type, price_source, symbol, quantity, manual_value, updated_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(name) DO NOTHING",
     )
-    .run(name.trim(), assetType, priceSource, symbol || null, quantity, manualValue, nowIso());
+    .run(name.trim(), assetType, priceSource, symbol || null, roundUnits(quantity), manualValue, nowIso());
   return info.changes > 0;
 }
 
@@ -472,7 +496,7 @@ export function updateInstrumentFields(
     .prepare(
       "UPDATE instruments SET asset_type=?, price_source=?, symbol=?, quantity=?, manual_value=?, updated_at=? WHERE name=?",
     )
-    .run(assetType, priceSource, symbol || null, quantity, manualValue, nowIso(), name);
+    .run(assetType, priceSource, symbol || null, roundUnits(quantity), manualValue, nowIso(), name);
 }
 
 /** Hide a fully-sold holding from the active list without losing its transaction or
@@ -654,7 +678,7 @@ export function setTransactionQuantity(
   if (addToHoldings) {
     const inst = getInstrument(tx.instrument);
     if (inst && inst.quantity != null)
-      db.prepare("UPDATE instruments SET quantity = quantity + ?, updated_at=? WHERE name=?")
+      db.prepare(`UPDATE instruments SET quantity = ROUND(quantity + ?, ${UNIT_DP}), updated_at=? WHERE name=?`)
         .run(quantity, nowIso(), tx.instrument);
   }
   return true;

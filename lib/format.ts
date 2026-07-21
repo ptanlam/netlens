@@ -13,6 +13,14 @@ export function groupDigits(raw: string): string {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+/** A holding's unit count. Never interpolate `quantity` straight into a template: it's a
+ *  running total in doubles, so a value that should read 1264,35 can carry representation
+ *  noise out to 17 significant digits. Trailing zeros are dropped, so whole share counts
+ *  still read "2.000" rather than "2.000,00000000". */
+export function fmtUnits(v: number): string {
+  return v.toLocaleString("de-DE", { maximumFractionDigits: 8 });
+}
+
 /** Axis-style short form: 40tr = 40 million VND. */
 export function fmtTr(v: number): string {
   if (v === 0) return "0";
