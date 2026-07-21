@@ -119,10 +119,15 @@ export function NetWorthPanel({
                 {flash.dir === "up" ? "▲" : "▼"}
               </span>
             )}
+          </div>
+          {/* The day's move sits under the figure rather than beside it: alongside, it had
+              to bottom-align against a number whose size is fluid (clamp), so the two never
+              quite sat right, and on a narrow card it wrapped to its own line anyway. */}
+          <div className="mt-4 flex flex-wrap items-center gap-x-3.5 gap-y-2">
             {todayDelta != null && todayDelta !== 0 && (
               <span
                 className={cn(
-                  "mb-3 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold tabular-nums",
+                  "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold tabular-nums",
                   todayDelta < 0
                     ? "bg-negative-wash text-(--chart-negative)"
                     : "bg-accent text-accent-brand",
@@ -132,11 +137,11 @@ export function NetWorthPanel({
                 {fmtVND(Math.abs(todayDelta)).replace("-", "")}
               </span>
             )}
-          </div>
-          <div className="mt-4 text-[13.5px] text-muted-foreground">
-            {hasFunds
-              ? "Investments + Savings + Set aside − Debts"
-              : "Investments + Savings − Debts"}
+            <span className="text-[13.5px] text-muted-foreground">
+              {hasFunds
+                ? "Investments + Savings + Set aside − Debts"
+                : "Investments + Savings − Debts"}
+            </span>
           </div>
         </div>
 

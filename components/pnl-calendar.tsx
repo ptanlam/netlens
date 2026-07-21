@@ -43,6 +43,37 @@ function StatusLegend() {
   );
 }
 
+/**
+ * Four discrete steps instead of a continuous alpha. At year-view cell size a smooth ramp
+ * is unreadable — neighbouring days differ by a couple of percent of opacity — and stepping
+ * it is also what makes a legend possible: four swatches you can actually match a cell to.
+ */
+const LEVEL_ALPHA = [0.2, 0.42, 0.66, 0.92];
+const intensityLevel = (ratio: number) =>
+  ratio <= 0.25 ? 0 : ratio <= 0.5 ? 1 : ratio <= 0.75 ? 2 : 3;
+
+/**
+ * The year grid's colour key. A heatmap whose shades aren't quantified is decoration, and
+ * the year view is the one place a cell carries no number of its own — so the ramp has to
+ * be spelled out: loss deepening leftward, gain deepening rightward, off a neutral middle.
+ */
+function RampLegend() {
+  const swatch = "size-[11px] rounded-[3px]";
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-3.5 font-mono text-[10px] text-muted-foreground">
+      <span>More loss</span>
+      {[...LEVEL_ALPHA].reverse().map((a) => (
+        <span key={`l${a}`} className={swatch} style={{ background: `rgb(var(--negative-rgb) / ${a})` }} />
+      ))}
+      <span className={swatch} style={{ background: "var(--divider)" }} title="No change" />
+      {LEVEL_ALPHA.map((a) => (
+        <span key={`g${a}`} className={swatch} style={{ background: `rgb(var(--positive-rgb) / ${a})` }} />
+      ))}
+      <span>More gain</span>
+    </div>
+  );
+}
+
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** Width at which a second month fits without the cells getting cramped. */
@@ -355,6 +386,32 @@ export function PnlCalendar({
     return { background: `rgb(${hue} / ${alpha})`, border };
   }
 
+  /**
+   * Year-view colour scale, anchored to the 90th percentile of the year's absolute moves
+   * rather than its maximum. Over 365 days one crash or one spike is usually several times
+   * the typical day, and dividing by that outlier pins every ordinary day to the bottom of
+   * the ramp — which is exactly why the year read as one flat wash. Anything at or past the
+   * p90 clamps to full strength; losing the top-end gradation costs nothing, because those
+   * days are already the darkest thing on screen.
+   */
+  const yearScale = React.useMemo(() => {
+    const mags = yearCells
+      .filter((c): c is DayCell => !!c?.tracked)
+      .map((c) => Math.abs(c.delta))
+      .sort((a, b) => a - b);
+    if (!mags.length) return 1;
+    return mags[Math.min(mags.length - 1, Math.floor(mags.length * 0.9))] || 1;
+  }, [yearCells]);
+
+  function yearCellStyle(c: DayCell): React.CSSProperties {
+    // Untracked days recede rather than reading as empty boxes: at this size a 1px border
+    // on a faint fill is most of the cell, so the whole year looked like graph paper.
+    if (!c.tracked) return { background: "var(--divider)" };
+    const level = intensityLevel(Math.abs(c.delta) / yearScale);
+    const hue = c.delta >= 0 ? "var(--positive-rgb)" : "var(--negative-rgb)";
+    return { background: `rgb(${hue} / ${LEVEL_ALPHA[level]})` };
+  }
+
   return (
     <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
@@ -453,55 +510,72 @@ export function PnlCalendar({
             // A year is 53 weeks: too many for a 7-wide grid, so weeks run as columns and
             // weekdays as rows. Cells carry no text at this size — the colour is the datum
             // and the title gives the number.
+            //
+            // Columns are fractional rather than a fixed 14px, so the grid grows into the
+            // card instead of stranding a small block against a wide empty right-hand side.
+            // The cap stops a 1600px viewport from inflating the cells into chunky tiles,
+            // and the floor makes it scroll on a phone rather than shrink to specks.
             <div className="overflow-x-auto">
-              <div className="flex min-w-max gap-1.5">
-                <div className="mt-[18px] grid grid-rows-7 gap-[3px]">
-                  {WEEKDAYS.map((w, i) => (
-                    <div
-                      key={w}
-                      className="flex h-[14px] items-center font-mono text-[9px] text-faint"
+              <div className="mx-auto min-w-[720px] max-w-[1120px]">
+                {/* Offset by the weekday gutter (w-7) plus its gap (gap-2), so a month label
+                    sits over the week column its month actually starts in. */}
+                <div
+                  className="mb-1.5 ml-9 grid gap-[3px]"
+                  style={{ gridTemplateColumns: `repeat(${yearCells.length / 7}, minmax(0,1fr))` }}
+                >
+                  {monthStarts.map((m) => (
+                    <span
+                      key={m.label}
+                      className="font-mono text-[9.5px] leading-none whitespace-nowrap text-faint"
+                      style={{ gridColumnStart: m.week + 1, gridColumnEnd: "span 4" }}
                     >
-                      {i % 2 === 0 ? w : ""}
-                    </div>
+                      {m.label}
+                    </span>
                   ))}
                 </div>
-                <div>
-                  <div
-                    className="mb-1 grid gap-[3px]"
-                    style={{ gridTemplateColumns: `repeat(${yearCells.length / 7}, 14px)` }}
-                  >
-                    {monthStarts.map((m) => (
-                      <span
-                        key={m.label}
-                        className="font-mono text-[9px] whitespace-nowrap text-faint"
-                        style={{ gridColumnStart: m.week + 1 }}
-                      >
-                        {m.label}
-                      </span>
+                {/* The weekday gutter and the grid are siblings in this row and nothing
+                    else, so the gutter stretches to exactly the grid's height and its seven
+                    equal rows line up with the seven rows of cells. */}
+                <div className="flex gap-2">
+                  <div className="grid w-7 shrink-0 grid-rows-7 gap-[3px]">
+                    {WEEKDAYS.map((w, i) => (
+                      <div key={w} className="flex items-center font-mono text-[9px] leading-none text-faint">
+                        {i % 2 === 0 ? w : ""}
+                      </div>
                     ))}
                   </div>
-                  <div className="grid grid-flow-col grid-rows-7 gap-[3px]" style={{ gridAutoColumns: "14px" }}>
+                  <div
+                    className="grid min-w-0 flex-1 grid-flow-col grid-rows-7 gap-[3px]"
+                    style={{ gridAutoColumns: "minmax(0,1fr)" }}
+                  >
                     {yearCells.map((c, i) =>
                       !c ? (
-                        <div key={i} className="size-[14px]" />
+                        <div key={i} className="aspect-square" />
                       ) : (
                         <div
                           key={i}
                           onClick={c.tracked ? () => setSelected(c.date) : undefined}
-                          style={cellStyle(c)}
+                          style={yearCellStyle(c)}
                           title={`${c.date} · ${c.tracked ? fmtSigned(c.delta) : "no change"}${
                             c.point.status === "live" ? " · in-progress" : c.point.status === "partial" ? " · partial" : ""
                           }`}
                           className={cn(
-                            "size-[14px] rounded-[3px]",
+                            "aspect-square rounded-[3px]",
                             c.tracked && "cursor-pointer",
-                            c.point.status === "live" && "animate-pulse ring-1 ring-accent-brand",
-                            c.point.status === "partial" && "ring-1 ring-warning/60",
+                            // The selected day has to win over the status rings below it.
+                            c.date === selDate
+                              ? "ring-2 ring-foreground"
+                              : c.point.status === "live"
+                                ? "animate-pulse ring-1 ring-accent-brand"
+                                : c.point.status === "partial" && "ring-1 ring-warning/60",
                           )}
                         />
                       ),
                     )}
                   </div>
+                </div>
+                <div className="ml-9">
+                  <RampLegend />
                 </div>
               </div>
             </div>
