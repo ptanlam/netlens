@@ -111,29 +111,6 @@ export function DashboardCharts({
 
   const pnlPct = payload.investedTotal ? (payload.pnl / payload.investedTotal) * 100 : 0;
 
-  // Activity (YTD) figures from contributions.
-  const activity = React.useMemo(() => {
-    const now = new Date(payload.generated);
-    const year = now.getFullYear();
-    const ytd = payload.contributions.filter((c) => c.date.slice(0, 4) === String(year));
-    const total = ytd.reduce((a, c) => a + c.amount, 0);
-    const byMonth = new Map<number, number>();
-    for (const c of ytd) {
-      const m = Number(c.date.slice(5, 7));
-      byMonth.set(m, (byMonth.get(m) ?? 0) + c.amount);
-    }
-    const thisYear = year === new Date().getFullYear();
-    const monthsElapsed = thisYear ? new Date().getMonth() + 1 : 12;
-    let best: { m: number; v: number } | null = null;
-    for (const [m, v] of byMonth) if (!best || v > best.v) best = { m, v };
-    return {
-      ytd,
-      total,
-      avg: total / Math.max(1, monthsElapsed),
-      bestLabel: best ? `${MONTHS[best.m - 1]} · ${fmtVND(best.v)}` : "—",
-    };
-  }, [payload]);
-
   // No "Portfolio value" tile here, unlike the Investments page: the hero's rail already
   // carries that exact figure as its Investments row, directly above this strip.
   const kpis: Stat[] = [
@@ -184,13 +161,6 @@ export function DashboardCharts({
         </Link>
       )}
 
-      {/* Activity cards */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <ActivityCard label="Invested YTD" value={fmtVND(activity.total)} />
-        <ActivityCard label="Monthly average" value={fmtVND(activity.avg)} />
-        <ActivityCard label="Best month" value={activity.bestLabel} />
-      </div>
-
       <PortfolioChart series={series} error={seriesError} />
 
       {/* Current portfolio */}
@@ -209,15 +179,6 @@ export function DashboardCharts({
       <PnlByHoldingCard payload={payload} />
 
       <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
-    </div>
-  );
-}
-
-function ActivityCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="card-surface px-5 py-4">
-      <div className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">{label}</div>
-      <div className="mt-[5px] font-mono text-[17px] tabular-nums">{value}</div>
     </div>
   );
 }
