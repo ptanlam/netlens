@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { Tx } from "@/lib/types";
+import { useElementWidth } from "@/hooks/use-element-width";
 import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
 import { TxRowActions } from "@/components/tx-row-actions";
 import type { InstrumentOption } from "@/components/tx-form";
@@ -294,7 +295,12 @@ interface CumPoint {
 
 function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: string }) {
   const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
-  const W = 1000;
+  // Drawn in real pixels rather than a fixed viewBox stretched to fit: with x and y scaled
+  // by different factors, every step in the line was smeared sideways and rendered heavier
+  // than the flat runs, which read as the flats being thinner. 1:1 units fix that — and it
+  // makes `vector-effect: non-scaling-stroke` unnecessary, since nothing is scaled.
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const W = useElementWidth(boxRef);
   const H = 150;
   const rows = txs.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
   const d0 = new Date(from).getTime();
@@ -316,7 +322,7 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
   const area = line + "L" + W + " " + H + " L 0 " + H + " Z";
 
   const hi = hoverIdx != null && pts[hoverIdx] ? hoverIdx : null;
-  const tipLeft = hi != null ? Math.max(8, Math.min(92, (X(pts[hi].x) / W) * 100)) : 0;
+  const tipLeft = hi != null ? Math.max(8, Math.min(92, pts[hi].x * 100)) : 0;
 
   function onMove(e: React.MouseEvent) {
     const r = e.currentTarget.getBoundingClientRect();
@@ -332,13 +338,17 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
 
   return (
     <div className="relative">
-      <div className="relative ml-[52px] h-[150px]">
-        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 block h-full w-full">
-          <line x1={0} x2={W} y1={H - 1} y2={H - 1} stroke="var(--grid)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          <path className="animate-fade-in" d={area} fill="rgb(var(--gold-rgb) / 0.15)" />
-          <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke="var(--chart-gold)" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      <div ref={boxRef} className="relative ml-[52px] h-[150px]">
+        {/* Nothing to draw until the width is measured — one frame, and the line fades in
+            anyway. */}
+        <svg width={W} height={H} className="absolute inset-0 block h-full w-full">
+          <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} stroke="var(--grid)" strokeWidth={1} />
+          {W > 0 && <path className="animate-fade-in" d={area} fill="rgb(var(--gold-rgb) / 0.15)" />}
+          {W > 0 && (
+            <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke="var(--chart-gold)" strokeWidth={2} strokeLinejoin="round" />
+          )}
           {hi != null && (
-            <line x1={X(pts[hi].x)} x2={X(pts[hi].x)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
+            <line x1={X(pts[hi].x)} x2={X(pts[hi].x)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" opacity={0.4} />
           )}
           <rect x={0} y={0} width={W} height={H} fill="transparent" style={{ cursor: "crosshair" }} onMouseMove={onMove} onMouseLeave={() => setHoverIdx(null)} />
         </svg>
@@ -347,7 +357,7 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
         {hi != null && (
           <div
             className="pointer-events-none absolute z-10 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
-            style={{ left: `${(X(pts[hi].x) / W) * 100}%`, top: `${(Y(pts[hi].v) / H) * 100}%`, borderColor: "var(--chart-gold)", background: "var(--card)" }}
+            style={{ left: `${pts[hi].x * 100}%`, top: `${(Y(pts[hi].v) / H) * 100}%`, borderColor: "var(--chart-gold)", background: "var(--card)" }}
           />
         )}
         {hi != null && (
