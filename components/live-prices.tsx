@@ -96,48 +96,80 @@ export function usePriceRefreshCount() {
   );
 }
 
+/** Is a refresh in flight? A module-level flag, not component state: both refresh
+ *  buttons should spin for the same fetch, and `run` is called straight out of an effect
+ *  on open — where a setState would trip the React Compiler's `set-state-in-effect` rule. */
+let busy = false;
+const busyListeners = new Set<() => void>();
+
+function subscribeBusy(cb: () => void) {
+  busyListeners.add(cb);
+  return () => {
+    busyListeners.delete(cb);
+  };
+}
+
+function setBusy(v: boolean) {
+  busy = v;
+  for (const cb of busyListeners) cb();
+}
+
 /** Shared refresh logic. `silent` suppresses the success toast so a live refresh every
  *  minute doesn't spam — failures still surface. */
 function useRefreshPrices() {
-  const [pending, startTransition] = React.useTransition();
+  const [, startTransition] = React.useTransition();
+  const pending = React.useSyncExternalStore(
+    subscribeBusy,
+    () => busy,
+    () => false,
+  );
   const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
   const inFlight = React.useRef(false);
   const router = useRouter();
 
   const run = React.useCallback(
-    (silent = false) => {
+    async (silent = false) => {
       if (inFlight.current) return; // never stack requests
       inFlight.current = true;
-      startTransition(async () => {
-        try {
-          // A hand-triggered refresh also pulls recent history, so a fund's just-published
-          // NAV lands now rather than whenever the 12h backfill next runs; the silent
-          // every-tick refresh stays live-prices-only.
-          const res = await refreshPrices(!silent);
-          writeLastRun();
-          // Every server-rendered stat (KPIs, allocation, P&L by holding, net worth) is
-          // computed from the DB at render time, so re-render the tree to pick up the
-          // prices we just wrote. The action's revalidatePath alone leaves the client
-          // sitting on the tree it already has.
+      setBusy(true);
+      try {
+        // Awaited OUTSIDE the transition, deliberately. React holds a transition open for
+        // as long as its callback is running, and Next's router navigations are themselves
+        // transitions — so awaiting a 3-6s price fetch in here made every nav click sit
+        // dead until the prices came back. The main thread was idle the whole time; it
+        // just looked frozen.
+        //
+        // A hand-triggered refresh also pulls recent history, so a fund's just-published
+        // NAV lands now rather than whenever the 12h backfill next runs; the silent
+        // every-tick refresh stays live-prices-only.
+        const res = await refreshPrices(!silent);
+        writeLastRun();
+        // Every server-rendered stat (KPIs, allocation, P&L by holding, net worth) is
+        // computed from the DB at render time, so re-render the tree to pick up the
+        // prices we just wrote. The action's revalidatePath alone leaves the client
+        // sitting on the tree it already has. This one *is* a transition: it's a
+        // background update, and it must never block what the reader is doing.
+        startTransition(() => {
           router.refresh();
-          refreshCount += 1;
-          for (const cb of refreshListeners) cb();
-          if (res.ok) {
-            setLastUpdated(new Date());
-            if (!silent) toast.success(res.message);
-          } else {
-            // Failures always go to the console as an error log — including silent
-            // auto-refreshes, which show no toast panel. A manual refresh also gets a toast.
-            console.error(
-              `[price-refresh] ${res.message}` +
-                (res.errors.length ? `\n  - ${res.errors.join("\n  - ")}` : ""),
-            );
-            if (!silent) toast.warning(res.message);
-          }
-        } finally {
-          inFlight.current = false;
+        });
+        refreshCount += 1;
+        for (const cb of refreshListeners) cb();
+        if (res.ok) {
+          setLastUpdated(new Date());
+          if (!silent) toast.success(res.message);
+        } else {
+          // Failures always go to the console as an error log — including silent
+          // auto-refreshes, which show no toast panel. A manual refresh also gets a toast.
+          console.error(
+            `[price-refresh] ${res.message}` +
+              (res.errors.length ? `\n  - ${res.errors.join("\n  - ")}` : ""),
+          );
+          if (!silent) toast.warning(res.message);
         }
-      });
+      } finally {
+        inFlight.current = false;
+        setBusy(false);
+      }
     },
     [startTransition, router],
   );
@@ -191,7 +223,7 @@ export function LivePrices() {
     // pull on every single visit, exactly what this check exists to prevent.
     const armed = readInterval();
     if (armed && !overdue(armed)) return;
-    run(true);
+    void run(true);
   }, [run]);
 
   // While live is armed, silently re-pull on the chosen interval. The first delay is
@@ -202,7 +234,7 @@ export function LivePrices() {
     let id: ReturnType<typeof setTimeout>;
     const tick = () => {
       // Don't poll a background tab; the visibility handler below catches up on return.
-      if (!document.hidden) run(true);
+      if (!document.hidden) void run(true);
       id = setTimeout(tick, intervalMs);
     };
     id = setTimeout(tick, Math.max(0, intervalMs - (Date.now() - readLastRun())));
@@ -214,7 +246,7 @@ export function LivePrices() {
     if (!intervalMs) return;
     const onVisible = () => {
       if (document.hidden) return;
-      if (overdue(intervalMs)) run(true);
+      if (overdue(intervalMs)) void run(true);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
@@ -222,7 +254,7 @@ export function LivePrices() {
 
   const onIntervalChange = (ms: number) => {
     writeInterval(ms);
-    if (ms) run(true); // refresh straight away so the choice visibly does something
+    if (ms) void run(true); // refresh straight away so the choice visibly does something
   };
 
   const p2 = (n: number) => String(n).padStart(2, "0");
