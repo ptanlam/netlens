@@ -11,6 +11,31 @@ import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "pf.auto-refresh-ms";
 
+/** When prices were last pulled, in localStorage rather than a ref: a reload — or a second
+ *  tab — has to know that live refresh already fetched a moment ago, or every visit pays
+ *  for prices it was about to get anyway. */
+const LAST_RUN_KEY = "pf.prices-last-run";
+
+function readLastRun() {
+  const t = Number(window.localStorage.getItem(LAST_RUN_KEY));
+  // A clock change (or a hand-edited value) can leave a timestamp in the future; treat
+  // anything that isn't a sane past instant as "never pulled".
+  return Number.isFinite(t) && t > 0 && t <= Date.now() ? t : 0;
+}
+
+function writeLastRun() {
+  try {
+    window.localStorage.setItem(LAST_RUN_KEY, String(Date.now()));
+  } catch {
+    // Private mode / storage disabled: we just lose the cross-reload memory.
+  }
+}
+
+/** Have prices gone unfetched for longer than the armed interval? */
+function overdue(intervalMs: number) {
+  return Date.now() - readLastRun() >= intervalMs;
+}
+
 /** Live refresh hits CoinGecko / Yahoo / fmarket on every tick. 5s is the fastest — handy
  *  for watching crypto move in near-real-time, but it leans on the free-tier limits, so the
  *  slower steps stay the sensible default for leaving a tab open all day. */
@@ -77,7 +102,6 @@ function useRefreshPrices() {
   const [pending, startTransition] = React.useTransition();
   const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
   const inFlight = React.useRef(false);
-  const lastRun = React.useRef(0);
   const router = useRouter();
 
   const run = React.useCallback(
@@ -90,7 +114,7 @@ function useRefreshPrices() {
           // NAV lands now rather than whenever the 12h backfill next runs; the silent
           // every-tick refresh stays live-prices-only.
           const res = await refreshPrices(!silent);
-          lastRun.current = Date.now();
+          writeLastRun();
           // Every server-rendered stat (KPIs, allocation, P&L by holding, net worth) is
           // computed from the DB at render time, so re-render the tree to pick up the
           // prices we just wrote. The action's revalidatePath alone leaves the client
@@ -118,11 +142,12 @@ function useRefreshPrices() {
     [startTransition, router],
   );
 
-  return { pending, run, lastUpdated, lastRun };
+  return { pending, run, lastUpdated };
 }
 
-/** Prices are pulled once when the app opens. Module-level (not a ref) so React's
- *  double-mount in dev — or a client-side nav that remounts the nav — can't re-fire it. */
+/** The open-time pull is considered once per page load. Module-level (not a ref) so
+ *  React's double-mount in dev — or a client-side nav that remounts the nav — can't
+ *  re-fire it. */
 let refreshedOnOpen = false;
 
 export function RefreshPricesButton() {
@@ -139,7 +164,7 @@ export function RefreshPricesButton() {
  *  and a manual refresh. This is the single place prices are polled from — mounted once
  *  in the nav, it covers every page. */
 export function LivePrices() {
-  const { pending, run, lastRun } = useRefreshPrices();
+  const { pending, run } = useRefreshPrices();
   const intervalMs = React.useSyncExternalStore(subscribeInterval, readInterval, () => 0);
   const live = intervalMs > 0;
 
@@ -154,21 +179,34 @@ export function LivePrices() {
     };
   }, []);
 
-  // Fresh prices the moment the app opens, without a toast.
+  // Fresh prices when the app opens — but with live refresh armed they're already being
+  // kept current, so a reload, a second tab, or dipping back into the PWA shouldn't spend
+  // an API call on prices pulled seconds ago. Only the interval's own overdue rule decides.
   React.useEffect(() => {
     if (refreshedOnOpen) return;
     refreshedOnOpen = true;
+    // Read the armed interval from storage rather than taking `intervalMs` from the
+    // render: this effect fires after the *hydration* pass, where useSyncExternalStore
+    // still reports the server snapshot (0 / off) — which would read as "not armed" and
+    // pull on every single visit, exactly what this check exists to prevent.
+    const armed = readInterval();
+    if (armed && !overdue(armed)) return;
     run(true);
   }, [run]);
 
-  // While live is armed, silently re-pull on the chosen interval.
+  // While live is armed, silently re-pull on the chosen interval. The first delay is
+  // whatever is *left* of the current period rather than a full one — otherwise skipping
+  // the pull above would stretch the gap across a reload to nearly two intervals.
   React.useEffect(() => {
     if (!intervalMs) return;
-    const id = setInterval(() => {
-      if (document.hidden) return; // don't poll a background tab
-      run(true);
-    }, intervalMs);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      // Don't poll a background tab; the visibility handler below catches up on return.
+      if (!document.hidden) run(true);
+      id = setTimeout(tick, intervalMs);
+    };
+    id = setTimeout(tick, Math.max(0, intervalMs - (Date.now() - readLastRun())));
+    return () => clearTimeout(id);
   }, [intervalMs, run]);
 
   // A hidden tab skips its ticks; refresh on return if we're already overdue.
@@ -176,11 +214,11 @@ export function LivePrices() {
     if (!intervalMs) return;
     const onVisible = () => {
       if (document.hidden) return;
-      if (Date.now() - lastRun.current >= intervalMs) run(true);
+      if (overdue(intervalMs)) run(true);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [intervalMs, run, lastRun]);
+  }, [intervalMs, run]);
 
   const onIntervalChange = (ms: number) => {
     writeInterval(ms);

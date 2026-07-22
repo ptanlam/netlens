@@ -96,6 +96,7 @@ export function NetWorthPanel({
           <div className="mt-3.5 flex flex-wrap items-end gap-4">
             <div
               key={flash?.n ?? "static"}
+              data-hero-number
               onAnimationEnd={() => setFlash(null)}
               className={cn(
                 "font-mono text-[clamp(2.75rem,7vw,4.75rem)] leading-[0.92] font-semibold tracking-[-0.03em] text-foreground tabular-nums will-change-transform",
