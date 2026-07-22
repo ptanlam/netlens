@@ -445,3 +445,118 @@
     animation: nw-flash-down 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
+/* ---------- side rail ----------
+   Ported from the design file "Netlens Dashboard.dc.html": a 244px rail (74px collapsed)
+   on the card surface, full-bleed nav rows with a 12px radius, and a foot holding
+   Settings and sign-out. The design keeps its sticky header in this mode too, carrying
+   only the price cluster — so the rail is a *sibling* of the header, not a reflow of it.
+
+   It's revealed by CSS on `html[data-nav]` rather than by a client branch: the preference
+   is stamped before first paint (`lib/nav-layout.ts`), and never touching the markup is
+   what makes that free of a hydration mismatch. The design turns the rail off below
+   720px, where the drawer takes over. */
+[data-side-rail],
+[data-header-title] {
+  display: none;
+}
+
+@media (min-width: 720px) {
+  html[data-nav="side"] {
+    --nav-rail: 244px;
+  }
+  html[data-nav="side"][data-nav-collapsed] {
+    --nav-rail: 74px;
+  }
+
+  /* Fixed rather than the design's sticky column: the rail is a sibling of <main>, not
+     its flex partner, so the page is inset by hand instead. Same result — a rail that
+     spans the viewport and never scrolls away. */
+  html[data-nav="side"] body {
+    padding-left: calc(var(--nav-rail) + env(safe-area-inset-left));
+  }
+  html[data-nav="side"] [data-side-rail] {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 41;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: calc(var(--nav-rail) + env(safe-area-inset-left));
+    padding: calc(22px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom))
+      max(18px, env(safe-area-inset-left));
+    border-right: 1px solid var(--border);
+    background: var(--card);
+    transition: width 0.18s ease;
+  }
+  html[data-nav="side"][data-nav-collapsed] [data-side-rail] {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: 12px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html[data-nav="side"] [data-side-rail] {
+      transition: none;
+    }
+  }
+
+  html[data-nav="side"] [data-rail-brand] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 6px 18px 10px;
+  }
+  html[data-nav="side"] [data-rail-nav] {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 5px;
+  }
+  html[data-nav="side"] [data-rail-foot] {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  /* Collapsed: icons only, centred, and the chevron flips to point back out. */
+  html[data-nav="side"][data-nav-collapsed] [data-rail-label] {
+    display: none;
+  }
+  html[data-nav="side"][data-nav-collapsed] [data-rail-brand] {
+    flex-direction: column;
+    gap: 14px;
+    padding: 6px 0 18px;
+  }
+  html[data-nav="side"][data-nav-collapsed] [data-rail-nav] a,
+  html[data-nav="side"][data-nav-collapsed] [data-rail-foot] a {
+    justify-content: center;
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  html[data-nav="side"][data-nav-collapsed] [data-rail-chevron] {
+    transform: rotate(180deg);
+  }
+
+  /* With the rail on, the header keeps only the price controls — the links, wordmark and
+     icon cluster all live in the rail, and the drawer has nothing left to open. */
+  html[data-nav="side"] [data-nav-brand],
+  html[data-nav="side"] [data-nav-icons] {
+    display: none;
+  }
+  /* The echo of the page heading (see components/page-title.tsx) only earns its place
+     here: the top bar names the page in its own nav pills already. With the brand group
+     hidden, space-between leaves the title left and the price controls right. */
+  html[data-nav="side"] [data-header-title] {
+    display: block;
+  }
+
+  /* The rail eats 244px of the content column, so the net-worth figure is sized down to
+     match — the design keeps it on one line rather than letting it wrap. */
+  html[data-nav="side"] [data-hero-number] {
+    font-size: clamp(1.5rem, 3.2vw, 2.75rem);
+    white-space: nowrap;
+  }
+}
+

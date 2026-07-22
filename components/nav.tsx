@@ -5,14 +5,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
-  Menu, LogOut, Settings,
+  Menu, LogOut, Settings, ChevronsLeft,
   LayoutDashboard, TrendingUp, PiggyBank, CreditCard, Target,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { LivePrices } from '@/components/live-prices';
+import { HeaderPageTitle } from '@/components/header-page-title';
 import { logout } from '@/app/actions';
+import { toggleNavCollapsed } from '@/lib/nav-layout';
 import { cn } from '@/lib/utils';
 
 // Settings isn't here: it's the gear in the right-hand cluster (and a row in the drawer,
@@ -146,7 +148,7 @@ function DesktopNav({ pathname }: { pathname: string }) {
   }, [pathname]);
 
   return (
-    <nav ref={navRef} className='relative hidden items-center gap-0.5 lg:flex'>
+    <nav ref={navRef} data-desktop-nav className='relative hidden items-center gap-0.5 lg:flex'>
       {/* Animates `left`/`width`, not `transform`: a transformed layer whose width changes
           doesn't reliably re-rasterize, so the pill paints at its stale width. The nav is
           five items — laying them out is cheap, and it always paints what it measured. */}
@@ -285,43 +287,132 @@ function LogoutButton() {
   );
 }
 
+/** One row of the side rail: same shape for the five sections and for Settings. The label
+ *  is a sibling of the icon rather than plain text so the collapsed rail can drop it in
+ *  CSS — collapsing must not change the markup, or it couldn't be applied before paint. */
+function RailLink({
+  href,
+  label,
+  icon: Icon,
+  pathname,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  pathname: string;
+}) {
+  return (
+    <Link
+      href={href}
+      data-active={isActive(pathname, href)}
+      title={label}
+      className='flex items-center gap-3 rounded-xl border border-transparent px-3.5 py-2.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-brand-soft data-[active=true]:text-foreground'
+    >
+      <Icon className='size-[17px] shrink-0' />
+      <span data-rail-label className='min-w-0 truncate'>{label}</span>
+    </Link>
+  );
+}
+
+/**
+ * The side rail from the design file. It's rendered on every page and revealed by CSS
+ * (`html[data-nav="side"]`) rather than by a client branch: the preference is applied
+ * before paint, and keeping the markup constant is what lets that work without a
+ * hydration mismatch. It costs a handful of static links — the price poller stays in the
+ * header, mounted once.
+ */
+function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: boolean }) {
+  return (
+    <aside data-side-rail>
+      <div data-rail-brand>
+        <Link href='/' className='flex min-w-0 items-center gap-2.5 text-foreground' aria-label='Netlens — home'>
+          <span className='size-[15px] shrink-0 rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
+          <span data-rail-label className='truncate text-[18px] font-bold tracking-[-0.01em]'>Netlens</span>
+        </Link>
+        <button
+          type='button'
+          onClick={toggleNavCollapsed}
+          aria-label='Toggle sidebar width'
+          title='Toggle sidebar width'
+          className='grid size-[30px] shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground transition-colors hover:border-brand hover:text-foreground'
+        >
+          {/* Points the other way when collapsed — a CSS rotation, so the button doesn't
+              have to know the state React can't see on the server. */}
+          <ChevronsLeft data-rail-chevron className='size-4' />
+        </button>
+      </div>
+
+      <nav data-rail-nav>
+        {LINKS.map((l) => (
+          <RailLink key={l.href} href={l.href} label={l.label} icon={l.icon} pathname={pathname} />
+        ))}
+      </nav>
+
+      <div data-rail-foot>
+        <RailLink href='/settings' label='Settings' icon={Settings} pathname={pathname} />
+        {authEnabled && (
+          <form action={logout} data-rail-signout>
+            <button
+              type='submit'
+              aria-label='Sign out'
+              title='Sign out'
+              className='grid h-[38px] w-full place-items-center rounded-[11px] border border-border text-muted-foreground transition-colors hover:border-destructive hover:text-destructive'
+            >
+              <LogOut className='size-4' />
+            </button>
+          </form>
+        )}
+      </div>
+    </aside>
+  );
+}
+
 export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   const pathname = usePathname();
   if (pathname === '/login') return null;
   return (
-    <header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
-      {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
-          than the content beneath it. The left/right padding also clears the safe areas:
-          the iPhone notch in landscape and, on iPadOS 26, the window-control traffic
-          lights overlaid on the top-left of a windowed/split web app — without this they
-          sit on top of the drawer's hamburger. */}
-      <div className='mx-auto flex h-[64px] w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
-        {/* The pills only clear the price controls from ~1024px up; below that they
-            collide with them, so the drawer holds the links until lg. */}
-        <div className='flex min-w-0 items-center gap-3 lg:gap-7'>
-          <div className='lg:hidden'>
-            <MobileNav pathname={pathname} />
+    <>
+      <SideRail pathname={pathname} authEnabled={authEnabled} />
+      <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
+        {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
+            than the content beneath it. The left/right padding also clears the safe areas:
+            the iPhone notch in landscape and, on iPadOS 26, the window-control traffic
+            lights overlaid on the top-left of a windowed/split web app — without this they
+            sit on top of the drawer's hamburger. */}
+        <div data-app-header-inner className='mx-auto flex h-[64px] w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+          {/* The pills only clear the price controls from ~1024px up; below that they
+              collide with them, so the drawer holds the links until lg. With the rail on,
+              this whole group is the rail's job and CSS hides it. */}
+          {/* display:none outside side-rail mode, so it never disturbs the top bar's own
+              spacing. */}
+          <HeaderPageTitle />
+          <div data-nav-brand className='flex min-w-0 items-center gap-3 lg:gap-7'>
+            <div className='lg:hidden'>
+              <MobileNav pathname={pathname} />
+            </div>
+            <Wordmark />
+            <DesktopNav pathname={pathname} />
           </div>
-          <Wordmark />
-          <DesktopNav pathname={pathname} />
+          <div className='flex shrink-0 items-center gap-2'>
+            <LivePrices />
+            <div data-nav-icons className='flex items-center gap-2'>
+              <IconTooltip label='Settings'>
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  aria-label='Settings'
+                  nativeButton={false}
+                  className='hidden rounded-full sm:inline-flex'
+                  render={<Link href='/settings' />}
+                >
+                  <Settings className='size-4' />
+                </Button>
+              </IconTooltip>
+              {authEnabled && <LogoutButton />}
+            </div>
+          </div>
         </div>
-        <div className='flex shrink-0 items-center gap-2'>
-          <LivePrices />
-          <IconTooltip label='Settings'>
-            <Button
-              variant='ghost'
-              size='icon'
-              aria-label='Settings'
-              nativeButton={false}
-              className='hidden rounded-full sm:inline-flex'
-              render={<Link href='/settings' />}
-            >
-              <Settings className='size-4' />
-            </Button>
-          </IconTooltip>
-          {authEnabled && <LogoutButton />}
-        </div>
-      </div>
-    </header>
+      </header>
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { Nav } from '@/components/nav';
 import { ThemeProvider } from '@/components/theme-provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SafeAreaDebug } from '@/components/safe-area-debug';
+import { NAV_LAYOUT_SCRIPT } from '@/lib/nav-layout';
 import './globals.css';
 
 // One face for everything that isn't a number, one for everything that is. Space Grotesk
@@ -54,6 +55,12 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${grotesk.variable} ${jetbrains.variable} h-full antialiased`}
     >
+      <head>
+        {/* Stamps the saved nav layout on <html> before first paint — the rail is pure CSS
+            keyed off `data-nav`, so without this it would flash in as a top bar on every
+            load. Same trick next-themes uses for the theme class. */}
+        <script dangerouslySetInnerHTML={{ __html: NAV_LAYOUT_SCRIPT }} />
+      </head>
       <body className='min-h-full flex flex-col'>
         <ThemeProvider>
           <TooltipProvider delay={200} closeDelay={0}>
