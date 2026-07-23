@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import type { Tx } from "@/lib/types";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
+import { DataTable } from "@/components/data-table";
 import { TxRowActions } from "@/components/tx-row-actions";
 import type { InstrumentOption } from "@/components/tx-form";
 import { cn } from "@/lib/utils";
@@ -44,7 +46,6 @@ export function InvestmentActivity({
   const [to, setTo] = React.useState(today);
   const [filterHolding, setFilterHolding] = React.useState("All");
   const [filterType, setFilterType] = React.useState("All");
-  const [page, setPage] = React.useState(0);
 
   const holdingNames = React.useMemo(
     () => Array.from(new Set(txs.map((t) => t.instrument))).sort(),
@@ -98,18 +99,99 @@ export function InvestmentActivity({
     null,
   );
 
+  const columns = React.useMemo<ColumnDef<Tx>[]>(
+    () => [
+      {
+        accessorKey: "date",
+        header: "Date",
+        size: 110,
+        cell: ({ row }) => (
+          <span className="font-mono text-[12px] text-muted-foreground tabular-nums">{row.original.date}</span>
+        ),
+      },
+      {
+        accessorKey: "instrument",
+        header: "Holding",
+        size: 250,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="size-2 shrink-0 rounded-[2px]" style={{ background: typeColor(row.original.asset_type) }} />
+            <span className="truncate font-mono text-[12.5px]">{row.original.instrument}</span>
+          </div>
+        ),
+      },
+      {
+        id: "type",
+        header: "Type",
+        size: 90,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const isBuy = row.original.amount >= 0;
+          return (
+            <span
+              className={cn(
+                "inline-block rounded-[5px] px-[7px] py-0.5 text-center font-mono text-[10px]",
+                isBuy ? "bg-divider-soft text-muted-foreground" : "bg-accent text-accent-brand",
+              )}
+            >
+              {isBuy ? "Buy" : "Sell"}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "quantity",
+        header: "Units",
+        size: 145,
+        meta: { align: "right" },
+        cell: ({ row }) => (
+          <span className="font-mono text-[12px] text-muted-foreground tabular-nums">
+            {row.original.quantity != null ? fmtUnits(row.original.quantity) : "—"}
+          </span>
+        ),
+      },
+      {
+        id: "price",
+        header: "Price",
+        size: 145,
+        accessorFn: (t) => (t.quantity ? t.amount / t.quantity : null),
+        meta: { align: "right" },
+        cell: ({ row }) => {
+          const t = row.original;
+          const price = t.quantity ? t.amount / t.quantity : null;
+          return (
+            <span className="font-mono text-[12px] text-muted-foreground tabular-nums">
+              {price != null ? Math.round(price).toLocaleString("de-DE") : "—"}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "amount",
+        header: "Amount",
+        size: 160,
+        meta: { align: "right" },
+        cell: ({ row }) => (
+          <span className="font-mono text-[12.5px] tabular-nums">{fmtVND(row.original.amount)}</span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        size: 72,
+        enableSorting: false,
+        cell: ({ row }) => <TxRowActions tx={row.original} instruments={options} />,
+      },
+    ],
+    [options],
+  );
+
   const presets: { label: string; from: string }[] = [
     { label: "1M", from: shiftMonths(today, -1) },
     { label: "3M", from: shiftMonths(today, -3) },
     { label: "YTD", from: `${year}-01-01` },
     { label: "All", from: minDate },
   ];
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const safePage = Math.min(page, totalPages - 1);
-  const pageRows = filtered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
-  const rowFirst = filtered.length ? safePage * PER_PAGE + 1 : 0;
-  const rowLast = Math.min(filtered.length, (safePage + 1) * PER_PAGE);
 
   // Fixed height, not padding: a <select> and a date field derive different intrinsic
   // heights from the same padding, and the row sits next to the range pills.
@@ -137,27 +219,27 @@ export function InvestmentActivity({
                 key={p.label}
                 type="button"
                 className={pill(from === p.from && to === today)}
-                onClick={() => { setFrom(p.from); setTo(today); setPage(0); }}
+                onClick={() => { setFrom(p.from); setTo(today); }}
               >
                 {p.label}
               </button>
             ))}
           </div>
           <div className="flex items-center gap-1.5">
-            <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(0); }} className={selectCls} />
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={selectCls} />
             <span className="text-faint">–</span>
-            <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(0); }} className={selectCls} />
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={selectCls} />
           </div>
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2.5">
         <span className="text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">Filter</span>
-        <select value={filterHolding} onChange={(e) => { setFilterHolding(e.target.value); setPage(0); }} className={selectCls}>
+        <select value={filterHolding} onChange={(e) => setFilterHolding(e.target.value)} className={selectCls}>
           <option value="All">All holdings</option>
           {holdingNames.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
-        <select value={filterType} onChange={(e) => { setFilterType(e.target.value); setPage(0); }} className={selectCls}>
+        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={selectCls}>
           <option value="All">All types</option>
           <option value="Buy">Buy</option>
           <option value="Sell">Sell</option>
@@ -200,74 +282,15 @@ export function InvestmentActivity({
       </div>
 
       {/* Transactions table */}
-      <div className="mt-6 overflow-x-auto border-t border-divider">
-        <div className="min-w-[720px]">
-          <div className="grid grid-cols-[88px_128px_58px_1fr_1fr_118px_56px] gap-3 py-3 text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">
-            <span>Date</span><span>Holding</span><span>Type</span>
-            <span className="text-right">Units</span><span className="text-right">Price</span>
-            <span className="text-right">Amount</span><span />
-          </div>
-          {/* Fixed-height body so a partial last page (or an empty range) keeps the
-              table the same size instead of collapsing. */}
-          <div className="h-[294px] overflow-y-hidden">
-            {pageRows.length === 0 ? (
-              <div className="border-t border-divider-soft py-8 text-center text-[13px] text-faint">
-                No transactions in this range.
-              </div>
-            ) : (
-              pageRows.map((t) => {
-                const isBuy = t.amount >= 0;
-                const price = t.quantity ? t.amount / t.quantity : null;
-                return (
-                  <div key={t.id} className="grid grid-cols-[88px_128px_58px_1fr_1fr_118px_56px] items-center gap-3 border-t border-divider-soft py-2.5">
-                    <span className="font-mono text-[12px] text-muted-foreground tabular-nums">{t.date}</span>
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <span className="size-2 shrink-0 rounded-[2px]" style={{ background: typeColor(t.asset_type) }} />
-                      <span className="truncate font-mono text-[12.5px]">{t.instrument}</span>
-                    </div>
-                    <span
-                      className={cn(
-                        "rounded-[5px] px-[7px] py-0.5 text-center font-mono text-[10px]",
-                        isBuy ? "bg-divider-soft text-muted-foreground" : "bg-accent text-accent-brand",
-                      )}
-                    >
-                      {isBuy ? "Buy" : "Sell"}
-                    </span>
-                    <span className="text-right font-mono text-[12px] text-muted-foreground tabular-nums">{t.quantity != null ? fmtUnits(t.quantity) : "—"}</span>
-                    <span className="text-right font-mono text-[12px] text-muted-foreground tabular-nums">{price != null ? Math.round(price).toLocaleString("de-DE") : "—"}</span>
-                    <span className="text-right font-mono text-[12.5px] tabular-nums">{fmtVND(t.amount)}</span>
-                    <TxRowActions tx={t} instruments={options} />
-                  </div>
-                );
-              })
-            )}
-          </div>
-          {filtered.length > 0 && (
-            <div className="mt-1.5 flex items-center justify-between border-t border-divider pt-3.5">
-              <span className="font-mono text-[11.5px] text-faint tabular-nums">
-                {rowFirst}–{rowLast} of {filtered.length}
-              </span>
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setPage(safePage - 1)}
-                  disabled={safePage === 0}
-                  className="rounded-md border border-input bg-card px-3 py-1.5 font-mono text-[11.5px] disabled:text-disabled-foreground"
-                >
-                  ‹ Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage(safePage + 1)}
-                  disabled={safePage >= totalPages - 1}
-                  className="rounded-md border border-input bg-card px-3 py-1.5 font-mono text-[11.5px] disabled:text-disabled-foreground"
-                >
-                  Next ›
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+      <div className="mt-6 border-t border-divider pt-4">
+        <DataTable
+          columns={columns}
+          data={filtered}
+          initialSorting={[{ id: "date", desc: true }]}
+          pageSize={PER_PAGE}
+          emptyMessage="No transactions in this range."
+          storageKey="activity"
+        />
       </div>
     </div>
   );

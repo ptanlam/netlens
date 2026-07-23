@@ -22,20 +22,24 @@ export function TransactionsTable({
       {
         accessorKey: "date",
         header: "Date",
+        size: 110,
         cell: ({ row }) => <span className="tabular-nums whitespace-nowrap">{row.original.date}</span>,
       },
       {
         accessorKey: "asset_type",
         header: "Type",
+        size: 100,
         cell: ({ row }) => <Badge variant="secondary">{row.original.asset_type}</Badge>,
       },
       {
         accessorKey: "instrument",
         header: "Instrument",
+        size: 200,
       },
       {
         accessorKey: "amount",
         header: "Amount",
+        size: 140,
         meta: { align: "right" },
         cell: ({ row }) => (
           <span className={cn("font-mono tabular-nums", row.original.amount < 0 && "text-(--chart-negative)")}>
@@ -46,6 +50,7 @@ export function TransactionsTable({
       {
         accessorKey: "quantity",
         header: "Quantity",
+        size: 130,
         meta: { align: "right" },
         cell: ({ row }) => (
           <span className="font-mono tabular-nums">{row.original.quantity != null ? fmtUnits(row.original.quantity) : "—"}</span>
@@ -55,6 +60,7 @@ export function TransactionsTable({
         accessorKey: "note",
         header: "Note",
         enableSorting: false,
+        size: 240,
         cell: ({ row }) => (
           <span className="block max-w-48 truncate text-muted-foreground">{row.original.note}</span>
         ),
@@ -63,6 +69,7 @@ export function TransactionsTable({
         id: "actions",
         header: "",
         enableSorting: false,
+        size: 110,
         cell: ({ row }) => <TxRowActions tx={row.original} instruments={instruments} />,
       },
     ],
@@ -76,6 +83,7 @@ export function TransactionsTable({
       initialSorting={[{ id: "date", desc: true }]}
       pageSize={20}
       emptyMessage="No transactions yet."
+      storageKey="transactions"
     />
   );
 }

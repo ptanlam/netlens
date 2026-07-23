@@ -392,6 +392,7 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "debt",
     header: "Debt",
     enableSorting: false,
+    size: 200,
     cell: ({ row }) => {
       const d = row.original.debt;
       return (
@@ -408,6 +409,7 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "rate",
     header: "Rate",
     accessorFn: (r) => r.debt.rate,
+    size: 90,
     meta: { align: "right" },
     cell: ({ row }) => <span className="font-mono tabular-nums">{row.original.debt.rate}%</span>,
   },
@@ -415,12 +417,14 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "kind",
     header: "Type",
     enableSorting: false,
+    size: 100,
     cell: ({ row }) => typeBadge(row.original.debt),
   },
   {
     id: "due",
     header: "Due date",
     accessorFn: (r) => r.maturityMs,
+    size: 130,
     cell: ({ row }) =>
       row.original.isCredit ? (
         <span className="text-muted-foreground">—</span>
@@ -432,6 +436,7 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "owed",
     header: "Owed",
     accessorFn: (r) => r.owed,
+    size: 150,
     meta: { align: "right" },
     cell: ({ row }) => (
       <span className="font-mono font-medium tabular-nums text-(--chart-negative)">
@@ -443,6 +448,7 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "paid",
     header: "Paid",
     accessorFn: (r) => r.paid,
+    size: 140,
     meta: { align: "right" },
     cell: ({ row }) => (
       <span className="font-mono tabular-nums text-muted-foreground">
@@ -454,6 +460,7 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "note",
     header: "Note",
     enableSorting: false,
+    size: 200,
     cell: ({ row }) => (
       <span className="block max-w-40 truncate text-sm text-muted-foreground">
         {row.original.debt.note}
@@ -464,6 +471,7 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "actions",
     header: "",
     enableSorting: false,
+    size: 130,
     cell: ({ row }) => (
       <div className="flex justify-end gap-1">
         <PaymentDialog debt={row.original.debt} payments={row.original.payments} />
@@ -564,12 +572,13 @@ export function DebtsManager({
         <AddDebtDialog />
       </div>
 
-      <div className="overflow-hidden card-surface">
+      <div className="overflow-hidden card-surface px-4 py-2">
         <DataTable
           columns={columns}
           data={rows}
           initialSorting={[{ id: "rate", desc: true }]}
           emptyMessage="No debts yet."
+          storageKey="debts"
         />
       </div>
     </div>

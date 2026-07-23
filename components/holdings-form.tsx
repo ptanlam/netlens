@@ -27,6 +27,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     id: "instrument",
     header: "Instrument",
     enableSorting: false,
+    size: 170,
     cell: ({ row }) => (
       <span className="font-medium">
         {row.original.inst.name}
@@ -38,6 +39,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     id: "type",
     header: "Type",
     enableSorting: false,
+    size: 150,
     cell: ({ row }) => (
       <Select name={`type_${row.original.idx}`} defaultValue={row.original.inst.asset_type}>
         <SelectTrigger size="sm" className="w-32">
@@ -55,6 +57,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     id: "source",
     header: "Price source",
     enableSorting: false,
+    size: 150,
     cell: ({ row }) => (
       <Select name={`source_${row.original.idx}`} defaultValue={row.original.inst.price_source}>
         <SelectTrigger size="sm" className="w-32">
@@ -72,6 +75,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     id: "symbol",
     header: "Symbol",
     enableSorting: false,
+    size: 140,
     cell: ({ row }) => (
       <Input name={`symbol_${row.original.idx}`} defaultValue={row.original.inst.symbol ?? ""} className="h-8 w-28" />
     ),
@@ -80,6 +84,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     id: "quantity",
     header: "Quantity",
     enableSorting: false,
+    size: 140,
     cell: ({ row }) => (
       <Input
         name={`qty_${row.original.idx}`}
@@ -94,6 +99,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     id: "manual",
     header: "Manual value (VND)",
     enableSorting: false,
+    size: 180,
     cell: ({ row }) => (
       <CurrencyInput
         name={`manual_${row.original.idx}`}
@@ -106,6 +112,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     id: "last_price",
     header: "Last price",
     enableSorting: false,
+    size: 120,
     meta: { align: "right" },
     cell: ({ row }) => (
       <span className="font-mono tabular-nums">
@@ -117,6 +124,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     id: "value",
     header: "Value",
     enableSorting: false,
+    size: 160,
     meta: { align: "right" },
     cell: ({ row }) => {
       const { inst, value } = row.original;
@@ -157,7 +165,7 @@ export function HoldingsForm({
       }
     >
       <input type="hidden" name="rows" value={rows.length} />
-      <DataTable columns={columns} data={data} emptyMessage="No holdings yet." />
+      <DataTable columns={columns} data={data} emptyMessage="No holdings yet." storageKey="holdings" />
       <div className="mt-4 flex items-center justify-between">
         <RefreshPricesButton />
         <Button type="submit" disabled={pending}>
