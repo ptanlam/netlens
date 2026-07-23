@@ -238,11 +238,11 @@ function MobileNav({ pathname }: { pathname: string }) {
         </DialogPrimitive.Trigger>
       </IconTooltip>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-black/40 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0' />
+        <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-black/40 backdrop-blur-sm duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0' />
         <DialogPrimitive.Popup
           onTouchStart={onPopupTouchStart}
           onTouchEnd={onPopupTouchEnd}
-          className='fixed inset-y-0 left-0 z-50 flex w-64 max-w-[80%] flex-col gap-1 bg-card p-4 ring-1 ring-border duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
+          className='glass-panel fixed inset-y-3 left-3 z-50 flex w-64 max-w-[80%] flex-col gap-1 rounded-[22px] p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
           <DialogPrimitive.Title className='mb-2 flex items-center gap-2.5 px-1.5'>
             <span className='size-[13px] rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
             <span className='text-base font-bold tracking-tight'>Netlens</span>
@@ -306,7 +306,7 @@ function RailLink({
       href={href}
       data-active={isActive(pathname, href)}
       title={label}
-      className='flex items-center gap-2.5 rounded-[10px] border border-transparent px-3 py-2 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-brand-soft data-[active=true]:text-foreground'
+      className='flex items-center gap-2.5 rounded-[11px] border border-transparent px-3 py-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-brand-soft data-[active=true]:text-foreground'
     >
       <Icon className='size-4 shrink-0' />
       <span data-rail-label className='min-w-0 truncate'>{label}</span>
