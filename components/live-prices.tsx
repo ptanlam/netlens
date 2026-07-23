@@ -42,6 +42,7 @@ function overdue(intervalMs: number) {
 const INTERVALS = [
   { ms: 0, label: "Off" },
   { ms: 5_000, label: "5s" },
+  { ms: 30_000, label: "30s" },
   { ms: 60_000, label: "1m" },
   { ms: 300_000, label: "5m" },
   { ms: 900_000, label: "15m" },
