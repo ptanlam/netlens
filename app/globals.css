@@ -80,98 +80,102 @@
 }
 
 :root {
-  /* ---- "Daylight" theme: the Netlens dark palette turned inside out. ----
-     Same violet brand and the same green/coral gain-loss pair, on a warm off-white
-     that keeps the surfaces separable without a heavy border. */
+  /* ---- "Daylight" liquid theme (from the Netlens Liquid design). ----
+     A lavender field the frosted panels sit on, the SAME violet brand as the dark theme,
+     and the green/coral gain-loss pair. Depth comes from bright glass highlights, not
+     borders. */
   color-scheme: light;
-  --background: #f1efe9;
-  --foreground: #1a1b20;
+  --background: #e9e7f5;
+  --foreground: #181828;
   --card: #ffffff;
-  --card-foreground: #1a1b20;
+  --card-foreground: #181828;
   --popover: #ffffff;
-  --popover-foreground: #1a1b20;
-  /* Brand violet is the *action* colour now — primary buttons, the active nav pill, and
-     the value line on every chart. Gains stay green, so the two never get confused. */
-  --brand: #6f5cf0;
-  --brand-soft: rgb(111 92 240 / 0.13);
-  --primary: #6f5cf0;
-  --primary-foreground: #ffffff;
-  --secondary: #e8e5dd;       /* pill / toggle track */
-  --secondary-foreground: #1a1b20;
-  --muted: #faf8f3;           /* faint inset panel */
-  --muted-foreground: #63656e;
-  --accent: #e4f4ec;          /* green wash — the positive "Today" chip */
-  --accent-foreground: #0d7a48;
-  --accent-brand: #12a05f;    /* positive / gains */
-  --destructive: #e04f3d;     /* coral (losses) */
-  --border: #e2ded4;
-  --input: #d3cec2;
-  --ring: #6f5cf0;
+  --popover-foreground: #181828;
+  /* Brand violet is the *action* colour — primary buttons, the active nav pill, and the
+     value line on every chart. Gains stay green, so the two never get confused. Dark ink
+     rides on the brand fill (white would fail contrast on this lighter violet). */
+  --brand: #8b7cff;
+  --brand-soft: rgb(139 124 255 / 0.22);
+  --primary: #8b7cff;
+  --primary-foreground: #181828;
+  --secondary: #dcd9f0;       /* pill / toggle track */
+  --secondary-foreground: #181828;
+  --muted: #f1eff9;           /* faint inset panel */
+  --muted-foreground: #54566a;
+  --accent: rgb(15 159 99 / 0.13);  /* green wash — the positive "Today" chip */
+  --accent-foreground: #0b7a4c;
+  --accent-brand: #0f9f63;    /* positive / gains */
+  --destructive: #e2513e;     /* coral (losses) */
+  --border: rgb(24 24 40 / 0.10);
+  --input: rgb(24 24 40 / 0.16);
+  --ring: #8b7cff;
   /* Asset-type series palette — fixed slot order (Funds/Stocks/Crypto/Real Estate) */
-  --chart-1: #6f5cf0;         /* Funds */
+  --chart-1: #8b7cff;         /* Funds */
   --chart-2: #d98b1f;         /* Stocks */
   --chart-3: #2f9fc4;         /* Crypto */
-  --chart-4: #12a05f;         /* Real Estate */
-  --chart-5: #a2a3ab;
-  --chart-positive: #12a05f;
-  --chart-negative: #e04f3d;
+  --chart-4: #0f9f63;         /* Real Estate */
+  --chart-5: #9698ac;
+  --chart-positive: #0f9f63;
+  --chart-negative: #e2513e;
   /* Bare RGB triples: chart area fills and tinted calendar cells composite these
      at a computed alpha, so they can't be plain hex. Use rgb(var(--x) / <alpha>). */
-  --positive-rgb: 18 160 95;
-  --negative-rgb: 224 79 61;
-  --ink-rgb: 111 92 240;
+  --positive-rgb: 15 159 99;
+  --negative-rgb: 226 81 62;
+  --ink-rgb: 139 124 255;
   --gold-rgb: 217 139 31;
-  --header-bg: rgb(241 239 233 / 0.78);
-  --faint: #a2a3ab;           /* lowest-contrast ink — column labels, dimmed digits */
-  --divider: #eae6dd;         /* hairline between rows */
-  --divider-soft: #efece4;    /* fainter hairline inside dense tables */
-  --grid: #e9e5db;            /* chart gridline */
-  --grid-strong: #cdc7b9;     /* chart zero line */
-  --chart-ink: #6f5cf0;       /* the value line — brand, not gain-green */
+  --header-bg: rgb(233 231 245 / 0.60);
+  --faint: #9698ac;           /* lowest-contrast ink — column labels, dimmed digits */
+  --divider: rgb(24 24 40 / 0.08);   /* hairline between rows */
+  --divider-soft: rgb(24 24 40 / 0.05); /* fainter hairline inside dense tables */
+  --grid: rgb(24 24 40 / 0.08);      /* chart gridline */
+  --grid-strong: rgb(24 24 40 / 0.16);  /* chart zero line */
+  --chart-ink: #8b7cff;       /* the value line — brand, not gain-green */
   --chart-gold: #d98b1f;      /* invested-over-time line */
   --warning: #c8801f;
-  --warning-border: #e6cfa4;
-  --warning-bg: #fbf2e3;
-  --positive-wash: #e9f5ef;
-  --positive-border: #cfe7db;
-  --positive-strong: #0d7a48; /* gain text sitting on a tinted cell */
-  --negative-wash: #fceeeb;
-  --negative-wash-strong: #f8e5e1;
-  --negative-border: #f2d6cf;
+  --warning-border: rgb(200 128 31 / 0.34);
+  --warning-bg: rgb(200 128 31 / 0.1);
+  --positive-wash: rgb(15 159 99 / 0.1);
+  --positive-border: rgb(15 159 99 / 0.28);
+  --positive-strong: #0b7a4c; /* gain text sitting on a tinted cell */
+  --negative-wash: rgb(226 81 62 / 0.09);
+  --negative-wash-strong: rgb(226 81 62 / 0.15);
+  --negative-border: rgb(226 81 62 / 0.28);
   --negative-strong: #b3392a; /* loss text sitting on a tinted cell */
-  --disabled-foreground: #c3bfb5;
+  --disabled-foreground: #b9bacc;
   /* The chart tooltip is `bg-foreground`, so its surface INVERTS with the theme:
      ink here, paper in `.dark`. These read against ink; `.dark` flips them. */
   --tooltip-neutral: #c4c2bb;
   --tooltip-positive: #6fd3a4;
   --tooltip-negative: #f0a396;
-  --selection: rgb(111 92 240 / 0.16);
+  --selection: rgb(139 124 255 / 0.18);
   --radius: 1rem;
   /* Every card carries this instead of a heavy border — the design separates surfaces
      with a lift, not a line. */
   --shadow-card: 0 1px 2px rgb(24 24 34 / 0.05), 0 12px 34px rgb(24 24 34 / 0.09);
   /* ---- Liquid glass ----
      Panels are frosted, not solid: a translucent fill blurs whatever floats behind it, a
-     hairline of light rims the edge, and a soft sheen catches the top. `--card`/`--popover`
+     bright rim + inner highlights catch the light, and a sheen tops it. `--card`/`--popover`
      stay opaque for anything that must fully mask what's under it (menus, pinned cells). */
-  --glass: rgb(255 255 255 / 0.60);
-  --glass-2: rgb(255 255 255 / 0.78);
-  --glass-bd: rgb(255 255 255 / 0.72);
-  --glass-sheen: rgb(255 255 255 / 0.55);
-  --glass-blur: saturate(150%) blur(20px);
-  --glass-shadow: 0 1px 2px rgb(24 24 34 / 0.05), 0 18px 44px rgb(24 24 34 / 0.11);
+  --glass: rgb(255 255 255 / 0.45);
+  --glass-2: rgb(255 255 255 / 0.55);
+  --glass-bd: rgb(255 255 255 / 0.75);
+  --glass-sheen: rgb(255 255 255 / 0.9);
+  --glass-blur: saturate(180%) blur(20px);
+  --glass-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 -1px 0 rgb(255 255 255 / 0.4),
+    0 20px 50px rgb(40 44 90 / 0.16);
   /* Slow-drifting colour orbs behind everything — the only source of ambient colour. */
-  --ambient-1: rgb(111 92 240 / 0.16);
-  --ambient-2: rgb(18 160 95 / 0.11);
-  --ambient-3: rgb(217 139 31 / 0.11);
+  --ambient-base: radial-gradient(140% 120% at 50% -20%, #f4f2ff, #dcd9f0 70%);
+  --ambient-1: rgb(139 124 255 / 0.22);
+  --ambient-2: rgb(77 200 165 / 0.28);
+  --ambient-3: rgb(255 170 120 / 0.26);
   --sidebar: #ffffff;
-  --sidebar-foreground: #1a1b20;
-  --sidebar-primary: #6f5cf0;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e4f4ec;
-  --sidebar-accent-foreground: #0d7a48;
-  --sidebar-border: #e2ded4;
-  --sidebar-ring: #6f5cf0;
+  --sidebar-foreground: #181828;
+  --sidebar-primary: #8b7cff;
+  --sidebar-primary-foreground: #181828;
+  --sidebar-accent: rgb(15 159 99 / 0.13);
+  --sidebar-accent-foreground: #0b7a4c;
+  --sidebar-border: rgb(24 24 40 / 0.10);
+  --sidebar-ring: #8b7cff;
 }
 
 /* ---- "Netlens" theme: the design's home turf. ----
@@ -245,9 +249,10 @@
   --glass-blur: saturate(180%) blur(26px);
   --glass-shadow: inset 0 1px 0 rgb(255 255 255 / 0.20), inset 0 -1px 0 rgb(255 255 255 / 0.05),
     0 22px 55px rgb(0 0 0 / 0.45);
-  --ambient-1: rgb(139 124 255 / 0.22);
-  --ambient-2: rgb(61 220 151 / 0.14);
-  --ambient-3: rgb(255 184 77 / 0.13);
+  --ambient-base: radial-gradient(140% 120% at 50% -20%, #141733, #070813 62%);
+  --ambient-1: rgb(139 124 255 / 0.20);
+  --ambient-2: rgb(77 227 165 / 0.16);
+  --ambient-3: rgb(255 150 110 / 0.14);
   --sidebar: #14161d;
   --sidebar-foreground: #f5f4f1;
   --sidebar-primary: #8b7cff;
@@ -331,6 +336,9 @@
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
+  /* The base field gradient the orbs drift over — darker vignette in the deep theme, a
+     soft lavender wash in daylight. */
+  background: var(--ambient-base);
 }
 .liquid-orb {
   position: absolute;
