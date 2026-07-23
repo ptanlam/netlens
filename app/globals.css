@@ -85,7 +85,7 @@
      and the green/coral gain-loss pair. Depth comes from bright glass highlights, not
      borders. */
   color-scheme: light;
-  --background: #e9e7f5;
+  --background: #eef0f4;
   --foreground: #181828;
   --card: #ffffff;
   --card-foreground: #181828;
@@ -100,9 +100,9 @@
   --brand-soft: rgb(139 124 255 / 0.22);
   --primary: #5f4fd6;
   --primary-foreground: #ffffff;
-  --secondary: #dcd9f0;       /* pill / toggle track */
+  --secondary: #e2e5eb;       /* pill / toggle track */
   --secondary-foreground: #181828;
-  --muted: #f1eff9;           /* faint inset panel */
+  --muted: #f1f3f6;           /* faint inset panel */
   --muted-foreground: #54566a;
   --accent: rgb(15 159 99 / 0.13);  /* green wash — the positive "Today" chip */
   --accent-foreground: #0b7a4c;
@@ -125,7 +125,7 @@
   --negative-rgb: 226 81 62;
   --ink-rgb: 139 124 255;
   --gold-rgb: 217 139 31;
-  --header-bg: rgb(233 231 245 / 0.60);
+  --header-bg: rgb(238 240 244 / 0.60);
   --faint: #9698ac;           /* lowest-contrast ink — column labels, dimmed digits */
   --divider: rgb(24 24 40 / 0.08);   /* hairline between rows */
   --divider-soft: rgb(24 24 40 / 0.05); /* fainter hairline inside dense tables */
@@ -166,10 +166,10 @@
   --glass-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 -1px 0 rgb(255 255 255 / 0.4),
     0 20px 50px rgb(40 44 90 / 0.16);
   /* Slow-drifting colour orbs behind everything — the only source of ambient colour. */
-  --ambient-base: radial-gradient(140% 120% at 50% -20%, #f4f2ff, #dcd9f0 70%);
-  --ambient-1: rgb(139 124 255 / 0.22);
-  --ambient-2: rgb(77 200 165 / 0.28);
-  --ambient-3: rgb(255 170 120 / 0.26);
+  --ambient-base: radial-gradient(140% 120% at 50% -20%, #f7f8fa, #e2e5ec 70%);
+  --ambient-1: rgb(139 124 255 / 0.16);
+  --ambient-2: rgb(120 132 160 / 0.18);
+  --ambient-3: rgb(150 160 190 / 0.16);
   --sidebar: #ffffff;
   --sidebar-foreground: #181828;
   --sidebar-primary: #8b7cff;
