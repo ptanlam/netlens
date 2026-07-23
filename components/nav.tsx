@@ -238,11 +238,11 @@ function MobileNav({ pathname }: { pathname: string }) {
         </DialogPrimitive.Trigger>
       </IconTooltip>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-black/40 duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0' />
+        <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-black/40 backdrop-blur-sm duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0' />
         <DialogPrimitive.Popup
           onTouchStart={onPopupTouchStart}
           onTouchEnd={onPopupTouchEnd}
-          className='fixed inset-y-0 left-0 z-50 flex w-64 max-w-[80%] flex-col gap-1 bg-card p-4 ring-1 ring-border duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
+          className='glass-panel fixed inset-y-3 left-3 z-50 flex w-64 max-w-[80%] flex-col gap-1 rounded-[22px] p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
           <DialogPrimitive.Title className='mb-2 flex items-center gap-2.5 px-1.5'>
             <span className='size-[13px] rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
             <span className='text-base font-bold tracking-tight'>Netlens</span>
@@ -306,9 +306,9 @@ function RailLink({
       href={href}
       data-active={isActive(pathname, href)}
       title={label}
-      className='flex items-center gap-3 rounded-xl border border-transparent px-3.5 py-2.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-brand-soft data-[active=true]:text-foreground'
+      className='flex items-center gap-2.5 rounded-[11px] border border-transparent px-3 py-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-brand-soft data-[active=true]:text-foreground'
     >
-      <Icon className='size-[17px] shrink-0' />
+      <Icon className='size-4 shrink-0' />
       <span data-rail-label className='min-w-0 truncate'>{label}</span>
     </Link>
   );
@@ -326,8 +326,8 @@ function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: bo
     <aside data-side-rail>
       <div data-rail-brand>
         <Link href='/' className='flex min-w-0 items-center gap-2.5 text-foreground' aria-label='Netlens — home'>
-          <span className='size-[15px] shrink-0 rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
-          <span data-rail-label className='truncate text-[18px] font-bold tracking-[-0.01em]'>Netlens</span>
+          <span className='size-[14px] shrink-0 rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
+          <span data-rail-label className='truncate text-[16px] font-bold tracking-[-0.01em]'>Netlens</span>
         </Link>
         <button
           type='button'
@@ -373,7 +373,7 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   return (
     <>
       <SideRail pathname={pathname} authEnabled={authEnabled} />
-      <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
+      <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[24px] backdrop-saturate-150'>
         {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
             than the content beneath it. The left/right padding also clears the safe areas:
             the iPhone notch in landscape and, on iPadOS 26, the window-control traffic
