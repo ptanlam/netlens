@@ -92,12 +92,14 @@
   --popover: #ffffff;
   --popover-foreground: #181828;
   /* Brand violet is the *action* colour — primary buttons, the active nav pill, and the
-     value line on every chart. Gains stay green, so the two never get confused. Dark ink
-     rides on the brand fill (white would fail contrast on this lighter violet). */
+     value line on every chart. Gains stay green, so the two never get confused. The brand
+     stays the lighter violet everywhere it tints (charts, the active pill), but the primary
+     *button* fill is deepened so white label text clears AA — light ink on the pale brand
+     would fail contrast. */
   --brand: #8b7cff;
   --brand-soft: rgb(139 124 255 / 0.22);
-  --primary: #8b7cff;
-  --primary-foreground: #181828;
+  --primary: #5f4fd6;
+  --primary-foreground: #ffffff;
   --secondary: #dcd9f0;       /* pill / toggle track */
   --secondary-foreground: #181828;
   --muted: #f1eff9;           /* faint inset panel */
