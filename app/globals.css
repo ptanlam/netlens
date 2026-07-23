@@ -555,10 +555,10 @@
 
 @media (min-width: 720px) {
   html[data-nav="side"] {
-    --nav-rail: 244px;
+    --nav-rail: 208px;
   }
   html[data-nav="side"][data-nav-collapsed] {
-    --nav-rail: 74px;
+    --nav-rail: 68px;
   }
 
   /* Fixed rather than the design's sticky column: the rail is a sibling of <main>, not
@@ -575,8 +575,8 @@
     flex-direction: column;
     gap: 6px;
     width: calc(var(--nav-rail) + env(safe-area-inset-left));
-    padding: calc(22px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom))
-      max(18px, env(safe-area-inset-left));
+    padding: calc(20px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom))
+      max(14px, env(safe-area-inset-left));
     border-right: 1px solid var(--glass-bd);
     background: var(--header-bg);
     backdrop-filter: var(--glass-blur);
@@ -597,14 +597,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    padding: 6px 6px 18px 10px;
+    gap: 8px;
+    padding: 4px 4px 14px 8px;
   }
   html[data-nav="side"] [data-rail-nav] {
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
   }
   html[data-nav="side"] [data-rail-foot] {
     display: flex;
@@ -647,7 +647,7 @@
     display: block;
   }
 
-  /* The rail eats 244px of the content column, so the net-worth figure is sized down to
+  /* The rail eats a slice of the content column, so the net-worth figure is sized down to
      match — the design keeps it on one line rather than letting it wrap. */
   html[data-nav="side"] [data-hero-number] {
     font-size: clamp(1.5rem, 3.2vw, 2.75rem);

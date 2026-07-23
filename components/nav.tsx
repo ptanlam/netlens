@@ -306,9 +306,9 @@ function RailLink({
       href={href}
       data-active={isActive(pathname, href)}
       title={label}
-      className='flex items-center gap-3 rounded-xl border border-transparent px-3.5 py-2.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-brand-soft data-[active=true]:text-foreground'
+      className='flex items-center gap-2.5 rounded-[10px] border border-transparent px-3 py-2 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-brand-soft data-[active=true]:text-foreground'
     >
-      <Icon className='size-[17px] shrink-0' />
+      <Icon className='size-4 shrink-0' />
       <span data-rail-label className='min-w-0 truncate'>{label}</span>
     </Link>
   );
@@ -326,8 +326,8 @@ function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: bo
     <aside data-side-rail>
       <div data-rail-brand>
         <Link href='/' className='flex min-w-0 items-center gap-2.5 text-foreground' aria-label='Netlens — home'>
-          <span className='size-[15px] shrink-0 rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
-          <span data-rail-label className='truncate text-[18px] font-bold tracking-[-0.01em]'>Netlens</span>
+          <span className='size-[14px] shrink-0 rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
+          <span data-rail-label className='truncate text-[16px] font-bold tracking-[-0.01em]'>Netlens</span>
         </Link>
         <button
           type='button'
