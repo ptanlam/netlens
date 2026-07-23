@@ -70,10 +70,11 @@ export default function RootLayout({
               <div className='liquid-orb liquid-orb-1' />
               <div className='liquid-orb liquid-orb-2' />
               <div className='liquid-orb liquid-orb-3' />
+              <div className='liquid-orb liquid-orb-4' />
             </div>
             {process.env.NODE_ENV !== 'production' && <SafeAreaDebug />}
             <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
-            <main className='relative z-10 mx-auto w-full max-w-[1180px] flex-1 pt-8 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+            <main className='relative z-10 mx-auto w-full max-w-[1180px] flex-1 pt-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pt-8 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
               {children}
             </main>
             <Toaster richColors position='top-center' />

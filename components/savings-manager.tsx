@@ -241,7 +241,7 @@ export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: F
   const series = buildDailySeries(savings, currentValue);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-3 sm:gap-5">
       <SummaryCards
         stats={[
           { label: "Total principal", value: fmtVND(s.principal) },

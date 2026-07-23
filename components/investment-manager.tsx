@@ -121,7 +121,7 @@ function TxList({ txs, option }: { txs: Tx[]; option: InstrumentOption }) {
     <>
       <div
         className={cn(
-          "rounded-lg border border-border bg-card px-3",
+          "rounded-lg border border-border bg-pane px-3",
           paged && "h-[225px] overflow-y-hidden",
         )}
       >
@@ -172,7 +172,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="truncate text-[14px] font-semibold">{inst.name}</span>
-              <span className="rounded-[5px] bg-background px-[7px] py-0.5 font-mono text-[10px] text-muted-foreground">{inst.asset_type}</span>
+              <span className="rounded-[5px] bg-pane-sunk px-[7px] py-0.5 font-mono text-[10px] text-muted-foreground">{inst.asset_type}</span>
               {live && <span className="rounded-[5px] bg-accent px-[7px] py-0.5 font-mono text-[10px] text-accent-brand">live</span>}
               {usesFallback && (
                 <span title={`No live price from ${inst.price_source} — showing the fallback value.`} className="rounded-[5px] bg-warning-bg px-[7px] py-0.5 font-mono text-[10px] text-warning">
@@ -198,7 +198,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
       </div>
 
       {open && (
-        <div className="border-t border-divider-soft bg-muted px-[18px] py-4 pl-[41px]">
+        <div className="border-t border-divider-soft bg-pane-sunk px-[18px] py-4 pl-[41px]">
           <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-muted-foreground">
             <span>Source: {inst.price_source}</span>
             {inst.symbol && <span>Symbol: {inst.symbol}</span>}

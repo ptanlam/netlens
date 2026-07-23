@@ -272,7 +272,7 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
                 <span className="text-[16px] font-bold">{s.label}</span>
                 <span className="rounded-[5px] bg-foreground px-2 py-0.5 font-mono text-[11px] text-background">{s.key}</span>
                 {s.builtin ? (
-                  <span className="rounded-[5px] bg-background px-2 py-0.5 font-mono text-[11px] text-muted-foreground">built-in</span>
+                  <span className="rounded-[5px] bg-pane-sunk px-2 py-0.5 font-mono text-[11px] text-muted-foreground">built-in</span>
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -286,7 +286,7 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
               {s.batch ? <Tag>batch</Tag> : null}
               <Tag>history: {s.history_strategy}</Tag>
             </div>
-            <div className="mt-3 rounded-[7px] border border-divider-soft bg-muted px-3 py-2.5 font-mono text-[12px] break-all text-muted-foreground">
+            <div className="mt-3 rounded-[7px] border border-divider-soft bg-pane-sunk px-3 py-2.5 font-mono text-[12px] break-all text-muted-foreground">
               {s.url}
             </div>
           </div>

@@ -27,7 +27,7 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
   return (
     <div
       className={cn(
-        "grid grid-cols-2 gap-5 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
+        "grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
         className,
       )}
     >

@@ -47,7 +47,7 @@ export default async function InvestmentsPage() {
   });
 
   return (
-    <div className="flex flex-col gap-[18px]">
+    <div className="flex flex-col gap-3 sm:gap-[18px]">
       {pending.length > 0 && <PendingUnitsCard pending={pending} />}
       <InvestmentManager
         holdings={holdings}

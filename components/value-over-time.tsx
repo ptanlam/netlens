@@ -100,11 +100,11 @@ export function ValueOverTime({
   // Fixed height, not padding: a <select> and a date field derive different intrinsic
   // heights from the same padding, and the row sits next to the range pills.
   const selectCls =
-    "h-7 rounded-lg border border-input bg-card px-2.5 font-mono text-[12px] outline-none focus:border-ring";
+    "h-7 rounded-lg border border-input bg-pane px-2.5 font-mono text-[12px] outline-none focus:border-ring";
   const pill = (active: boolean) =>
     cn(
       "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
-      active ? "bg-card text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
+      active ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
     );
 
   return (

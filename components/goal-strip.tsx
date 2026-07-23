@@ -13,11 +13,13 @@ const STATUS_TONE: Record<GoalStatus, string> = {
   open: "bg-secondary text-muted-foreground",
 };
 
+/** The channel is empty glass; `.goal-fill` (see globals.css) is the liquid in it — it pours
+ *  out to the target on load, then keeps a crest of light moving through. */
 export function GoalBar({ progress, muted }: { progress: number; muted?: boolean }) {
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
       <div
-        className={cn("h-full rounded-full", muted ? "bg-disabled-foreground" : "bg-accent-brand")}
+        className={cn("goal-fill h-full rounded-full", muted && "goal-fill-muted")}
         style={{ width: `${Math.round(progress * 100)}%` }}
       />
     </div>

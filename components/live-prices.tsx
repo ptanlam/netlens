@@ -287,7 +287,7 @@ export function LivePrices() {
             "h-7 gap-1.5 rounded-full px-3 text-[12px] font-semibold sm:px-3.5",
             live
               ? "border-transparent bg-accent text-accent-foreground"
-              : "border-input bg-card text-muted-foreground hover:bg-muted",
+              : "border-input bg-pane text-muted-foreground hover:bg-muted",
           )}
         >
           <span className={cn("size-[7px] rounded-full", live ? "animate-pulse-dot bg-accent-brand" : "bg-disabled-foreground")} />

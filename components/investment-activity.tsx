@@ -196,11 +196,11 @@ export function InvestmentActivity({
   // Fixed height, not padding: a <select> and a date field derive different intrinsic
   // heights from the same padding, and the row sits next to the range pills.
   const selectCls =
-    "h-7 rounded-lg border border-input bg-card px-2.5 font-mono text-[12px] outline-none focus:border-ring";
+    "h-7 rounded-lg border border-input bg-pane px-2.5 font-mono text-[12px] outline-none focus:border-ring";
   const pill = (active: boolean) =>
     cn(
       "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
-      active ? "bg-card text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
+      active ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
     );
 
   return (
@@ -213,7 +213,7 @@ export function InvestmentActivity({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+          <div className="flex gap-[3px] rounded-full border border-border bg-pane-sunk p-[3px]">
             {presets.map((p) => (
               <button
                 key={p.label}
@@ -298,7 +298,7 @@ export function InvestmentActivity({
 
 function SummaryTile({ label, value, valueCls }: { label: string; value: string; valueCls?: string }) {
   return (
-    <div className="bg-card px-4 py-3.5">
+    <div className="bg-pane px-4 py-3.5">
       <div className="text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">{label}</div>
       {/* "Best month" carries a month label as well as an amount, so it's the widest thing
           in the grid — the whole row steps down rather than letting that one tile wrap. */}

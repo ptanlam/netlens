@@ -44,7 +44,7 @@ type Align = "left" | "right";
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
 
 const MENU_POPUP =
-  "z-50 min-w-40 origin-(--transform-origin) rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none " +
+  "glass-menu z-50 min-w-40 origin-(--transform-origin) rounded-lg p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none " +
   "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95";
 
 const MENU_ITEM =
@@ -322,7 +322,10 @@ export function DataTable<TData, TValue>({
                     onDragOver={(e) => dragOverColumn(e, column.id)}
                     onDrop={(e) => e.preventDefault()}
                     className={cn(
-                      "group/th relative bg-card transition-opacity",
+                      // Only a *pinned* header needs to hide the cells sliding under it —
+                      // the rest sit on the panel's own glass.
+                      "group/th relative transition-opacity",
+                      pinned && "glass-mask",
                       draggingId === column.id && "opacity-40",
                       pinned === "left" && column.getIsLastColumn("left") && "shadow-[inset_-1px_0_0_var(--border)]",
                       pinned === "right" && column.getIsFirstColumn("right") && "shadow-[inset_1px_0_0_var(--border)]",
@@ -400,8 +403,8 @@ export function DataTable<TData, TValue>({
                         "overflow-hidden text-ellipsis transition-opacity",
                         align === "right" && "text-right",
                         draggingId === column.id && "opacity-40",
-                        // Pinned cells need an opaque backdrop so scrolled rows don't bleed through.
-                        pinned && "bg-card group-hover/row:bg-muted/50",
+                        // Pinned cells need to mask the rows scrolling under them.
+                        pinned && "glass-mask group-hover/row:bg-muted/50",
                         pinned === "left" && column.getIsLastColumn("left") && "shadow-[inset_-1px_0_0_var(--border)]",
                         pinned === "right" && column.getIsFirstColumn("right") && "shadow-[inset_1px_0_0_var(--border)]",
                       )}

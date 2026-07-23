@@ -429,12 +429,12 @@ export function PnlCalendar({
                 onClick={() => shift(-1)}
                 disabled={!canPrev}
                 aria-label={view === "year" ? "Previous year" : "Previous month"}
-                className="size-7 rounded-md border border-input bg-card text-[13px] text-muted-foreground disabled:opacity-40"
+                className="size-7 rounded-md border border-input bg-pane text-[13px] text-muted-foreground disabled:opacity-40"
               >
                 ‹
               </button>
               {view === "year" ? (
-                <span className="rounded-md border border-input bg-card px-2.5 py-1 text-center font-mono text-[13px] tabular-nums">
+                <span className="rounded-md border border-input bg-pane px-2.5 py-1 text-center font-mono text-[13px] tabular-nums">
                   {year}
                 </span>
               ) : (
@@ -449,7 +449,7 @@ export function PnlCalendar({
                     setMonth(e.target.value);
                     setSelected(null);
                   }}
-                  className="rounded-md border border-input bg-card px-2.5 py-1 text-center font-mono text-[13px] text-foreground outline-none focus:border-ring"
+                  className="rounded-md border border-input bg-pane px-2.5 py-1 text-center font-mono text-[13px] text-foreground outline-none focus:border-ring"
                 />
               )}
               <button
@@ -457,7 +457,7 @@ export function PnlCalendar({
                 onClick={() => shift(1)}
                 disabled={!canNext}
                 aria-label={view === "year" ? "Next year" : "Next month"}
-                className="size-7 rounded-md border border-input bg-card text-[13px] text-muted-foreground disabled:opacity-40"
+                className="size-7 rounded-md border border-input bg-pane text-[13px] text-muted-foreground disabled:opacity-40"
               >
                 ›
               </button>
@@ -474,7 +474,7 @@ export function PnlCalendar({
                   onClick={() => setView(v)}
                   className={cn(
                     "rounded-full px-3 py-[5px] text-[12px] font-semibold capitalize transition-colors",
-                    view === v ? "bg-card text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
+                    view === v ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {v}

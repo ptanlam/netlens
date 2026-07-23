@@ -22,7 +22,7 @@ function PendingItem({ row }: { row: PendingRow }) {
   const id = `units-${row.tx.id}`;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-5 rounded-[10px] border border-divider bg-muted px-4 py-3.5">
+    <div className="flex flex-wrap items-center justify-between gap-5 rounded-[10px] border border-divider bg-pane-sunk px-4 py-3.5">
       <div>
         <div className="text-[14px] font-semibold">{row.tx.instrument}</div>
         <div className="mt-[3px] font-mono text-[12px] text-muted-foreground tabular-nums">
@@ -40,7 +40,7 @@ function PendingItem({ row }: { row: PendingRow }) {
             step="any"
             value={units}
             onChange={(e) => setUnits(e.target.value)}
-            className="w-[120px] rounded-lg border border-input bg-card px-2.5 py-[7px] font-mono text-[13px] outline-none focus:border-ring"
+            className="w-[120px] rounded-lg border border-input bg-pane px-2.5 py-[7px] font-mono text-[13px] outline-none focus:border-ring"
           />
         </div>
         {row.hasHoldingQty && (
@@ -90,7 +90,7 @@ export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
           <span className="relative inline-flex size-1.5 rounded-full bg-warning" />
         </span>
         <span className="text-[17px] font-bold">Awaiting fund units</span>
-        <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
+        <span className="rounded-full bg-pane-sunk px-2 py-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
           {pending.length}
         </span>
         <ChevronDown

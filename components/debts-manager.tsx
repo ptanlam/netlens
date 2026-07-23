@@ -529,7 +529,7 @@ export function DebtsManager({
   return (
     <div className="flex flex-col gap-4">
       {dueThisMonth.length > 0 && (
-        <div className="flex items-start gap-2.5 rounded-[10px] border border-warning-border bg-card px-[18px] py-3.5">
+        <div className="flex items-start gap-2.5 rounded-[10px] border border-warning-border bg-warning-bg px-[18px] py-3.5">
           <TriangleAlert className="mt-0.5 size-4 text-warning" />
           <div>
             <div className="text-[13.5px] font-semibold">
