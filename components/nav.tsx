@@ -373,7 +373,7 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   return (
     <>
       <SideRail pathname={pathname} authEnabled={authEnabled} />
-      <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
+      <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[24px] backdrop-saturate-150'>
         {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
             than the content beneath it. The left/right padding also clears the safe areas:
             the iPhone notch in landscape and, on iPadOS 26, the window-control traffic
