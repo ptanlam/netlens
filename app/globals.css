@@ -658,6 +658,27 @@
   html[data-nav="side"] [data-nav-icons] {
     display: none;
   }
+  /* The header lives inside the body, which is inset by the rail's gutter — so its tint and
+     bottom border would otherwise start partway across, leaving the top-left corner an
+     unframed notch above the floating rail. Drop the header's own fill and let a full-bleed
+     pseudo-element carry the bar edge to edge (the rail is centred lower down, so nothing up
+     here needs clearing). The header box itself stays put, so the title/prices keep lining
+     up with the content column, and its backdrop-blur still frosts what scrolls under. */
+  html[data-nav="side"] [data-app-header] {
+    background: transparent;
+    border-bottom-color: transparent;
+  }
+  html[data-nav="side"] [data-app-header]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: -1px;
+    left: calc(-1 * (2 * var(--rail-gap) + var(--nav-rail) + env(safe-area-inset-left)));
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+    pointer-events: none;
+  }
   /* The echo of the page heading (see components/page-title.tsx) only earns its place
      here: the top bar names the page in its own nav pills already. With the brand group
      hidden, space-between leaves the title left and the price controls right. */
