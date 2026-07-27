@@ -9,14 +9,16 @@
  * Failures are collected, never thrown, so one bad ticker can't break a refresh.
  */
 import {
-  getDb, getPriceSource, listInstruments, updatePrice, upsertPriceHistory, metaGet, metaSet, todayIso,
+  listInstruments, listPriceSources, updatePrice, upsertPriceHistory, metaGet, metaSet, todayIso,
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
 import { MANUAL_SOURCE } from "./types";
-import { installExtraCAs } from "./tls";
 
-// Repair incomplete upstream TLS chains (e.g. dragoncapital.com.vn) before any fetch.
-installExtraCAs();
+/** Price sources keyed by `key`. One query instead of a `getPriceSource()` per holding —
+ *  on D1 that per-row lookup would be a network round trip each time round the loop. */
+async function priceSourceMap(): Promise<Map<string, PriceSource>> {
+  return new Map((await listPriceSources()).map((s) => [s.key, s]));
+}
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)";
 const FMARKET_URL = "https://api.fmarket.vn/res/products/filter";
@@ -133,7 +135,8 @@ function extractSingle(src: PriceSource, data: unknown): number | null {
 
 /** Fetch live prices for every auto-priced instrument. Returns [updated, errors]. */
 export async function refreshAll(): Promise<[number, string[]]> {
-  const priced = listInstruments().filter(
+  const [instruments, sources] = await Promise.all([listInstruments(), priceSourceMap()]);
+  const priced = instruments.filter(
     (r) => r.price_source && r.price_source !== MANUAL_SOURCE,
   );
   let updated = 0;
@@ -148,7 +151,7 @@ export async function refreshAll(): Promise<[number, string[]]> {
   }
 
   for (const [key, rows] of groups) {
-    const src = getPriceSource(key);
+    const src = sources.get(key);
     if (!src) {
       errors.push(`${rows.length} holding(s): unknown price source '${key}'`);
       continue;
@@ -164,8 +167,8 @@ export async function refreshAll(): Promise<[number, string[]]> {
         for (const r of rows) {
           const lookup = r.symbol ?? r.name;
           if (prices[lookup] != null) {
-            updatePrice(r.name, prices[lookup]);
-            if (trackDaily) upsertPriceHistory(r.name, { [today]: prices[lookup] });
+            await updatePrice(r.name, prices[lookup]);
+            if (trackDaily) await upsertPriceHistory(r.name, { [today]: prices[lookup] });
             updated += 1;
           }
           else errors.push(`${r.name}: no ${src.label} price for '${lookup}'`);
@@ -176,8 +179,8 @@ export async function refreshAll(): Promise<[number, string[]]> {
             const data = await callSource(src, { symbol: encodeURIComponent(r.symbol ?? "") });
             const price = extractSingle(src, data);
             if (price != null) {
-              updatePrice(r.name, price);
-              if (trackDaily) upsertPriceHistory(r.name, { [today]: price });
+              await updatePrice(r.name, price);
+              if (trackDaily) await upsertPriceHistory(r.name, { [today]: price });
               updated += 1;
             }
             else errors.push(`${r.name}: no ${src.label} price`);
@@ -363,9 +366,10 @@ async function fetchHistoryInto(lookbackDays: number | null): Promise<[number, s
   const errors: string[] = [];
   let fmIds: Record<string, number> | null = null;
 
-  for (const row of listInstruments()) {
+  const [instruments, sources] = await Promise.all([listInstruments(), priceSourceMap()]);
+  for (const row of instruments) {
     if (!row.price_source || row.price_source === MANUAL_SOURCE) continue;
-    const src = getPriceSource(row.price_source);
+    const src = sources.get(row.price_source);
     const strat = src?.history_strategy ?? "none";
     if (strat === "none") continue;
     try {
@@ -390,7 +394,7 @@ async function fetchHistoryInto(lookbackDays: number | null): Promise<[number, s
         else errors.push(`${row.name}: cannot read DCVFM fund codes from source URL`);
       }
       if (history && Object.keys(history).length) {
-        upsertPriceHistory(row.name, history);
+        await upsertPriceHistory(row.name, history);
         updated += 1;
       }
     } catch (e) {
@@ -412,14 +416,13 @@ function yahooRange(lookbackDays: number | null): string {
 /** The full backfill, at most every maxAgeHours. Each source's `history_strategy`
  *  selects which built-in fetcher to use. */
 export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[]]> {
-  getDb();
-  const last = metaGet("history_fetched_at");
+  const last = await metaGet("history_fetched_at");
   if (last) {
     const age = Date.now() - new Date(last).getTime();
     if (age < maxAgeHours * 3600 * 1000) return [0, []];
   }
   const res = await fetchHistoryInto(null);
-  metaSet("history_fetched_at", new Date().toISOString());
+  await metaSet("history_fetched_at", new Date().toISOString());
   return res;
 }
 
@@ -428,6 +431,5 @@ export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[
  *  stamp `history_fetched_at`: that key gates the full backfill, and a narrow fetch must
  *  never convince it that the deep history is up to date. */
 export async function refreshRecentHistory(days = 2): Promise<[number, string[]]> {
-  getDb();
   return fetchHistoryInto(days);
 }

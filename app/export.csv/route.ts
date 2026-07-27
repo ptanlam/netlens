@@ -9,7 +9,7 @@ function csvCell(v: string | number | null): string {
 }
 
 export async function GET() {
-  const rows = allTransactions();
+  const rows = await allTransactions();
   const header = "id,date,asset_type,instrument,amount,quantity,note,created_at";
   const lines = rows.map((t) =>
     [t.id, t.date, t.asset_type, t.instrument, t.amount, t.quantity, t.note, t.created_at]

@@ -10,7 +10,7 @@ the old app to migrate (same schema).
 - **Next.js 16** (App Router, Server Actions, Turbopack) + React 19
 - **shadcn/ui** (Base UI primitives) + Tailwind CSS 4
 - **Recharts** via the shadcn chart wrapper
-- **better-sqlite3** for storage (`data/investments.db`, WAL mode)
+- **Cloudflare D1** for storage, via `@opennextjs/cloudflare` (see `docs/CLOUDFLARE.md`)
 
 ## Run it
 
@@ -56,7 +56,7 @@ for the P&L-over-time chart.
 
 | Variable       | Default               | Meaning                             |
 |----------------|-----------------------|-------------------------------------|
-| `DB_PATH`      | `data/investments.db` | SQLite database location            |
+| `DB` (binding) | `wrangler.jsonc`      | D1 database, not an env var         |
 | `APP_PASSWORD` | unset                 | Enables the login screen when set   |
 
 ## Notes
