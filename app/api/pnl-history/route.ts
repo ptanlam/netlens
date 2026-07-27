@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const todayOnly = new URL(req.url).searchParams.has("today");
   const errors = todayOnly ? [] : (await refreshHistory())[1];
-  const { series, holdings } = buildDaily();
+  const { series, holdings } = await buildDaily();
   return NextResponse.json(
     todayOnly
       ? { series: series.slice(-1), holdings: holdings.slice(-1), errors }

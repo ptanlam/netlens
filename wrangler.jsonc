@@ -1,0 +1,44 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "netlens",
+  "main": "custom-worker.ts",
+  "compatibility_date": "2025-03-01",
+  // `nodejs_compat` is what lets the Next.js server run at all (it needs node:buffer,
+  // node:crypto, node:stream). `global_fetch_strictly_public` makes fetch() to our own
+  // hostname go back out through the internet rather than looping inside the Worker —
+  // required by the adapter.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // esbuild's keep-names rewrites function declarations to also call a `__name` helper. That
+  // is harmless inside the bundle, but next-themes ships its no-flash script by stringifying
+  // a function into an inline <script> — which esbuild has by then rewritten, so the browser
+  // hits `__name is not defined` and the stored theme is never applied on first paint.
+  // Nothing here relies on Function.prototype.name, so turning it off is free.
+  "keep_names": false,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // The database. `database_id` is filled in by `wrangler d1 create netlens` — see
+  // docs/CLOUDFLARE.md. Local `wrangler dev` uses a Miniflare SQLite file instead and
+  // ignores the id, so development works before the remote DB exists.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "netlens",
+      "database_id": "5d23d27e-031a-40b7-a294-e536ae84760d",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Replaces the setInterval price loop that used to live in instrumentation.ts: a Worker
+  // has no long-lived process to hold a timer. Every 5 minutes matches the old production
+  // default (PRICE_REFRESH_MS=300_000).
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  "vars": {
+    "TZ": "Asia/Ho_Chi_Minh"
+  }
+}

@@ -3,7 +3,10 @@
 `savings` and `debts` were built this way and are the best copy templates. Say you
 want to add `goals`. Do these seven edits, in order.
 
-### 1. Table — `lib/db.ts`, inside the `SCHEMA` string
+### 1. Table — a new `migrations/NNNN_add_<thing>.sql`
+
+(Then `npm run db:migrate` locally and `npm run db:migrate:remote` for production.
+The old `SCHEMA` string that auto-created tables on boot is gone — see `docs/CLOUDFLARE.md`.)
 ```sql
 CREATE TABLE IF NOT EXISTS goals (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

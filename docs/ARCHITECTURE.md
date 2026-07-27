@@ -7,8 +7,8 @@ handlers.
 ## Data flow
 
 ```
-better-sqlite3 (data/investments.db, WAL)
-        │  lib/db.ts  — schema + pure CRUD (server-only, imports better-sqlite3)
+Cloudflare D1 (binding `DB`; schema in migrations/)
+        │  lib/db.ts  — pure CRUD, ALL ASYNC (server-only; reads the D1 binding)
         ▼
 app/actions.ts  — "use server" mutations; validate → db.* → revalidateAll()
         ▲                                   │
@@ -20,15 +20,15 @@ components/*-manager.tsx ("use client")     ▼
 ```
 
 Pure, dependency-free logic (safe to import from client components) lives in
-`lib/` files that do **not** import `better-sqlite3`: `types.ts`, `format.ts`,
-`savings.ts`, `utils.ts`. Anything importing `better-sqlite3` (i.e. `lib/db.ts`,
+`lib/` files that do **not** touch the database: `types.ts`, `format.ts`,
+`savings.ts`, `utils.ts`. Anything touching D1 (i.e. `lib/db.ts`,
 `lib/prices.ts`, `lib/pnl.ts`) is server-only.
 
 ## Directory map
 
 | Path | Role |
 |------|------|
-| `lib/db.ts` | Schema (`SCHEMA` const) + all SQL. `getDb()` runs the schema on first use. Money stored as integer VND. |
+| `lib/db.ts` | All SQL, every function `async`. Schema lives in `migrations/`. Money stored as integer VND. |
 | `lib/types.ts` | Shared interfaces + `as const` arrays (`ASSET_TYPES`, `INTEREST_TYPES`, `PRICE_SOURCES`). Client-safe. |
 | `lib/savings.ts` | Interest maths over the `Accruing` shape — used by BOTH savings and debts. |
 | `lib/goals.ts` | Goal progress + the forward projection. Pure; reads a `GoalWorld` gathered by `db.buildGoalWorld()`. |
@@ -73,7 +73,7 @@ redirect at `/settings`, so it can't live in either). `/sources` 308s to
 - **Current portfolio** section (below the divider): allocation donut, holdings bars,
   P&L-by-holding — a *live snapshot*, independent of the selected date range.
 
-## Data model (tables in `lib/db.ts` `SCHEMA`)
+## Data model (tables in `migrations/0001_init.sql`)
 
 `transactions`, `instruments`, `recurring_rules`, `price_history`, `meta`,
 `savings`, `debts`, `debt_payments`, `goals`. All use `CREATE TABLE IF NOT EXISTS`, so **adding a

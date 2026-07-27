@@ -12,22 +12,24 @@ Personal net-worth tracker: **investments, savings (term deposits), debts (loans
 - [`docs/ADDING_A_FEATURE.md`](docs/ADDING_A_FEATURE.md) — copy-paste recipe for a new tracked entity (savings/debts are the templates).
 - [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) — money, formatting, UI, and lint gotchas.
 - [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — run, verify, and visually test (headless Chrome).
+- [`docs/CLOUDFLARE.md`](docs/CLOUDFLARE.md) — Workers/D1 deployment, data migration, and what the port changed.
 
 ## ⚠️ Read before touching anything
 
 1. **This is the right app.** There are TWO similarly-named apps on this machine:
    - ✅ **This one** — Next.js 16, at the repo root (`.../_personal/investment-visualization`), port **3000**. Edit here.
    - ❌ Legacy **Flask** app at `~/Projects/personal/investment-visualization` (note: `personal`, no underscore), port **8000**. Do NOT edit unless explicitly asked.
-2. **A Docker container often holds port 3000** (an old build). `npm run dev` then falls back to **3001** and prints the URL — always test against the port it prints. To update the container: `docker compose up -d --build`.
-3. **`data/investments.db` is real financial data** (git-ignored, SQLite/WAL). If you insert test rows to verify, delete them afterward. Prefer a throwaway DB: `DB_PATH=/tmp/test.db npm run dev`.
+2. **A Docker container often holds port 3000** (an old build). `npm run dev` then falls back to **3001** and prints the URL — always test against the port it prints.
+3. **Storage is Cloudflare D1, not a local SQLite file.** `npm run dev` binds a local D1 (a Miniflare SQLite file under `.wrangler/`); production is a real D1 database. `data/investments.db` is the *old* better-sqlite3 file, kept only as the migration source. Read [`docs/CLOUDFLARE.md`](docs/CLOUDFLARE.md) before touching storage or deployment.
+4. **`npm run dev` is not the real runtime.** It still runs on Node and will accept things the Worker won't. Use `npm run preview` (a real `wrangler dev`) before believing a change works.
 
 ## Stack
 
-Next.js 16 (App Router, Server Actions, Turbopack) · React 19 · **@base-ui/react** primitives wrapped in `components/ui/` (shadcn-style) · Tailwind CSS v4 · Recharts · better-sqlite3 · sonner (toasts) · next-themes.
+Next.js 16 (App Router, Server Actions, Turbopack) · React 19 · **@base-ui/react** primitives wrapped in `components/ui/` (shadcn-style) · Tailwind CSS v4 · Recharts · **Cloudflare D1** via `@opennextjs/cloudflare` · sonner (toasts) · next-themes.
 
 ## Architecture in 6 lines
 
-- **`lib/db.ts`** — better-sqlite3, the single source of truth. `SCHEMA` string uses `CREATE TABLE IF NOT EXISTS` (adding a table auto-migrates). Pure CRUD functions.
+- **`lib/db.ts`** — D1, the single source of truth. **Every function is async.** Schema lives in `migrations/`, not here. Positional `?` params only, `batch()` instead of transactions, and no query inside a loop — each one is a network round trip.
 - **`lib/types.ts`** — shared types/consts, safe to import from client components (no Node deps).
 - **`lib/*.ts`** — pure logic: `savings.ts` (interest maths for savings AND debts), `pnl.ts`, `prices.ts`, `format.ts`.
 - **`app/actions.ts`** — all `"use server"` mutations; each calls `revalidateAll()` after writing.
@@ -38,7 +40,9 @@ Next.js 16 (App Router, Server Actions, Turbopack) · React 19 · **@base-ui/rea
 
 Every tracked entity (transactions, holdings, recurring, **savings**, **debts**) is the same shape:
 
-> table in `SCHEMA` → CRUD in `lib/db.ts` → type in `lib/types.ts` → actions in `app/actions.ts` (+ add route to `revalidateAll`) → `components/<x>-manager.tsx` → `app/<x>/page.tsx` → link in `components/nav.tsx` `LINKS` (drives desktop nav AND the mobile drawer).
+> table in a new `migrations/NNNN_*.sql` → async CRUD in `lib/db.ts` → type in `lib/types.ts` → actions in `app/actions.ts` (+ add route to `revalidateAll`) → `components/<x>-manager.tsx` → `app/<x>/page.tsx` → link in `components/nav.tsx` `LINKS` (drives desktop nav AND the mobile drawer).
+
+Apply the migration with `npm run db:migrate` (local) and `npm run db:migrate:remote`.
 
 `savings` and `debts` are near-identical templates — copy one. See `docs/ADDING_A_FEATURE.md`.
 

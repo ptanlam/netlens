@@ -4,7 +4,7 @@ import { PriceSourceManager } from "@/components/price-source-manager";
 
 export default async function PriceSourcesPage() {
   await connection();
-  const sources = db.listPriceSources();
+  const sources = await db.listPriceSources();
 
   return <PriceSourceManager sources={sources} />;
 }

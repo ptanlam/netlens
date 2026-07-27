@@ -6,12 +6,17 @@ import { PendingUnitsCard } from "@/components/pending-units";
 
 export default async function InvestmentsPage() {
   await connection();
-  db.materializeRecurring();
+  // Must land before anything reads transactions — it inserts the due ones.
+  await db.materializeRecurring();
 
-  const instruments = db.listInstruments();
-  const txs = db.allTransactions();
-  const rules = db.listRecurring();
-  const sourceKeys = [db.MANUAL_SOURCE, ...db.listPriceSources().map((s) => s.key)];
+  const [instruments, txs, rules, sources, pendingTxs] = await Promise.all([
+    db.listInstruments(),
+    db.allTransactions(),
+    db.listRecurring(),
+    db.listPriceSources(),
+    db.pendingFundUnits(),
+  ]);
+  const sourceKeys = [db.MANUAL_SOURCE, ...sources.map((s) => s.key)];
 
   const costBy: Record<string, number> = {};
   const txsByInstrument: Record<string, Tx[]> = {};
@@ -36,8 +41,11 @@ export default async function InvestmentsPage() {
     })
     .sort((a, b) => b.value - a.value || a.inst.name.localeCompare(b.inst.name));
 
-  const pending = db.pendingFundUnits().map((tx) => {
-    const inst = db.getInstrument(tx.instrument);
+  // Looked up from the list already in hand rather than a query per pending row, which
+  // on D1 would be a round trip each.
+  const instrumentByName = new Map(instruments.map((i) => [i.name, i]));
+  const pending = pendingTxs.map((tx) => {
+    const inst = instrumentByName.get(tx.instrument);
     return {
       tx,
       window: db.expectedUnitsWindow(tx.date),

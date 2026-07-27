@@ -10,12 +10,18 @@ falls back to **3001** and prints `- Local: http://localhost:3001`. Always use t
 it prints. To check / free the port:
 ```bash
 lsof -ti :3000 -sTCP:LISTEN     # what's on 3000 (often com.docker)
-docker compose up -d --build    # rebuild the container to run the current code
 ```
 
-Against a throwaway database (so you never touch real data):
+The local D1 lives under `.wrangler/state/` and is seeded from `migrations/` plus the
+import described in `docs/CLOUDFLARE.md`. To start clean:
 ```bash
-DB_PATH=/tmp/test.db npm run dev
+rm -rf .wrangler/state/v3/d1 && npm run db:migrate
+```
+
+**`npm run dev` is not the real runtime.** It runs on Node and accepts things the Worker
+won't (native modules, `node:fs`, long-lived timers). Before believing a change works:
+```bash
+npm run preview   # opennextjs-cloudflare build + wrangler dev — the actual Worker
 ```
 
 ## Verify EVERY change (both must be clean)

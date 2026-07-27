@@ -14,6 +14,9 @@ import { PnlCalendar } from "@/components/pnl-calendar";
 import { usePriceRefreshCount } from "@/components/live-prices";
 import { cn } from "@/lib/utils";
 
+/** What `/api/pnl-history` returns. */
+type PnlHistory = { series: PnlPoint[]; holdings: HoldingPnlPoint[] };
+
 /** Fixed slot per asset type — colour follows the entity, never its rank. */
 const TYPE_COLORS: Record<string, string> = {
   Funds: "var(--chart-1)",
@@ -60,6 +63,8 @@ export function DashboardCharts({
   pending: number;
   goals: GoalView[];
 }) {
+  // `Response.json()` resolves to `unknown` under the Workers type definitions (the DOM
+  // lib types it as `any`), so the shape is asserted here rather than in each callback.
   const [series, setSeries] = React.useState<PnlPoint[] | null>(null);
   const [holdingSeries, setHoldingSeries] = React.useState<HoldingPnlPoint[] | null>(null);
   const [seriesError, setSeriesError] = React.useState<string | null>(null);
@@ -69,8 +74,8 @@ export function DashboardCharts({
   React.useEffect(() => {
     let alive = true;
     fetch("/api/pnl-history")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: { series: PnlPoint[]; holdings: HoldingPnlPoint[] }) => {
+      .then((r) => (r.ok ? (r.json() as Promise<PnlHistory>) : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d) => {
         if (!alive) return;
         setSeries(d.series);
         setHoldingSeries(d.holdings);
@@ -86,8 +91,8 @@ export function DashboardCharts({
     if (!refreshCount || !loaded) return;
     let alive = true;
     fetch("/api/pnl-history?today=1")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: { series: PnlPoint[]; holdings: HoldingPnlPoint[] }) => {
+      .then((r) => (r.ok ? (r.json() as Promise<PnlHistory>) : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d) => {
         if (!alive) return;
         setSeries((s) => (s ? withLatest(s, d.series) : s));
         setHoldingSeries((h) => (h ? withLatest(h, d.holdings) : h));

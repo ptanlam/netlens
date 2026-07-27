@@ -4,10 +4,9 @@ import { SavingsManager } from "@/components/savings-manager";
 
 export default async function SavingsPage() {
   await connection();
-  const savings = db.listSavings();
+  const [savings, goals] = await Promise.all([db.listSavings(), db.listGoals()]);
   // Active sinking funds, so a deposit can be earmarked for one.
-  const funds = db
-    .listGoals()
+  const funds = goals
     .filter((g) => g.metric === "fund")
     .map((g) => ({ id: g.id, name: g.name }));
 

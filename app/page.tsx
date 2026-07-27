@@ -6,32 +6,44 @@ import { project, type GoalView } from "@/lib/goals";
 
 export default async function Dashboard() {
   await connection();
-  db.materializeRecurring();
-  const payload = db.buildPayload();
-  const pending = db.pendingFundUnits();
+  // Must land before anything reads transactions — it inserts the due ones.
+  await db.materializeRecurring();
 
-  const savingsValue = summarize(db.listSavings()).currentValue;
-  const debtPayments = db.listDebtPayments();
+  // Everything below is independent, so it goes out as one fan-out rather than eight
+  // sequential round trips. On better-sqlite3 that ordering was free; on D1 each call is
+  // a network hop, and in series they were the slowest thing on the page.
+  const [payload, pending, savings, debtPayments, debts, fundsCash, goalRows] =
+    await Promise.all([
+      db.buildPayload(),
+      db.pendingFundUnits(),
+      db.listSavings(),
+      db.listDebtPayments(),
+      db.listDebts(),
+      db.fundsCashTotal(),
+      db.listGoals(),
+    ]);
+
+  const savingsValue = summarize(savings).currentValue;
   const paymentsByDebt = new Map<number, Payment[]>();
   for (const p of debtPayments) {
     const list = paymentsByDebt.get(p.debt_id) ?? [];
     list.push(p);
     paymentsByDebt.set(p.debt_id, list);
   }
-  const debtsValue = db
-    .listDebts()
-    .reduce((a, d) => a + debtOwed(d, paymentsByDebt.get(d.id) ?? []), 0);
+  const debtsValue = debts.reduce(
+    (a, d) => a + debtOwed(d, paymentsByDebt.get(d.id) ?? []),
+    0,
+  );
 
-  const world = db.buildGoalWorld(payload.portfolioTotal);
-  const goals: GoalView[] = db
-    .listGoals()
-    .map((goal) => ({ goal, proj: project(goal, world) }));
+  // Needs the portfolio total, so it can't join the fan-out above.
+  const world = await db.buildGoalWorld(payload.portfolioTotal);
+  const goals: GoalView[] = goalRows.map((goal) => ({ goal, proj: project(goal, world) }));
 
   return (
     <DashboardCharts
       payload={payload}
       savings={savingsValue}
-      funds={db.fundsCashTotal()}
+      funds={fundsCash}
       debts={debtsValue}
       pending={pending.length}
       goals={goals}

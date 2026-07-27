@@ -4,8 +4,7 @@ import { DebtsManager } from "@/components/debts-manager";
 
 export default async function DebtsPage() {
   await connection();
-  const debts = db.listDebts();
-  const payments = db.listDebtPayments();
+  const [debts, payments] = await Promise.all([db.listDebts(), db.listDebtPayments()]);
 
   return (
     <div>

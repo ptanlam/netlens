@@ -48,7 +48,7 @@ export async function addTx(fd: FormData) {
   const signed = signedTx(fd);
   if (!instrument || !signed)
     return { ok: false, message: "Instrument and a positive amount are required." };
-  db.addTransaction(
+  await db.addTransaction(
     str(fd.get("date")) || db.todayIso(),
     str(fd.get("asset_type")) || "Funds",
     instrument, signed.amount, signed.quantity,
@@ -59,12 +59,12 @@ export async function addTx(fd: FormData) {
 }
 
 export async function updateTx(id: number, fd: FormData) {
-  if (!db.getTransaction(id)) return { ok: false, message: "Not found." };
+  if (!await db.getTransaction(id)) return { ok: false, message: "Not found." };
   const instrument = str(fd.get("instrument"));
   const signed = signedTx(fd);
   if (!instrument || !signed)
     return { ok: false, message: "Instrument and a positive amount are required." };
-  db.updateTransaction(
+  await db.updateTransaction(
     id,
     str(fd.get("date")) || db.todayIso(),
     str(fd.get("asset_type")) || "Funds",
@@ -76,13 +76,13 @@ export async function updateTx(id: number, fd: FormData) {
 }
 
 export async function deleteTx(id: number) {
-  db.deleteTransaction(id);
+  await db.deleteTransaction(id);
   revalidateAll();
   return { ok: true, message: "Transaction deleted." };
 }
 
 export async function setTxQty(id: number, quantity: number, addToHoldings: boolean) {
-  const ok = db.setTransactionQuantity(id, quantity, addToHoldings);
+  const ok = await db.setTransactionQuantity(id, quantity, addToHoldings);
   revalidateAll();
   return { ok, message: ok ? "Units saved." : "Not found." };
 }
@@ -131,23 +131,23 @@ export async function addSaving(fd: FormData) {
   const p = parseSaving(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const s = p.value;
-  db.addSaving(s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.goal_id, s.note);
+  await db.addSaving(s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.goal_id, s.note);
   revalidateAll();
   return { ok: true, message: "Deposit saved." };
 }
 
 export async function updateSaving(id: number, fd: FormData) {
-  if (!db.getSaving(id)) return { ok: false, message: "Not found." };
+  if (!await db.getSaving(id)) return { ok: false, message: "Not found." };
   const p = parseSaving(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const s = p.value;
-  db.updateSaving(id, s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.goal_id, s.note);
+  await db.updateSaving(id, s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.goal_id, s.note);
   revalidateAll();
   return { ok: true, message: "Deposit updated." };
 }
 
 export async function deleteSaving(id: number) {
-  db.deleteSaving(id);
+  await db.deleteSaving(id);
   revalidateAll();
   return { ok: true, message: "Deposit deleted." };
 }
@@ -202,33 +202,33 @@ export async function addDebt(fd: FormData) {
   const p = parseDebt(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const d = p.value;
-  db.addDebt(d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.kind, d.monthly_payment, d.note);
+  await db.addDebt(d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.kind, d.monthly_payment, d.note);
   revalidateAll();
   return { ok: true, message: "Debt saved." };
 }
 
 export async function updateDebt(id: number, fd: FormData) {
-  if (!db.getDebt(id)) return { ok: false, message: "Not found." };
+  if (!await db.getDebt(id)) return { ok: false, message: "Not found." };
   const p = parseDebt(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const d = p.value;
-  db.updateDebt(id, d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.kind, d.monthly_payment, d.note);
+  await db.updateDebt(id, d.lender, d.principal, d.rate, d.start_date, d.term_months, d.interest_type, d.kind, d.monthly_payment, d.note);
   revalidateAll();
   return { ok: true, message: "Debt updated." };
 }
 
 export async function deleteDebt(id: number) {
-  db.deleteDebt(id);
+  await db.deleteDebt(id);
   revalidateAll();
   return { ok: true, message: "Debt deleted." };
 }
 
 export async function addDebtPayment(debtId: number, fd: FormData) {
-  if (!db.getDebt(debtId)) return { ok: false, message: "Debt not found." };
+  if (!await db.getDebt(debtId)) return { ok: false, message: "Debt not found." };
   const amount = num(fd.get("amount"));
   if (amount == null || amount <= 0)
     return { ok: false, message: "A positive payment amount is required." };
-  db.addDebtPayment(debtId, str(fd.get("date")) || db.todayIso(), amount, str(fd.get("note")) || null);
+  await db.addDebtPayment(debtId, str(fd.get("date")) || db.todayIso(), amount, str(fd.get("note")) || null);
   revalidateAll();
   return { ok: true, message: "Payment recorded." };
 }
@@ -237,13 +237,13 @@ export async function updateDebtPayment(id: number, fd: FormData) {
   const amount = num(fd.get("amount"));
   if (amount == null || amount <= 0)
     return { ok: false, message: "A positive payment amount is required." };
-  const ok = db.updateDebtPayment(id, str(fd.get("date")) || db.todayIso(), amount, str(fd.get("note")) || null);
+  const ok = await db.updateDebtPayment(id, str(fd.get("date")) || db.todayIso(), amount, str(fd.get("note")) || null);
   revalidateAll();
   return { ok, message: ok ? "Payment updated." : "Payment not found." };
 }
 
 export async function deleteDebtPayment(id: number) {
-  db.deleteDebtPayment(id);
+  await db.deleteDebtPayment(id);
   revalidateAll();
   return { ok: true, message: "Payment deleted." };
 }
@@ -297,32 +297,32 @@ export async function addGoal(fd: FormData) {
   const p = parseGoal(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const g = p.value;
-  db.addGoal(g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note);
+  await db.addGoal(g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note);
   revalidateAll();
   return { ok: true, message: "Goal saved." };
 }
 
 export async function updateGoal(id: number, fd: FormData) {
-  const existing = db.getGoal(id);
+  const existing = await db.getGoal(id);
   if (!existing) return { ok: false, message: "Not found." };
   const p = parseGoal(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const g = p.value;
   // Switching a fund to another metric would strand its ledger — the money would vanish
   // from net worth while its rows sat in the table. Renaming and re-targeting are fine.
-  if (existing.metric === "fund" && g.metric !== "fund" && db.listGoalContributions(id).length > 0)
+  if (existing.metric === "fund" && g.metric !== "fund" && (await db.listGoalContributions(id)).length > 0)
     return {
       ok: false,
       message: "This fund holds money. Withdraw it (or mark it as bought) before changing what it tracks.",
     };
-  db.updateGoal(id, g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note);
+  await db.updateGoal(id, g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note);
   revalidateAll();
   return { ok: true, message: "Goal updated." };
 }
 
 /** Put money into a sinking fund (or take it out — a negative amount is a withdrawal). */
 export async function addGoalContribution(goalId: number, fd: FormData) {
-  const goal = db.getGoal(goalId);
+  const goal = await db.getGoal(goalId);
   if (!goal) return { ok: false, message: "Goal not found." };
   if (goal.metric !== "fund")
     return { ok: false, message: "Only a sinking fund holds money." };
@@ -331,13 +331,13 @@ export async function addGoalContribution(goalId: number, fd: FormData) {
     return { ok: false, message: "An amount is required." };
   const withdraw = str(fd.get("direction")) === "withdraw";
   const signed = withdraw ? -Math.abs(amount) : Math.abs(amount);
-  db.addGoalContribution(goalId, str(fd.get("date")) || db.todayIso(), signed, str(fd.get("note")) || null);
+  await db.addGoalContribution(goalId, str(fd.get("date")) || db.todayIso(), signed, str(fd.get("note")) || null);
   revalidateAll();
   return { ok: true, message: withdraw ? "Withdrawal recorded." : "Money added." };
 }
 
 export async function deleteGoalContribution(id: number) {
-  db.deleteGoalContribution(id);
+  await db.deleteGoalContribution(id);
   revalidateAll();
   return { ok: true, message: "Entry deleted." };
 }
@@ -351,17 +351,17 @@ export async function deleteGoalContribution(id: number) {
  * you've broken the deposit for real, delete it on the Savings page.
  */
 export async function spendGoalFund(goalId: number) {
-  const goal = db.getGoal(goalId);
+  const goal = await db.getGoal(goalId);
   if (!goal) return { ok: false, message: "Goal not found." };
   if (goal.metric !== "fund") return { ok: false, message: "Only a sinking fund holds money." };
 
-  const cash = db.fundCash(goalId);
-  const deposits = db.savingsByGoal()[goalId] ?? [];
+  const cash = await db.fundCash(goalId);
+  const deposits = (await db.savingsByGoal())[goalId] ?? [];
   if (cash <= 0 && deposits.length === 0) return { ok: false, message: "This fund is empty." };
 
-  if (cash > 0) db.addGoalContribution(goalId, db.todayIso(), -Math.round(cash), `Bought: ${goal.name}`);
-  db.unlinkGoalSavings(goalId);
-  db.setGoalArchived(goalId, true);
+  if (cash > 0) await db.addGoalContribution(goalId, db.todayIso(), -Math.round(cash), `Bought: ${goal.name}`);
+  await db.unlinkGoalSavings(goalId);
+  await db.setGoalArchived(goalId, true);
   revalidateAll();
 
   const parts = [cash > 0 ? `${fmtVND(cash)} in cash spent` : null,
@@ -373,21 +373,21 @@ export async function spendGoalFund(goalId: number) {
 
 /** Move a goal one place up or down your ranking. */
 export async function moveGoal(id: number, direction: "up" | "down") {
-  const moved = db.moveGoal(id, direction);
+  const moved = await db.moveGoal(id, direction);
   if (!moved) return { ok: false, message: "Already at the end." };
   revalidateAll();
   return { ok: true, message: "" };
 }
 
 export async function archiveGoal(id: number, archived: boolean) {
-  if (!db.getGoal(id)) return { ok: false, message: "Not found." };
-  db.setGoalArchived(id, archived);
+  if (!await db.getGoal(id)) return { ok: false, message: "Not found." };
+  await db.setGoalArchived(id, archived);
   revalidateAll();
   return { ok: true, message: archived ? "Goal archived." : "Goal restored." };
 }
 
 export async function deleteGoal(id: number) {
-  db.deleteGoal(id);
+  await db.deleteGoal(id);
   revalidateAll();
   return { ok: true, message: "Goal deleted." };
 }
@@ -397,8 +397,8 @@ export async function deleteGoal(id: number) {
 export async function addHolding(fd: FormData) {
   const name = str(fd.get("name"));
   if (!name) return { ok: false, message: "A holding name is required." };
-  if (db.getInstrument(name)) return { ok: false, message: `"${name}" already exists.` };
-  db.addInstrument(
+  if (await db.getInstrument(name)) return { ok: false, message: `"${name}" already exists.` };
+  await db.addInstrument(
     name,
     str(fd.get("asset_type")) || "Funds",
     str(fd.get("price_source")) || "manual",
@@ -411,8 +411,8 @@ export async function addHolding(fd: FormData) {
 }
 
 export async function updateHolding(name: string, fd: FormData) {
-  if (!db.getInstrument(name)) return { ok: false, message: "Holding not found." };
-  db.updateInstrumentFields(
+  if (!await db.getInstrument(name)) return { ok: false, message: "Holding not found." };
+  await db.updateInstrumentFields(
     name,
     str(fd.get("asset_type")) || "Funds",
     str(fd.get("price_source")) || "manual",
@@ -425,16 +425,16 @@ export async function updateHolding(name: string, fd: FormData) {
 }
 
 export async function setHoldingArchived(name: string, archived: boolean) {
-  if (!db.getInstrument(name)) return { ok: false, message: "Holding not found." };
-  db.setInstrumentArchived(name, archived);
+  if (!await db.getInstrument(name)) return { ok: false, message: "Holding not found." };
+  await db.setInstrumentArchived(name, archived);
   revalidateAll();
   return { ok: true, message: archived ? "Holding archived." : "Holding restored." };
 }
 
 export async function deleteHolding(name: string) {
-  if (db.instrumentInUse(name))
+  if (await db.instrumentInUse(name))
     return { ok: false, message: "Remove its transactions and recurring rules first." };
-  db.deleteInstrument(name);
+  await db.deleteInstrument(name);
   revalidateAll();
   return { ok: true, message: "Holding deleted." };
 }
@@ -444,7 +444,7 @@ export async function saveHoldings(fd: FormData) {
   for (let i = 0; i < rows; i++) {
     const name = str(fd.get(`inst_${i}`));
     if (!name) continue;
-    db.updateInstrumentFields(
+    await db.updateInstrumentFields(
       name,
       str(fd.get(`type_${i}`)) || "Funds",
       str(fd.get(`source_${i}`)) || "manual",
@@ -512,29 +512,29 @@ function priceSourceFromForm(fd: FormData, builtin: number): db.PriceSource | { 
 export async function addPriceSource(fd: FormData) {
   const parsed = priceSourceFromForm(fd, 0);
   if ("error" in parsed) return { ok: false, message: parsed.error };
-  if (db.getPriceSource(parsed.key)) return { ok: false, message: `"${parsed.key}" already exists.` };
-  db.savePriceSource(parsed);
+  if (await db.getPriceSource(parsed.key)) return { ok: false, message: `"${parsed.key}" already exists.` };
+  await db.savePriceSource(parsed);
   revalidateAll();
   return { ok: true, message: "Price source added." };
 }
 
 export async function updatePriceSource(key: string, fd: FormData) {
-  const current = db.getPriceSource(key);
+  const current = await db.getPriceSource(key);
   if (!current) return { ok: false, message: "Price source not found." };
   const parsed = priceSourceFromForm(fd, current.builtin);
   if ("error" in parsed) return { ok: false, message: parsed.error };
   if (parsed.key !== key) return { ok: false, message: "The key cannot be changed." };
-  db.savePriceSource(parsed);
+  await db.savePriceSource(parsed);
   revalidateAll();
   return { ok: true, message: "Price source updated." };
 }
 
 export async function deletePriceSource(key: string) {
-  const current = db.getPriceSource(key);
+  const current = await db.getPriceSource(key);
   if (!current) return { ok: false, message: "Price source not found." };
-  if (db.priceSourceInUse(key))
+  if (await db.priceSourceInUse(key))
     return { ok: false, message: "A holding still uses this source — reassign it first." };
-  db.deletePriceSource(key);
+  await db.deletePriceSource(key);
   revalidateAll();
   return { ok: true, message: "Price source deleted." };
 }
@@ -554,9 +554,9 @@ export async function addRule(fd: FormData) {
   if (!instrument || amount == null || amount <= 0)
     return { ok: false, message: "Instrument and a positive amount are required." };
   const freq = fd.get("freq") === "monthly" ? "monthly" : "weekly";
-  db.addRecurring(instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
+  await db.addRecurring(instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);
-  const created = db.materializeRecurring();
+  const created = await db.materializeRecurring();
   revalidateAll();
   return { ok: true, message: created ? `Rule added — ${created} transaction(s) created.` : "Rule added." };
 }
@@ -567,20 +567,20 @@ export async function updateRule(id: number, fd: FormData) {
   if (!instrument || amount == null || amount <= 0)
     return { ok: false, message: "Instrument and a positive amount are required." };
   const freq = fd.get("freq") === "monthly" ? "monthly" : "weekly";
-  db.updateRecurring(id, instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
+  await db.updateRecurring(id, instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);
   revalidateAll();
   return { ok: true, message: "Rule updated." };
 }
 
 export async function toggleRule(id: number) {
-  db.toggleRecurring(id);
+  await db.toggleRecurring(id);
   revalidateAll();
   return { ok: true, message: "Rule updated." };
 }
 
 export async function deleteRule(id: number) {
-  db.deleteRecurring(id);
+  await db.deleteRecurring(id);
   revalidateAll();
   return { ok: true, message: "Rule deleted." };
 }

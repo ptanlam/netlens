@@ -9,7 +9,7 @@
  * today's move tracks every price refresh. Funds are the exception: they report NAV a day
  * late, so today uses the stored close for them too (see NAV_STRATEGIES in lib/types.ts).
  */
-import { getDb, getPriceSource, listInstruments, priceHistoryByInstrument, todayIso } from "./db";
+import { listInstruments, listPriceSources, pnlTransactions, priceHistoryByInstrument, todayIso } from "./db";
 import type { HoldingPnlPoint, PnlPoint } from "./types";
 import { NAV_STRATEGIES } from "./types";
 
@@ -34,14 +34,19 @@ function priceLookup(points: [string, number][]) {
  * per-holding breakdown of each day's move; the breakdown for a day sums (up to
  * rounding) to that day's aggregate P&L delta.
  */
-export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] } {
-  const db = getDb();
-  const txs = db
-    .prepare("SELECT date, instrument, amount, quantity FROM transactions ORDER BY date, id")
-    .all() as { date: string; instrument: string; amount: number; quantity: number | null }[];
+export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: HoldingPnlPoint[] }> {
+  // All four reads are independent, and the price sources are pulled as one list rather
+  // than looked up per instrument inside the loop below — on D1 that loop would have been
+  // a query per holding.
+  const [txs, history, instruments, sources] = await Promise.all([
+    pnlTransactions(),
+    priceHistoryByInstrument(),
+    listInstruments(),
+    listPriceSources(),
+  ]);
   if (!txs.length) return { series: [], holdings: [] };
 
-  const history = priceHistoryByInstrument();
+  const strategyBySource = new Map(sources.map((s) => [s.key, s.history_strategy]));
 
   interface Tracked {
     type: string;
@@ -63,7 +68,7 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
   const tracked: Record<string, Tracked> = {};
   const manual: { name: string; type: string; value: number; first: string }[] = [];
 
-  for (const inst of listInstruments()) {
+  for (const inst of instruments) {
     const instTxs = txs.filter((t) => t.instrument === inst.name);
     if (!instTxs.length) continue;
     const first = instTxs[0].date;
@@ -78,7 +83,7 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
         totalUnits += units;
       }
       const qtyNow = inst.quantity != null ? inst.quantity : totalUnits;
-      const strat = getPriceSource(inst.price_source)?.history_strategy ?? "none";
+      const strat = strategyBySource.get(inst.price_source) ?? "none";
       tracked[inst.name] = {
         type: inst.asset_type,
         priceAt,
@@ -165,6 +170,6 @@ export function buildDaily(): { series: PnlPoint[]; holdings: HoldingPnlPoint[] 
   return { series, holdings };
 }
 
-export function buildDailySeries(): PnlPoint[] {
-  return buildDaily().series;
+export async function buildDailySeries(): Promise<PnlPoint[]> {
+  return (await buildDaily()).series;
 }

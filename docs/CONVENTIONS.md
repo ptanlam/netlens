@@ -80,7 +80,8 @@
   action prop types.
 
 ## Data safety
-- `data/investments.db` is **real, git-ignored financial data**. Don't commit it.
+- `data/investments.db` is **real, git-ignored financial data** — now only the source for
+  the one-off D1 migration (`docs/CLOUDFLARE.md`). Don't commit it, or `d1-import.sql`.
 - If you must exercise a mutation to verify, insert then **delete** the test row, or run
   the dev server against a scratch DB: `DB_PATH=/tmp/test.db npm run dev`.
 - "Export CSV" (`/export.csv`) is the user's backup path.
