@@ -11,7 +11,7 @@ export default async function DebtsPage() {
     <div>
       <div className="mb-3.5">
         <div className="text-[26px] font-bold tracking-[-0.01em]">Debts</div>
-        <div className="mt-0.5 max-w-[820px] text-[13px] text-muted-foreground">
+        <div className="mt-0.5 max-w-[820px] text-[13px] text-muted-foreground text-on-field">
           Loans and credit accounts. <span className="italic">Fixed</span> charges interest on
           the original amount, <span className="italic">Flexible</span> recomputes on the
           remaining balance, and <span className="italic">Credit</span> flags any card you

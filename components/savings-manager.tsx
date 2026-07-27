@@ -267,7 +267,7 @@ export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: F
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[12.5px] text-muted-foreground">
+        <p className="text-[12.5px] text-muted-foreground text-on-field">
           Term deposits, newest first.
         </p>
         <AddDepositDialog funds={funds} />
