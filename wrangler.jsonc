@@ -28,7 +28,7 @@
     {
       "binding": "DB",
       "database_name": "netlens",
-      "database_id": "PLACEHOLDER_RUN_WRANGLER_D1_CREATE",
+      "database_id": "5d23d27e-031a-40b7-a294-e536ae84760d",
       "migrations_dir": "migrations"
     }
   ],

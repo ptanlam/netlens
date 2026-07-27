@@ -29,15 +29,56 @@ Locally, `APP_PASSWORD` comes from `.dev.vars` instead (git-ignored).
 
 ## Bringing your data across
 
-The old deployment kept a SQLite file on a Docker volume. To move it into D1:
+The authoritative copy lives on the **Railway** volume (`netlens-volume`, mounted at
+`/app/data`), not in the local `data/investments.db` — that one is whatever your last local
+run left behind and is typically stale. Pull a snapshot from Railway first.
+
+Do not just `cat` the file down. It runs in WAL mode, and the WAL is routinely several MB of
+writes that are not yet in the main file, so a naive copy silently loses recent rows. There
+is no `sqlite3` binary in the container, but better-sqlite3 is, and its `.backup()` gives a
+consistent snapshot without disturbing the live database:
 
 ```bash
-./scripts/dump-for-d1.py                                     # -> d1-import.sql
+cat > /tmp/snap.js <<'EOF'
+const Database = require('/app/node_modules/better-sqlite3');
+new Database('/app/data/investments.db', { readonly: true })
+  .backup('/tmp/snapshot.db').then(() => console.log('ok'));
+EOF
+railway ssh "echo $(base64 < /tmp/snap.js | tr -d '\n') | base64 -d > /tmp/snap.js && node /tmp/snap.js"
+railway ssh "gzip -9c /tmp/snapshot.db | base64" \
+  | grep -E '^[A-Za-z0-9+/=]+$' | tr -d '\n' | base64 -d | gunzip > railway.db
+sqlite3 railway.db "PRAGMA integrity_check;"     # expect: ok
+```
+
+Then dump and load it. Run the migrations **first** — they own the schema; the dump is
+data-only:
+
+```bash
+./scripts/dump-for-d1.py railway.db d1-import.sql
 npx wrangler d1 execute netlens --local  --file=d1-import.sql
 npx wrangler d1 execute netlens --remote --file=d1-import.sql
 ```
 
-Run the migrations **first** — they own the schema; the dump is data-only.
+The dump uses `INSERT OR REPLACE`, so re-running it updates rows and adds new ones — but it
+will **not** remove a row that you deleted upstream. To make an import authoritative, clear
+the data tables first (leave `d1_migrations` alone):
+
+```bash
+npx wrangler d1 execute netlens --remote --command \
+  "DELETE FROM debt_payments; DELETE FROM goal_contributions; DELETE FROM price_history;
+   DELETE FROM transactions; DELETE FROM savings; DELETE FROM debts; DELETE FROM goals;
+   DELETE FROM instruments; DELETE FROM price_sources; DELETE FROM recurring_rules;
+   DELETE FROM meta;"
+```
+
+Afterwards, check the counts match the source — the failure mode this guards against is an
+import that reports success while quietly landing values in the wrong columns:
+
+```bash
+npx wrangler d1 execute netlens --remote --command \
+  "SELECT (SELECT COUNT(*) FROM transactions) tx, (SELECT COUNT(*) FROM price_history) ph,
+          (SELECT COUNT(*) FROM debts) debts, (SELECT COUNT(*) FROM savings) sav"
+```
 
 Read the header of `scripts/dump-for-d1.py` before changing it. It exists rather than a
 plain `sqlite3 .dump` for a reason that cost real debugging time: `.dump` writes positional
@@ -103,30 +144,33 @@ where it belonged, and it now covers the route handlers (`/api/*`, `/export.csv`
 inline `<script>`, which by then has been rewritten — so the browser throws
 `__name is not defined` and the stored theme is never applied on first paint.
 
-## Known loss: the DCVFM price feed
+## The DCVFM feed, and why `lib/tls.ts` went away
 
-`lib/tls.ts` is gone. It trusted extra intermediate CAs from `certs/*.pem` via a custom
-undici dispatcher, because `dragoncapital.com.vn` serves an **incomplete TLS chain** (leaf
-only, no intermediate). Browsers and curl quietly fetch the missing intermediate via the
-cert's AIA URL; Node and the Workers runtime do not.
+`lib/tls.ts` and `certs/*.pem` are gone. They existed because `dragoncapital.com.vn` serves
+an **incomplete TLS chain** (leaf only, no intermediate). Browsers and curl quietly fetch
+the missing intermediate via the certificate's AIA URL; **Node does not**, so under Node the
+`dcvfm` source died with `UNABLE_TO_VERIFY_LEAF_SIGNATURE` and needed a custom undici
+dispatcher that trusted the intermediate from disk.
 
-Workers cannot install a custom CA, so **the `dcvfm` source fails** — you'll see
-`DCDS: internal error` in the price-refresh toast. Confirmed, not theoretical:
+The Workers runtime does not share that limitation — it completes the chain itself. So the
+workaround is not merely unsupported on Workers, it is **unnecessary**. Verified in
+production rather than assumed: after deploying, a price refresh updated DCDS via `dcvfm`
+and moved its `last_price_at` forward.
 
 ```
-curl <dcvfm url>  -> 200
-node fetch        -> UNABLE_TO_VERIFY_LEAF_SIGNATURE
+$ wrangler d1 execute netlens --remote --command \
+    "SELECT name, price_source, last_price_at FROM instruments WHERE name='DCDS'"
+DCDS | dcvfm | 2026-07-27T14:29:14      # imported row said 14:22:12 — the Worker rewrote it
 ```
 
-**The fix is to move DCDS onto `fmarket`**, which lists the same fund and returned a NAV
-identical to the stored one (91251.09) when checked. The holding's `symbol` is already
-`DCDS`, which is what fmarket keys on (`key_field: shortName`), and `history_strategy` is
-`fmarket` there too. Either switch it in Settings → the holding's price source, or:
+So there is **no functional loss** here, and DCDS should stay on `dcvfm` — which `lib/db.ts`
+records as a deliberate single-source choice. Nothing to do.
+
+If you ever do want to move it, fmarket lists the same fund, the holding's `symbol` is
+already `DCDS` (what fmarket keys on via `key_field: shortName`), and `history_strategy` is
+`fmarket` there too:
 
 ```bash
 npx wrangler d1 execute netlens --remote \
   --command "UPDATE instruments SET price_source='fmarket' WHERE name='DCDS'"
 ```
-
-This is left as a decision rather than done for you: `lib/db.ts` recorded that DCVFM was
-chosen deliberately as a single source, with no cross-checking against fmarket.
