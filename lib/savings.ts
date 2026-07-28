@@ -75,14 +75,18 @@ export function paidThisMonth(payments: Payment[], today = new Date()): boolean 
  * Amount still owed today using the declining-balance method: interest accrues on the
  * outstanding balance between payments, each payment reduces the balance (floored at 0).
  * Fixed-term debts stop accruing interest at maturity; revolving debts accrue to today.
+ *
+ * `today` is a real as-of date, not just "now": the chart replays this per day, so a
+ * payment that hasn't happened yet on that date must not reduce the balance.
  */
 export function owed(d: Accruing, payments: Payment[] = [], today = new Date()): number {
   const start = Date.parse(d.start_date + "T00:00:00Z");
   const cap = isRevolving(d) ? Infinity : Date.parse(maturityDate(d) + "T00:00:00Z");
+  const asOf = Math.max(today.getTime(), start);
 
   const events = payments
     .map((p) => ({ t: Date.parse(p.date + "T00:00:00Z"), amt: p.amount }))
-    .filter((e) => !Number.isNaN(e.t))
+    .filter((e) => !Number.isNaN(e.t) && e.t <= asOf)
     .sort((a, b) => a.t - b.t);
 
   let balance = d.principal;
@@ -96,7 +100,7 @@ export function owed(d: Accruing, payments: Payment[] = [], today = new Date()):
     cursor = Math.max(cursor, e.t);
     balance = Math.max(0, balance - e.amt);
   }
-  grow(cursor, Math.min(Math.max(today.getTime(), start), cap));
+  grow(cursor, Math.min(asOf, cap));
   return Math.max(0, balance);
 }
 
