@@ -13,12 +13,14 @@
  *    Railway instance, so there was exactly one writer by construction. D1 serialises
  *    writes itself, so concurrent Server Actions and this cron can't corrupt each other.
  *
- * `refreshHistory` self-throttles to every 12h internally, so calling it each tick is
- * cheap — it's how new daily closes / NAV dates land without someone opening the app.
+ * `refreshHistory` (deep, 12h) and `sweepRecentHistory` (the last few days, 30m) both
+ * self-throttle internally, so calling them each tick is cheap — together they are how new
+ * daily closes / NAV dates land without someone opening the app.
  */
 // Generated at build time by the adapter; typed in types/open-next.d.ts.
 import { default as handler } from "./.open-next/worker.js";
-import { refreshAll, refreshHistory } from "./lib/prices";
+import { bindD1 } from "./lib/db";
+import { refreshAll, refreshHistory, sweepRecentHistory } from "./lib/prices";
 
 const COOKIE_NAME = "inv_auth";
 
@@ -84,14 +86,22 @@ export default {
     return handler.fetch(request, env, ctx);
   },
 
-  async scheduled(_event, _env, ctx) {
+  async scheduled(_event, env, ctx) {
+    // A cron tick never goes through the adapter's fetch handler, so the Cloudflare
+    // context `lib/db` normally reads is not there — without this the very first query
+    // throws and the whole schedule is silently dead. See `bindD1`.
+    bindD1(env.DB);
     // `waitUntil` so the invocation isn't torn down while the upstream feeds are still
     // being polled — several of them are slow, and one is a scraped HTML page.
     ctx.waitUntil(
       (async () => {
         try {
           const [updated, errors] = await refreshAll();
+          // Deep backfill (12h) plus a narrow sweep (30m) of the last few days, so a
+          // close that settles mid-gate lands within the half hour instead of waiting
+          // out the backfill. Both self-throttle, so calling them each tick is cheap.
           await refreshHistory();
+          errors.push(...(await sweepRecentHistory())[1]);
           if (errors.length)
             console.error(
               `[price-cron] updated ${updated}, ${errors.length} failed:\n  - ${errors.join("\n  - ")}`,

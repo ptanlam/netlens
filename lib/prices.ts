@@ -32,9 +32,16 @@ const HISTORY_FROM = "20250101";
  *  which keys official closes to actual trading dates. */
 const CONTINUOUS_STRATEGIES = new Set(["coingecko"]);
 
-function isoFromEpoch(seconds: number): string {
-  const d = new Date(seconds * 1000);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/** The date a daily bar belongs to, as the *venue* reckons it.
+ *
+ *  `gmtOffsetSeconds` is the venue's offset from UTC — Yahoo hands it over as
+ *  `meta.gmtoffset`; CoinGecko buckets its daily points on UTC midnight, so 0. Reading
+ *  the runtime's local date instead (the previous behaviour) silently gave two answers
+ *  for the same bar: UTC on the Worker, the developer's machine under `pnpm dev`. Both
+ *  happen to agree for the feeds in use — a HOSE bar is stamped 02:00Z — but the moment
+ *  a venue's session opens on the far side of UTC midnight they would not. */
+function isoFromEpoch(seconds: number, gmtOffsetSeconds = 0): string {
+  return new Date((seconds + gmtOffsetSeconds) * 1000).toISOString().slice(0, 10);
 }
 
 /** Add `days` to a YYYY-MM-DD string (UTC math, no timezone drift). */
@@ -260,12 +267,26 @@ async function fmarketRows(): Promise<FmarketRow[]> {
   return data.data?.rows ?? [];
 }
 
+/**
+ * Daily closes from Yahoo, *excluding the session in progress*.
+ *
+ * Yahoo's newest daily bar is the current session, and its "close" is only the last
+ * print — at the open it is still yesterday's close carried forward. Storing that as a
+ * settled close is how a day ends up frozen at the previous day's price: the move then
+ * goes missing from the day it belongs to and is double-counted into the next one.
+ * `meta.currentTradingPeriod.regular` says when the session runs, so any bar at or after
+ * its start is dropped until that session has ended.
+ */
 export async function fetchYahooHistory(
   symbol: string, range = "2y",
 ): Promise<Record<string, number>> {
   const data = await getJson<{
     chart: {
       result?: {
+        meta?: {
+          gmtoffset?: number;
+          currentTradingPeriod?: { regular?: { start?: number; end?: number } };
+        };
         timestamp?: number[];
         indicators?: { quote?: { close?: (number | null)[] }[] };
       }[];
@@ -274,8 +295,21 @@ export async function fetchYahooHistory(
   const result = data.chart.result?.[0];
   const stamps = result?.timestamp ?? [];
   const closes = result?.indicators?.quote?.[0]?.close ?? [];
+  const gmtOffset = result?.meta?.gmtoffset ?? 0;
+
+  // Compared as epochs, not dates, so this holds for a venue whose session straddles UTC
+  // midnight. Outside trading hours `regular` describes the *next* session, whose start is
+  // still in the future — no real bar can reach it, so nothing is dropped.
+  const regular = result?.meta?.currentTradingPeriod?.regular;
+  const now = Date.now() / 1000;
+  const unsettledFrom =
+    regular?.start != null && regular.end != null && now < regular.end ? regular.start : Infinity;
+
   const out: Record<string, number> = {};
-  stamps.forEach((ts, i) => { const c = closes[i]; if (c) out[isoFromEpoch(ts)] = c; });
+  stamps.forEach((ts, i) => {
+    const c = closes[i];
+    if (c && ts < unsettledFrom) out[isoFromEpoch(ts, gmtOffset)] = c;
+  });
   return out;
 }
 
@@ -413,16 +447,47 @@ function yahooRange(lookbackDays: number | null): string {
   return "3mo";
 }
 
+/** How soon a backfill that hit an error may be tried again. Short enough that a
+ *  transient upstream failure costs minutes rather than the full `maxAgeHours`, long
+ *  enough that a permanently-broken holding can't turn the 5-minute cron into a
+ *  hammer on the upstream feeds. */
+const HISTORY_RETRY_MINUTES = 30;
+
 /** The full backfill, at most every maxAgeHours. Each source's `history_strategy`
- *  selects which built-in fetcher to use. */
+ *  selects which built-in fetcher to use.
+ *
+ *  Two clocks, because there are two things worth remembering. `history_fetched_at` is
+ *  advanced only by a run that actually stored something, and is what holds the 12h gate
+ *  shut; `history_attempted_at` is advanced by every run and only paces the retries.
+ *  Stamping the first one unconditionally — as this used to — meant a backfill where every
+ *  single fetch failed still bought twelve hours of silence, so a day that was stored wrong
+ *  stayed wrong until someone noticed. `fetchHistoryInto` collects failures rather than
+ *  throwing, so a totally failed run is indistinguishable from a good one unless its
+ *  result is read.
+ *
+ *  The bar is "stored something", not "no errors": one permanently unreachable feed must
+ *  not condemn the other nine to a full re-fetch every half hour forever. A run that got
+ *  nothing at all is the one worth retrying soon, and it is the only one that keeps the
+ *  gate open. */
 export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[]]> {
-  const last = await metaGet("history_fetched_at");
-  if (last) {
-    const age = Date.now() - new Date(last).getTime();
-    if (age < maxAgeHours * 3600 * 1000) return [0, []];
-  }
+  const [last, attempted] = await Promise.all([
+    metaGet("history_fetched_at"),
+    metaGet("history_attempted_at"),
+  ]);
+  const now = Date.now();
+  if (last && now - new Date(last).getTime() < maxAgeHours * 3600 * 1000) return [0, []];
+  // `maxAgeHours === 0` is the "Rebuild history" button asking for it now — the retry
+  // pacing is for unattended cron ticks and must not stand in the user's way.
+  if (
+    maxAgeHours > 0 &&
+    attempted &&
+    now - new Date(attempted).getTime() < HISTORY_RETRY_MINUTES * 60 * 1000
+  )
+    return [0, []];
+
+  await metaSet("history_attempted_at", new Date().toISOString());
   const res = await fetchHistoryInto(null);
-  await metaSet("history_fetched_at", new Date().toISOString());
+  if (res[0] > 0) await metaSet("history_fetched_at", new Date().toISOString());
   return res;
 }
 
@@ -432,4 +497,22 @@ export async function refreshHistory(maxAgeHours = 12): Promise<[number, string[
  *  never convince it that the deep history is up to date. */
 export async function refreshRecentHistory(days = 2): Promise<[number, string[]]> {
   return fetchHistoryInto(days);
+}
+
+/** How often the cron sweeps the last few days. The full backfill's 12h gate is right for
+ *  years of candles but far too coarse for the newest one: a close published just after a
+ *  sweep would otherwise wait up to twelve hours to land, and until it did, that day sat
+ *  in the chart carrying the previous day's price. */
+const RECENT_SWEEP_MINUTES = 30;
+
+/** The cron's catch-up pass: pick up closes and NAVs that have settled since the last
+ *  sweep. Narrow (a few days, so a handful of requests) and throttled, so running it on
+ *  every five-minute tick is cheap. Like `refreshRecentHistory` it never touches
+ *  `history_fetched_at` — the deep backfill's gate is not its to open. */
+export async function sweepRecentHistory(days = 4): Promise<[number, string[]]> {
+  const last = await metaGet("recent_swept_at");
+  if (last && Date.now() - new Date(last).getTime() < RECENT_SWEEP_MINUTES * 60 * 1000)
+    return [0, []];
+  await metaSet("recent_swept_at", new Date().toISOString());
+  return refreshRecentHistory(days);
 }

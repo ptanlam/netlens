@@ -51,10 +51,10 @@
   // Replaces the setInterval price loop that used to live in instrumentation.ts: a Worker
   // has no long-lived process to hold a timer. Every 5 minutes matches the old production
   // default (PRICE_REFRESH_MS=300_000).
+  // Note there is deliberately no `TZ` var here. workerd has no local timezone — its
+  // `Date` is UTC and it ignores TZ — so setting one only looked like it did something.
+  // The app's day boundary is `APP_TIMEZONE` in lib/db.ts, applied via Intl.
   "triggers": {
     "crons": ["*/5 * * * *"]
-  },
-  "vars": {
-    "TZ": "Asia/Ho_Chi_Minh"
   }
 }

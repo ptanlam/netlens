@@ -25,9 +25,26 @@ import { currentValue, type Payment } from "./savings";
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
 export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
 
+/** Set by `bindD1`, for callers that have no Cloudflare context to read. */
+let boundDb: D1Database | null = null;
+
+/**
+ * Hand this module a D1 binding directly.
+ *
+ * `getCloudflareContext()` reads a global that the adapter publishes while handling a
+ * *fetch* invocation. A Cron Trigger is not one: `scheduled` never passes through the
+ * adapter, so the global is unset and every query below throws before the cron can do
+ * anything at all. The scheduled handler has `env` in hand, so it just says so.
+ *
+ * (Not named `useD1`: the React Compiler lint reads a `use` prefix as a hook.)
+ */
+export function bindD1(binding: D1Database) {
+  boundDb = binding;
+}
+
 /** The D1 binding declared in wrangler.jsonc. */
 function db(): D1Database {
-  return getCloudflareContext().env.DB;
+  return boundDb ?? getCloudflareContext().env.DB;
 }
 
 type Bind = string | number | boolean | null;
@@ -71,9 +88,29 @@ function roundUnits(v: number | null): number | null {
   return Math.round(v * f) / f;
 }
 
+/** The calendar this app keeps its books in. Stated outright rather than taken from the
+ *  runtime, because the runtime has no useful answer: workerd has no local timezone (its
+ *  `Date` is UTC, and wrangler's `vars.TZ` does not change that — it is a plain env var),
+ *  while `pnpm dev` picks up whatever the developer's machine is set to. */
+export const APP_TIMEZONE = "Asia/Ho_Chi_Minh";
+
+/** en-CA formats as YYYY-MM-DD, so no reassembly is needed. Built once — constructing an
+ *  Intl formatter is expensive relative to how often `todayIso` is called. */
+const dayFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: APP_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** Today, in the user's timezone — the day boundary every stored date is keyed to.
+ *
+ *  This used to read local time, which in production meant UTC: for the first seven hours
+ *  of every Vietnamese day the dashboard's "today" was actually yesterday, and the
+ *  five-minute price cron stamped that morning's price into `price_history` over
+ *  *yesterday's* settled close, moving a day's P&L onto the wrong day. */
 export function todayIso(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return dayFormatter.format(new Date());
 }
 
 function nowIso(): string {
