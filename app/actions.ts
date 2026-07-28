@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import * as db from "@/lib/db";
 import {
-  refreshAll, refreshRecentHistory, testPriceSource as runPriceSourceTest,
+  refreshAll, refreshHistory, refreshRecentHistory, testPriceSource as runPriceSourceTest,
 } from "@/lib/prices";
 import { authToken, COOKIE_NAME } from "@/lib/auth";
 import { fmtVND } from "@/lib/format";
@@ -470,6 +470,37 @@ export async function refreshPrices(withHistory = false) {
     message: `Updated ${updated} price(s).` + (errors.length ? ` ${errors.length} failed.` : ""),
     // Per-source failure reasons, so the client can log them (a silent auto-refresh shows
     // no toast but still writes an error log).
+    errors,
+  };
+}
+
+/**
+ * Refetch the full daily history behind the P&L chart, now, ignoring the 12h throttle
+ * (`maxAgeHours = 0` — the age of `history_fetched_at` can never be below zero, so the
+ * early return can't fire).
+ *
+ * The chart is reconstructed on every request from `price_history`, so there is nothing
+ * stored to "rebuild" but those closes — refetch them and the whole series moves. Worth
+ * having a button for when a feed backfilled a day it had previously skipped, or served a
+ * bad close that has since been corrected: waiting up to 12h for the cron to notice is the
+ * whole complaint.
+ *
+ * Upserts, like every other history fetch — it corrects and extends what is stored and
+ * never drops it. A row for an instrument no longer served upstream therefore survives,
+ * which is why this is a refetch rather than a wipe-and-reload: a partial upstream failure
+ * must not be able to leave the chart with less history than it started with.
+ *
+ * Slow by nature (every instrument's full range, from four upstreams), so the caller is
+ * expected to show it as pending rather than fire it silently.
+ */
+export async function rebuildPnlHistory() {
+  const [updated, errors] = await refreshHistory(0);
+  revalidateAll();
+  return {
+    ok: errors.length === 0,
+    message:
+      `Rebuilt history for ${updated} holding${updated === 1 ? "" : "s"}.` +
+      (errors.length ? ` ${errors.length} failed.` : ""),
     errors,
   };
 }

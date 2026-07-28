@@ -25,7 +25,17 @@ Set the password as a secret (not a var — `wrangler.jsonc` is committed):
 npx wrangler secret put APP_PASSWORD
 ```
 
-Locally, `APP_PASSWORD` comes from `.dev.vars` instead (git-ignored).
+Locally, `APP_PASSWORD` comes from `.dev.vars` instead (git-ignored). **Quote the value
+there.** `.dev.vars` is parsed as dotenv, so an unquoted `#` starts an inline comment and the
+password is silently truncated at it — the Worker then rejects a cookie that production
+accepts, and the only symptom is being bounced to `/login` forever:
+
+```
+APP_PASSWORD="pa#ssword"     # quoted: correct
+APP_PASSWORD=pa#ssword       # parsed as "pa"
+```
+
+`wrangler secret put` reads stdin rather than dotenv, so production is unaffected by this.
 
 ## Bringing your data across
 
@@ -165,6 +175,13 @@ DCDS | dcvfm | 2026-07-27T14:29:14      # imported row said 14:22:12 — the Wor
 
 So there is **no functional loss** here, and DCDS should stay on `dcvfm` — which `lib/db.ts`
 records as a deliberate single-source choice. Nothing to do.
+
+**Local `wrangler dev` is the exception.** The workerd binary on your machine does not do
+what the edge does, so both the live price and the history fetch fail there with
+`DCDS: internal error`, on every strategy that hits `dragoncapital.com.vn`. Expect one
+failed holding in the toast when refreshing or rebuilding locally; it is an artefact of the
+local runtime, not of the change you are testing. Check against production before believing
+DCDS is broken.
 
 If you ever do want to move it, fmarket lists the same fund, the holding's `symbol` is
 already `DCDS` (what fmarket keys on via `key_field: shortName`), and `history_strategy` is

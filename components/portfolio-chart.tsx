@@ -4,6 +4,7 @@ import * as React from "react";
 import type { PnlPoint } from "@/lib/types";
 import { fmtTr, fmtVND } from "@/lib/format";
 import { bucketOf, type Bucket } from "@/components/pnl-chart";
+import { RebuildHistoryButton } from "@/components/rebuild-history-button";
 import { cn } from "@/lib/utils";
 
 const TIMEFRAMES: Bucket[] = ["Daily", "Weekly", "Monthly", "Yearly"];
@@ -39,9 +40,12 @@ function fmtAxisLabel(date: string, tf: Bucket, compact: boolean): string {
 export function PortfolioChart({
   series,
   error,
+  onRebuilt,
 }: {
   series: PnlPoint[] | null;
   error: string | null;
+  /** Called after a history rebuild, so the owner of the series can re-pull it. */
+  onRebuilt?: () => void;
 }) {
   const [metric, setMetric] = React.useState<Metric>("value");
   const [timeframe, setTimeframe] = React.useState<Bucket>("Daily");
@@ -98,6 +102,7 @@ export function PortfolioChart({
               </button>
             ))}
           </div>
+          <RebuildHistoryButton onDone={onRebuilt} />
         </div>
       </div>
 
