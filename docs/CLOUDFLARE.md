@@ -101,10 +101,14 @@ and `savings.goal_id` via `ALTER TABLE`, so SQLite appended them at the end, whi
 ## Day to day
 
 ```bash
-pnpm dev        # next dev, with D1 bound through initOpenNextCloudflareForDev()
-pnpm preview    # build + run the real Worker locally (wrangler dev)
-pnpm deploy     # build + deploy
+pnpm dev            # next dev, with D1 bound through initOpenNextCloudflareForDev()
+pnpm preview        # build + run the real Worker locally (wrangler dev)
+pnpm run deploy     # build + deploy
 ```
+
+`deploy` needs the explicit `run`: bare `pnpm deploy` is pnpm's own workspace command
+(it copies a package into a directory) and will not touch this script. The others have no
+builtin of that name, so the shorthand is fine.
 
 `pnpm preview` is the one that catches Workers-specific breakage; `next dev` still runs
 on Node and will happily accept things the Worker won't.

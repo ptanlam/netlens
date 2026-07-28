@@ -18,6 +18,22 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // Serve from the zone, not just workers.dev. This is a prerequisite for Cloudflare
+  // Access, which can only protect a hostname on an active zone in the account — it cannot
+  // be put in front of a *.workers.dev URL. See docs/CLOUDFLARE.md.
+  "routes": [
+    {
+      "pattern": "netlens.lamphan.com",
+      "custom_domain": true
+    }
+  ],
+  // Both stated outright rather than left to wrangler, which infers them from whether a
+  // route exists — so adding or removing a route silently flips them. These are load-bearing
+  // once Access is in front of the zone: Access cannot protect a workers.dev hostname, so a
+  // live <name>.workers.dev (or a <version>- preview URL) is an unauthenticated way straight
+  // past it to the same Worker and the same database.
+  "workers_dev": false,
+  "preview_urls": false,
   "observability": {
     "enabled": true
   },
