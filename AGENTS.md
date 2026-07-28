@@ -19,9 +19,9 @@ Personal net-worth tracker: **investments, savings (term deposits), debts (loans
 1. **This is the right app.** There are TWO similarly-named apps on this machine:
    - ✅ **This one** — Next.js 16, at the repo root (`.../_personal/investment-visualization`), port **3000**. Edit here.
    - ❌ Legacy **Flask** app at `~/Projects/personal/investment-visualization` (note: `personal`, no underscore), port **8000**. Do NOT edit unless explicitly asked.
-2. **A Docker container often holds port 3000** (an old build). `npm run dev` then falls back to **3001** and prints the URL — always test against the port it prints.
-3. **Storage is Cloudflare D1, not a local SQLite file.** `npm run dev` binds a local D1 (a Miniflare SQLite file under `.wrangler/`); production is a real D1 database. `data/investments.db` is the *old* better-sqlite3 file, kept only as the migration source. Read [`docs/CLOUDFLARE.md`](docs/CLOUDFLARE.md) before touching storage or deployment.
-4. **`npm run dev` is not the real runtime.** It still runs on Node and will accept things the Worker won't. Use `npm run preview` (a real `wrangler dev`) before believing a change works.
+2. **A Docker container often holds port 3000** (an old build). `pnpm dev` then falls back to **3001** and prints the URL — always test against the port it prints.
+3. **Storage is Cloudflare D1, not a local SQLite file.** `pnpm dev` binds a local D1 (a Miniflare SQLite file under `.wrangler/`); production is a real D1 database. `data/investments.db` is the *old* better-sqlite3 file, kept only as the migration source. Read [`docs/CLOUDFLARE.md`](docs/CLOUDFLARE.md) before touching storage or deployment.
+4. **`pnpm dev` is not the real runtime.** It still runs on Node and will accept things the Worker won't. Use `pnpm preview` (a real `wrangler dev`) before believing a change works.
 
 ## Stack
 
@@ -42,7 +42,7 @@ Every tracked entity (transactions, holdings, recurring, **savings**, **debts**)
 
 > table in a new `migrations/NNNN_*.sql` → async CRUD in `lib/db.ts` → type in `lib/types.ts` → actions in `app/actions.ts` (+ add route to `revalidateAll`) → `components/<x>-manager.tsx` → `app/<x>/page.tsx` → link in `components/nav.tsx` `LINKS` (drives desktop nav AND the mobile drawer).
 
-Apply the migration with `npm run db:migrate` (local) and `npm run db:migrate:remote`.
+Apply the migration with `pnpm db:migrate` (local) and `pnpm db:migrate:remote`.
 
 `savings` and `debts` are near-identical templates — copy one. See `docs/ADDING_A_FEATURE.md`.
 
@@ -52,7 +52,7 @@ Apply the migration with `npm run db:migrate` (local) and `npm run db:migrate:re
 - **Base UI `<Button render={<Link/>}>`** needs `nativeButton={false}` or it warns.
 - **React Compiler lint (`react-hooks/immutability`)** forbids reassigning a captured variable inside a `.map()` in `useMemo` (e.g. `sum += x`). Use prefix sums / `reduce` instead.
 - **Money is whole-VND integers** (signed: + in, − out). Format with `fmtVND` / `fmtTr` from `lib/format.ts`. Never hardcode currency.
-- **Verify every change**: `npx tsc --noEmit` + `npm run lint`, then a headless-Chrome screenshot for UI. Both must be clean. Details in `docs/WORKFLOW.md`.
+- **Verify every change**: `npx tsc --noEmit` + `pnpm lint`, then a headless-Chrome screenshot for UI. Both must be clean. Details in `docs/WORKFLOW.md`.
 
 ## Money & interest
 

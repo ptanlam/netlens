@@ -2,8 +2,8 @@
 
 ## Run the dev server
 ```bash
-npm install          # first time only
-npm run dev          # prints the URL it actually bound
+pnpm install          # first time only
+pnpm dev          # prints the URL it actually bound
 ```
 **Port note:** a Docker container (an old build) frequently holds **3000**, so Next
 falls back to **3001** and prints `- Local: http://localhost:3001`. Always use the URL
@@ -15,24 +15,24 @@ lsof -ti :3000 -sTCP:LISTEN     # what's on 3000 (often com.docker)
 The local D1 lives under `.wrangler/state/` and is seeded from `migrations/` plus the
 import described in `docs/CLOUDFLARE.md`. To start clean:
 ```bash
-rm -rf .wrangler/state/v3/d1 && npm run db:migrate
+rm -rf .wrangler/state/v3/d1 && pnpm db:migrate
 ```
 
-**`npm run dev` is not the real runtime.** It runs on Node and accepts things the Worker
+**`pnpm dev` is not the real runtime.** It runs on Node and accepts things the Worker
 won't (native modules, `node:fs`, long-lived timers). Before believing a change works:
 ```bash
-npm run preview   # opennextjs-cloudflare build + wrangler dev — the actual Worker
+pnpm preview   # opennextjs-cloudflare build + wrangler dev — the actual Worker
 ```
 
 ## Verify EVERY change (both must be clean)
 ```bash
 npx tsc --noEmit     # types — the only true "build" check you need for most edits
-npm run lint         # eslint incl. react-hooks rules
+pnpm lint         # eslint incl. react-hooks rules
 ```
 - After deleting/adding a route, a **stale `.next` types cache** can make `tsc` complain
   about a missing `app/<removed>/page.js`. Fix: `rm -rf .next` and restart dev to
   regenerate, then re-run `tsc`.
-- `npm run build` is a heavier full check; use it before shipping big changes.
+- `pnpm build` is a heavier full check; use it before shipping big changes.
 
 ## Visual / UI testing (headless Chrome)
 There's no browser MCP here; drive real Chrome with `puppeteer-core` (Chrome is
@@ -70,7 +70,7 @@ Tips:
   in first.
 
 ## Definition of done
-- `tsc --noEmit` and `npm run lint` both clean.
+- `tsc --noEmit` and `pnpm lint` both clean.
 - Headless screenshot shows the change on desktop **and** ~390px mobile, with **no
   console errors**.
 - Any test data you inserted is removed; no dev server / temp files left running.

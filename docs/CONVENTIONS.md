@@ -72,7 +72,7 @@
 - When unsure about an API, read `node_modules/next/dist/docs/`.
 
 ## TypeScript / React Compiler lint
-- `npm run lint` runs ESLint incl. `react-hooks/*`. The **immutability** rule forbids
+- `pnpm lint` runs ESLint incl. `react-hooks/*`. The **immutability** rule forbids
   mutating a captured variable after render — e.g. `let s=0; xs.map(x => s+=x)` inside a
   `useMemo`. Use `reduce`, or `xs.map((_,i)=> xs.slice(0,i+1).reduce(...))`.
 - Prefer discriminated unions (`{ok:true,value} | {ok:false,message}`) over
@@ -83,5 +83,5 @@
 - `data/investments.db` is **real, git-ignored financial data** — now only the source for
   the one-off D1 migration (`docs/CLOUDFLARE.md`). Don't commit it, or `d1-import.sql`.
 - If you must exercise a mutation to verify, insert then **delete** the test row, or run
-  the dev server against a scratch DB: `DB_PATH=/tmp/test.db npm run dev`.
+  the dev server against a scratch DB: `DB_PATH=/tmp/test.db pnpm dev`.
 - "Export CSV" (`/export.csv`) is the user's backup path.

@@ -6,7 +6,7 @@ with **D1** for storage and a **Cron Trigger** for price refreshes.
 ## First-time setup
 
 ```bash
-npm install
+pnpm install
 npx wrangler login
 npx wrangler d1 create netlens      # copy the database_id it prints
 ```
@@ -14,9 +14,9 @@ npx wrangler d1 create netlens      # copy the database_id it prints
 Paste that id into `wrangler.jsonc` (it ships with a `PLACEHOLDER_…` value), then:
 
 ```bash
-npm run cf-typegen                  # regenerate worker-configuration.d.ts
-npm run db:migrate                  # apply migrations/ to the LOCAL D1
-npm run db:migrate:remote           # ...and to production
+pnpm cf-typegen                  # regenerate worker-configuration.d.ts
+pnpm db:migrate                  # apply migrations/ to the LOCAL D1
+pnpm db:migrate:remote           # ...and to production
 ```
 
 Set the password as a secret (not a var — `wrangler.jsonc` is committed):
@@ -101,12 +101,12 @@ and `savings.goal_id` via `ALTER TABLE`, so SQLite appended them at the end, whi
 ## Day to day
 
 ```bash
-npm run dev        # next dev, with D1 bound through initOpenNextCloudflareForDev()
-npm run preview    # build + run the real Worker locally (wrangler dev)
-npm run deploy     # build + deploy
+pnpm dev        # next dev, with D1 bound through initOpenNextCloudflareForDev()
+pnpm preview    # build + run the real Worker locally (wrangler dev)
+pnpm deploy     # build + deploy
 ```
 
-`npm run preview` is the one that catches Workers-specific breakage; `next dev` still runs
+`pnpm preview` is the one that catches Workers-specific breakage; `next dev` still runs
 on Node and will happily accept things the Worker won't.
 
 Query the database directly:

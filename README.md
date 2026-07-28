@@ -15,10 +15,10 @@ the old app to migrate (same schema).
 ## Run it
 
 ```bash
-npm install
-npm run dev        # http://localhost:3000
+pnpm install
+pnpm dev        # http://localhost:3000
 # or production:
-npm run build && npm start
+pnpm build && pnpm start
 ```
 
 ## Pages

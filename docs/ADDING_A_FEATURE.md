@@ -5,7 +5,7 @@ want to add `goals`. Do these seven edits, in order.
 
 ### 1. Table — a new `migrations/NNNN_add_<thing>.sql`
 
-(Then `npm run db:migrate` locally and `npm run db:migrate:remote` for production.
+(Then `pnpm db:migrate` locally and `pnpm db:migrate:remote` for production.
 The old `SCHEMA` string that auto-created tables on boot is gone — see `docs/CLOUDFLARE.md`.)
 ```sql
 CREATE TABLE IF NOT EXISTS goals (
@@ -100,5 +100,5 @@ Also read it in `app/page.tsx` and pass it into `components/net-worth.tsx`.
   `disabled`/`required` instead (see the debts "revolving" term field).
 - **`react-hooks/immutability` lint**: no `let acc; arr.map(() => acc += …)` inside
   `useMemo`. Use `reduce` or index-based prefix sums.
-- **Always** finish with `npx tsc --noEmit` **and** `npm run lint` clean, plus a
+- **Always** finish with `npx tsc --noEmit` **and** `pnpm lint` clean, plus a
   headless screenshot (see `WORKFLOW.md`). Clean up any test rows you inserted.
