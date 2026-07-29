@@ -325,6 +325,11 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
   const boxRef = React.useRef<HTMLDivElement>(null);
   const W = useElementWidth(boxRef);
   const H = 150;
+  // Half the stroke width. A 2px line centred on y=0 loses its top half to the SVG's own
+  // clip, and a cumulative line ends at its maximum — so the whole tail rendered 1px while
+  // the rest rendered 2px. Inset the plot band by half a stroke at both ends and the line
+  // is drawn whole; zero still lands flush on the axis rule at H.
+  const INSET = 1;
   const rows = txs.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
   const d0 = new Date(from).getTime();
   const d1 = new Date(to).getTime();
@@ -339,7 +344,7 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
   pts.push({ x: 1, v: cum, date: to, label: "Range end" });
   const max = Math.max(1, ...pts.map((p) => p.v));
   const X = (f: number) => f * W;
-  const Y = (v: number) => H - (v / max) * H;
+  const Y = (v: number) => H - INSET - (v / max) * (H - INSET * 2);
   let line = "";
   pts.forEach((p, i) => { line += (i ? "L" : "M") + X(p.x).toFixed(1) + " " + Y(p.v).toFixed(1) + " "; });
   const area = line + "L" + W + " " + H + " L 0 " + H + " Z";
