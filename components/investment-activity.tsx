@@ -24,9 +24,10 @@ function isoNow(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-function trVND(n: number): string {
+function milVND(n: number): string {
   const abs = Math.abs(n);
-  if (abs >= 1e6) return `${n < 0 ? "−" : ""}₫${Math.round(abs / 1e6)}tr`;
+  if (abs >= 1e9) return `${n < 0 ? "−" : ""}₫${+(abs / 1e9).toFixed(1)}bil`;
+  if (abs >= 1e6) return `${n < 0 ? "−" : ""}₫${Math.round(abs / 1e6)}mil`;
   if (abs === 0) return "—";
   return `${n < 0 ? "−" : ""}₫${Math.round(abs / 1e3)}k`;
 }
@@ -275,7 +276,7 @@ export function InvestmentActivity({
                 <div className="w-full rounded-t-[3px] bg-chart-1" style={{ height: `${Math.max(3, Math.round((b.amt / maxBar) * 100))}%` }} />
               </div>
               <div className="font-mono text-[10px] text-faint">{b.label}</div>
-              <div className="font-mono text-[9.5px] text-muted-foreground tabular-nums">{trVND(b.amt)}</div>
+              <div className="font-mono text-[9.5px] text-muted-foreground tabular-nums">{milVND(b.amt)}</div>
             </div>
           ))}
         </div>
@@ -380,7 +381,7 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
           )}
           <rect x={0} y={0} width={W} height={H} fill="transparent" style={{ cursor: "crosshair" }} onMouseMove={onMove} onMouseLeave={() => setHoverIdx(null)} />
         </svg>
-        <div className="absolute -top-1.5 -left-[52px] font-mono text-[10px] text-faint">₫{Math.round(max / 1e6)}tr</div>
+        <div className="absolute -top-1.5 -left-[52px] font-mono text-[10px] text-faint">{milVND(max)}</div>
         <div className="absolute -bottom-0.5 -left-[52px] font-mono text-[10px] text-faint">₫0</div>
         {hi != null && (
           <div

@@ -21,10 +21,12 @@ export function fmtUnits(v: number): string {
   return v.toLocaleString("de-DE", { maximumFractionDigits: 8 });
 }
 
-/** Axis-style short form: 40tr = 40 million VND. */
-export function fmtTr(v: number): string {
+/** Axis-style short form: 40mil = 40 million VND, 1.2bil = 1.2 billion.
+ *  Past a billion the millions read as "1000mil", so step up a unit. */
+export function fmtMil(v: number): string {
   if (v === 0) return "0";
-  return `${Math.round(v / 1e6)}tr`;
+  if (Math.abs(v) >= 1e9) return `${+(v / 1e9).toFixed(1)}bil`;
+  return `${Math.round(v / 1e6)}mil`;
 }
 
 export const MONTHS = [

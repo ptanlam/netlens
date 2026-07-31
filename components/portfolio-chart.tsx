@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { PnlPoint } from "@/lib/types";
-import { fmtTr, fmtVND } from "@/lib/format";
+import { fmtMil, fmtVND } from "@/lib/format";
 import { bucketOf, type Bucket } from "@/components/pnl-chart";
 import { RebuildHistoryButton } from "@/components/rebuild-history-button";
 import { cn } from "@/lib/utils";
@@ -288,7 +288,7 @@ function ChartSvg({
       <div className="absolute top-0 left-0 h-[250px] w-[46px]">
         {ticks.map((t, i) => (
           <div key={"y" + i} className="absolute left-0 -translate-y-1/2 font-mono text-[10.5px] text-faint" style={{ top: `${(Y(t) / H) * 100}%` }}>
-            {fmtTr(t)}
+            {fmtMil(t)}
           </div>
         ))}
       </div>

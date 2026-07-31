@@ -117,12 +117,12 @@ function monthTotal(cells: (DayCell | null)[]): number {
   return cells.reduce((a, c) => (c?.tracked ? a + c.delta : a), 0);
 }
 
-/** Compact signed VND for tight calendar cells: +2.4tr / -830k. */
+/** Compact signed VND for tight calendar cells: +2.4mil / -830k. */
 function fmtCompact(v: number): string {
   const sign = v > 0 ? "+" : v < 0 ? "−" : "";
   const abs = Math.abs(v);
-  if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(abs >= 1e10 ? 0 : 1)}tỷ`;
-  if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}tr`;
+  if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(abs >= 1e10 ? 0 : 1)}bil`;
+  if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}mil`;
   if (abs >= 1e3) return `${sign}${Math.round(abs / 1e3)}k`;
   return `${sign}${abs}`;
 }

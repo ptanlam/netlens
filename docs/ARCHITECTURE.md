@@ -35,7 +35,7 @@ Pure, dependency-free logic (safe to import from client components) lives in
 | `lib/settings.ts` | `SETTINGS_SECTIONS` — the settings rail, shared server/client. |
 | `lib/pnl.ts` | Reconstructs the daily P&L series from transactions + `price_history`. |
 | `lib/prices.ts` | Live/historical price fetching (CoinGecko, Yahoo, fmarket, VCBF). Never throws; collects errors. |
-| `lib/format.ts` | `fmtVND` (₫ with `.` thousands), `fmtTr` (axis short form: `40tr`), `MONTHS`. |
+| `lib/format.ts` | `fmtVND` (₫ with `.` thousands), `fmtMil` (axis short form: `40mil`), `MONTHS`. |
 | `lib/auth.ts` | Token helper for the optional password gate. |
 | `app/actions.ts` | Every mutation (transactions, holdings, recurring, savings, debts, auth). |
 | `app/**/page.tsx` | One server component per route. |

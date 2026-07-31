@@ -5,7 +5,8 @@
   (buy/contribute), `−` = money out (sell/withdraw).
 - Format for display with `lib/format.ts`:
   - `fmtVND(1234567)` → `₫1.234.567` (de-DE style `.` thousands; handles negatives).
-  - `fmtTr(40_000_000)` → `40tr` (chart axis short form; `tr` = triệu = million).
+  - `fmtMil(40_000_000)` → `40mil`, `fmtMil(1_200_000_000)` → `1.2bil` (chart axis short
+    form). Below a million, axes and compact cells fall back to `k`.
 - Round on write (`Math.round`) so the DB never stores fractional VND.
 
 ## Dates

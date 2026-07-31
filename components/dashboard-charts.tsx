@@ -26,10 +26,11 @@ const TYPE_COLORS: Record<string, string> = {
 };
 const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
 
-/** Short VND for bars/legends: ₫372tr, ₫22tr. */
-function fmtTrVND(v: number): string {
+/** Short VND for bars/legends: ₫1.2bil, ₫372mil, ₫22mil. */
+function fmtMilVND(v: number): string {
   const abs = Math.abs(v);
-  if (abs >= 1e6) return `${v < 0 ? "−" : ""}₫${Math.round(abs / 1e6)}tr`;
+  if (abs >= 1e9) return `${v < 0 ? "−" : ""}₫${+(abs / 1e9).toFixed(1)}bil`;
+  if (abs >= 1e6) return `${v < 0 ? "−" : ""}₫${Math.round(abs / 1e6)}mil`;
   return `${v < 0 ? "−" : ""}₫${Math.round(abs / 1e3)}k`;
 }
 function fmtSigned(v: number): string {
@@ -242,7 +243,7 @@ function AllocationCard({ payload }: { payload: Payload }) {
             TOTAL
           </text>
           <text x="50%" y="59%" textAnchor="middle" dominantBaseline="middle" fill="var(--foreground)" className="font-mono tabular-nums" style={{ fontSize: 15 }}>
-            {fmtTrVND(total)}
+            {fmtMilVND(total)}
           </text>
         </svg>
       </div>
@@ -254,7 +255,7 @@ function AllocationCard({ payload }: { payload: Payload }) {
               <span className="text-[13px]">{r.type}</span>
             </div>
             <div className="flex gap-3.5">
-              <span className="font-mono text-[12.5px] text-muted-foreground tabular-nums">{fmtTrVND(r.value)}</span>
+              <span className="font-mono text-[12.5px] text-muted-foreground tabular-nums">{fmtMilVND(r.value)}</span>
               <span className="w-[42px] text-right font-mono text-[12.5px] tabular-nums">{r.pct.toFixed(1)}%</span>
             </div>
           </div>
@@ -285,7 +286,7 @@ function HoldingsCard({ payload }: { payload: Payload }) {
                 style={{ width: `${(h.value / max) * 100}%`, background: typeColor(h.type), animationDelay: `${i * 45}ms` }}
               />
             </div>
-            <div className="w-14 text-right font-mono text-[12px] text-muted-foreground tabular-nums">{fmtTrVND(h.value)}</div>
+            <div className="w-14 text-right font-mono text-[12px] text-muted-foreground tabular-nums">{fmtMilVND(h.value)}</div>
           </div>
         ))}
       </div>

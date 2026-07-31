@@ -3,7 +3,7 @@
 import * as React from "react";
 import { CartesianGrid, ReferenceLine, XAxis, YAxis, Area, AreaChart } from "recharts";
 import type { PnlPoint } from "@/lib/types";
-import { fmtTr, fmtVND } from "@/lib/format";
+import { fmtMil, fmtVND } from "@/lib/format";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -115,7 +115,7 @@ export function PnlChart({
                 </defs>
                 <CartesianGrid vertical={false} strokeWidth={1} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={32} />
-                <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={fmtTr} />
+                <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={fmtMil} />
                 <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1} />
                 <ChartTooltip
                   content={
