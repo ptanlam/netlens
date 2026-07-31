@@ -524,7 +524,24 @@ export function DebtsManager({
   const interest = owedSum + paidSum - principalSum;
   const dueThisMonth = rows.filter((r) => r.isCredit && !r.paidThisMonth);
 
-  const series = buildDailySeries(debts, (debt, at) => debtOwed(debt, byDebt.get(debt.id) ?? [], at));
+  // Baseline is the interest-free balance — what you borrowed, less what you've repaid by
+  // that date — so the band above it is the interest still sitting in the balance. Lifetime
+  // interest (`owed + paid - principal`, the figure the summary tile quotes) is higher once
+  // repayments have carried some of it back out, so it is tracked separately.
+  const series = buildDailySeries(
+    debts,
+    (debt, at) => debtOwed(debt, byDebt.get(debt.id) ?? [], at),
+    (debt, at) => {
+      const pmts = byDebt.get(debt.id) ?? [];
+      const paid = pmts
+        .filter((p) => Date.parse(p.date + "T00:00:00Z") <= at.getTime())
+        .reduce((a, p) => a + p.amount, 0);
+      return {
+        base: Math.max(0, debt.principal - paid),
+        interest: debtOwed(debt, pmts, at) + paid - debt.principal,
+      };
+    },
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -560,7 +577,10 @@ export function DebtsManager({
           series={series}
           stroke="var(--chart-negative)"
           areaFill="rgb(var(--negative-rgb) / 0.13)"
+          bandFill="rgb(var(--negative-rgb) / 0.38)"
           tipLabel="Owed"
+          baseLabel="Remaining principal"
+          bandLabel="Interest"
           emptyMessage="No debt history yet."
         />
       )}

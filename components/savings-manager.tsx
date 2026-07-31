@@ -238,7 +238,12 @@ function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
 
 export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: FundOption[] }) {
   const s = summarize(savings);
-  const series = buildDailySeries(savings, currentValue);
+  // Baseline is the deposit's own principal, so the shaded band is interest accrued.
+  // Nothing is ever withdrawn from a deposit, so lifetime interest is the same figure.
+  const series = buildDailySeries(savings, currentValue, (d, at) => ({
+    base: d.principal,
+    interest: currentValue(d, at) - d.principal,
+  }));
 
   return (
     <div className="flex flex-col gap-3 sm:gap-5">
@@ -261,7 +266,10 @@ export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: F
           series={series}
           stroke="var(--chart-positive)"
           areaFill="rgb(var(--positive-rgb) / 0.13)"
+          bandFill="rgb(var(--positive-rgb) / 0.38)"
           tipLabel="Value"
+          baseLabel="Principal"
+          bandLabel="Interest"
           emptyMessage="No deposit history yet."
         />
       )}
