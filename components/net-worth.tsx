@@ -1,8 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { fmtVND } from "@/lib/format";
+import { fmtVND, MONTHS } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+/** "2026-07-30" → "Jul 30". Sliced rather than passed through `Date`, which would read the
+ *  ISO day as UTC midnight and shift it a day back in every timezone behind it. */
+function fmtDayShort(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${MONTHS[Number(m) - 1]} ${Number(d)}`;
+}
 
 /** Down-sample to at most N points and turn them into a line + closed area path over a
  *  1000×300 viewBox. The spark is drawn with `preserveAspectRatio="none"`, so the x scale
@@ -34,6 +41,7 @@ export function NetWorthPanel({
   funds,
   debts,
   todayDelta,
+  todayFrom,
   spark,
 }: {
   investments: number;
@@ -43,6 +51,10 @@ export function NetWorthPanel({
   debts: number;
   /** Day-over-day P&L move; null while the series is still loading. */
   todayDelta?: number | null;
+  /** Set only when `todayDelta` spans more than a day — the date it's measured from,
+   *  because a feed hasn't settled a close since. Labels the badge honestly instead of
+   *  letting a multi-day move read as today's. */
+  todayFrom?: string | null;
   /** Portfolio value history, for the sparkline under the figure. */
   spark?: number[] | null;
 }) {
@@ -127,6 +139,11 @@ export function NetWorthPanel({
           <div className="mt-4 flex flex-wrap items-center gap-x-3.5 gap-y-2">
             {todayDelta != null && todayDelta !== 0 && (
               <span
+                title={
+                  todayFrom
+                    ? `Measured against the close of ${fmtDayShort(todayFrom)} — the latest one a price feed has settled. The days since are carried forward at that price, so this move covers all of them.`
+                    : undefined
+                }
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold tabular-nums",
                   todayDelta < 0
@@ -134,7 +151,11 @@ export function NetWorthPanel({
                     : "bg-accent text-accent-brand",
                 )}
               >
-                {todayDelta < 0 ? "▾" : "▴"} Today {todayDelta < 0 ? "−" : "+"}
+                {/* The explicit spaces are load-bearing: these are all text nodes, so they
+                    merge into one anonymous flex item and the pill's `gap` never applies. */}
+                {todayDelta < 0 ? "▾" : "▴"}{" "}
+                {todayFrom ? `Since ${fmtDayShort(todayFrom)}` : "Today"}{" "}
+                {todayDelta < 0 ? "−" : "+"}
                 {fmtVND(Math.abs(todayDelta)).replace("-", "")}
               </span>
             )}

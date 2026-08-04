@@ -110,16 +110,25 @@ export function DashboardCharts({
   }, [refreshCount, loaded]);
 
   // Today's move + this-month total, derived from the cumulative P&L series.
-  const { todayDelta, monthPnl, monthLabel } = React.useMemo(() => {
+  const { todayDelta, todayFrom, monthPnl, monthLabel } = React.useMemo(() => {
     if (!series || series.length === 0)
-      return { todayDelta: null as number | null, monthPnl: 0, monthLabel: "" };
+      return { todayDelta: null as number | null, todayFrom: null as string | null, monthPnl: 0, monthLabel: "" };
     const last = series[series.length - 1];
-    const today = series.length >= 2 ? last.pnl - series[series.length - 2].pnl : last.pnl;
+    const prev = series.length >= 2 ? series[series.length - 2] : null;
+    const today = prev ? last.pnl - prev.pnl : last.pnl;
+    // The move only means "today" if the prices it was subtracted from were yesterday's.
+    // When a feed's last close is older, the intervening days were carried forward flat and
+    // this figure covers the whole span back to `baseline` — so hand that date on and let
+    // the panel say so, rather than passing off a five-day move as a one-day one.
+    const from = prev && last.baseline && last.baseline < prev.date ? last.baseline : null;
     const mk = last.date.slice(0, 7);
     let prevMonthEnd = 0;
     for (const p of series) if (p.date.slice(0, 7) < mk) prevMonthEnd = p.pnl;
     const [y, m] = mk.split("-").map(Number);
-    return { todayDelta: today, monthPnl: last.pnl - prevMonthEnd, monthLabel: `${MONTHS[m - 1]} ${y}` };
+    return {
+      todayDelta: today, todayFrom: from,
+      monthPnl: last.pnl - prevMonthEnd, monthLabel: `${MONTHS[m - 1]} ${y}`,
+    };
   }, [series]);
 
   const pnlPct = payload.investedTotal ? (payload.pnl / payload.investedTotal) * 100 : 0;
@@ -150,6 +159,7 @@ export function DashboardCharts({
         funds={funds}
         debts={debts}
         todayDelta={todayDelta}
+        todayFrom={todayFrom}
         spark={series?.map((p) => p.value) ?? null}
       />
 

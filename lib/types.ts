@@ -210,6 +210,13 @@ export interface PnlPoint {
   value: number;
   pnl: number;
   status?: PnlDayStatus;
+  /** The date this day's move is really measured from — the oldest stored close still
+   *  standing in for "the previous price" of anything that moved today. Normally the day
+   *  before, and then the move is a true one-day move. When a holding's daily close is
+   *  stale (its feed hasn't settled a new one), every day since is carried forward flat and
+   *  the whole span lands on this day instead, so the move covers back to here. Only set on
+   *  the live day; see the "two clocks" note on `livePrice` in lib/pnl.ts. */
+  baseline?: string;
 }
 
 /** One holding's contribution to a single day's P&L move. */

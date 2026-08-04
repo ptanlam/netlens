@@ -15,17 +15,25 @@ import { NAV_STRATEGIES } from "./types";
 
 export type { HoldingPnlPoint, PnlPoint } from "./types";
 
+/** Price on a date, plus the date that price was actually stored under. They differ
+ *  whenever a day is carried forward from an older close — which is every weekend, and
+ *  every day a feed hasn't settled yet. `priceAt` alone can't tell those apart from a
+ *  genuinely flat market, so `anchorAt` is what lets the caller measure the real span. */
 function priceLookup(points: [string, number][]) {
   const dates = points.map((p) => p[0]);
-  return (dateIso: string): number => {
-    // last point with date <= dateIso (binary search), else first available
+  // last point with date <= dateIso (binary search), else first available
+  const indexAt = (dateIso: string): number => {
     let lo = 0, hi = dates.length - 1, ans = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
       if (dates[mid] <= dateIso) { ans = mid; lo = mid + 1; }
       else hi = mid - 1;
     }
-    return points[ans >= 0 ? ans : 0][1];
+    return ans >= 0 ? ans : 0;
+  };
+  return {
+    priceAt: (dateIso: string): number => points[indexAt(dateIso)][1],
+    anchorAt: (dateIso: string): string => points[indexAt(dateIso)][0],
   };
 }
 
@@ -51,6 +59,9 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
   interface Tracked {
     type: string;
     priceAt: (d: string) => number;
+    /** Date the price returned by `priceAt(d)` was stored under — `d` itself on a settled
+     *  day, an older close on a carried-forward one. */
+    anchorAt: (d: string) => string;
     /** Live price from the last refresh — for *today* the truest price we have, and the
      *  only one that moves when the user hits refresh, since a stock quote mid-session is
      *  never stamped into the daily history (see CONTINUOUS_STRATEGIES in lib/prices.ts).
@@ -74,7 +85,7 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
     const first = instTxs[0].date;
     const points = history[inst.name];
     if (points?.length) {
-      const priceAt = priceLookup(points);
+      const { priceAt, anchorAt } = priceLookup(points);
       const events: [string, number][] = [];
       let totalUnits = 0;
       for (const t of instTxs) {
@@ -87,6 +98,7 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
       tracked[inst.name] = {
         type: inst.asset_type,
         priceAt,
+        anchorAt,
         livePrice: NAV_STRATEGIES.has(strat) ? null : inst.last_price,
         events,
         offset: qtyNow - totalUnits,
@@ -110,6 +122,7 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
 
   const [sy, sm, sd] = txs[0].date.split("-").map(Number);
   const day = new Date(sy, sm - 1, sd);
+  let prevDs = ""; // the day before `ds`, i.e. what today's move is subtracted from
   for (;;) {
     const ds = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
     if (ds > end) break;
@@ -125,6 +138,8 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
 
     let value = 0;
     let held = 0, settled = 0; // holdings contributing today, and how many are settled
+    // Oldest close any of today's live-priced holdings is really being measured against.
+    let baseline: string | undefined;
     const dayHoldings: HoldingPnlPoint["holdings"] = [];
     for (const [name, tr] of Object.entries(tracked)) {
       while (cursors[name] < tr.events.length && tr.events[cursors[name]][0] <= ds) {
@@ -136,13 +151,26 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
         const units = Math.max(tr.offset + cumUnits[name], 0);
         // Today is priced live where a live quote really means today (crypto, stocks);
         // every earlier day — and today for funds — uses the stored close.
-        const price = ds === end && tr.livePrice != null ? tr.livePrice : tr.priceAt(ds);
+        const livePrice = ds === end ? tr.livePrice : null;
+        const live = livePrice != null;
+        const price = livePrice ?? tr.priceAt(ds);
         if (units) {
           raw = units * price;
           held += 1;
           // Settled once the instrument has a real close on/through this day; later days
           // are carried forward from the last close and may still move.
           if (ds <= tr.lastClose) settled += 1;
+          // Only a live-priced holding that actually moved can widen the span. Its previous
+          // value came from whatever close yesterday resolved to — yesterday's own if the
+          // feed has settled it, otherwise an older one, and then this day's move silently
+          // covers everything since. A holding sitting at exactly the price it carried
+          // yesterday contributed nothing, so it must not drag the label back: over a
+          // weekend every stock is frozen at Friday's close while crypto keeps trading, and
+          // counting them would report a two-day span for a move that is purely today's.
+          if (live && prevDs && price !== tr.priceAt(prevDs)) {
+            const anchor = tr.anchorAt(prevDs);
+            if (baseline === undefined || anchor < baseline) baseline = anchor;
+          }
         }
       }
       value += raw;
@@ -163,8 +191,12 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
     }
 
     const status = ds === end ? "live" : settled === held ? "complete" : "partial";
-    series.push({ date: ds, invested, value: Math.round(value), pnl: Math.round(value) - invested, status });
+    series.push({
+      date: ds, invested, value: Math.round(value), pnl: Math.round(value) - invested, status,
+      ...(baseline ? { baseline } : {}),
+    });
     holdings.push({ date: ds, holdings: dayHoldings });
+    prevDs = ds;
     day.setDate(day.getDate() + 1);
   }
   return { series, holdings };
