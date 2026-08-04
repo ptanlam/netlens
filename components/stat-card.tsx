@@ -48,17 +48,15 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
           <div
             key={s.label}
             className={cn(
-              "card-surface px-4 py-[18px] sm:px-6 sm:py-[22px]",
+              "card-surface px-4 py-[16px] sm:px-5 sm:py-[18px]",
               wash,
               odd && i === stats.length - 1 && "col-span-2 lg:col-span-1",
             )}
           >
-            <div
-              className={cn(
-                "text-[10.5px] font-semibold tracking-[0.14em] uppercase",
-                tone ?? "text-faint",
-              )}
-            >
+            {/* Sentence case at reading size, not a small-caps eyebrow: on this palette the
+                tile's job is done by the wash and the mono figure, so a letterspaced label
+                would just add a third thing competing for the top-left corner. */}
+            <div className={cn("text-[12.5px]", tone ?? "text-muted-foreground")}>
               {s.label}
             </div>
             {/* Two per row on a phone leaves ~130px of usable width, which a signed
@@ -66,16 +64,14 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
                 minus sign ends up stranded on its own line. */}
             <div
               className={cn(
-                "mt-3 font-mono text-[15px] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-[24px]",
+                "mt-2.5 font-mono text-[15px] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-[22px]",
                 tone,
               )}
             >
               {s.value}
             </div>
             {s.sub && (
-              <div className={cn("mt-1.5 text-[12px]", tone ?? "text-muted-foreground")}>
-                {s.sub}
-              </div>
+              <div className={cn("mt-1.5 text-[11.5px]", tone ?? "text-faint")}>{s.sub}</div>
             )}
           </div>
         );

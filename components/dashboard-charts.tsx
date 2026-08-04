@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { TriangleAlert } from "lucide-react";
+import { Download, TriangleAlert } from "lucide-react";
 import type { HoldingPnlPoint, Payload, PnlPoint } from "@/lib/types";
 import { fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel } from "@/components/net-worth";
 import { GoalStrip } from "@/components/goal-strip";
 import { SummaryCards, type Stat } from "@/components/stat-card";
+import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import type { GoalView } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
@@ -153,6 +155,21 @@ export function DashboardCharts({
 
   return (
     <div className="flex flex-col gap-3 sm:gap-5">
+      {/* The dashboard is the one page that had no heading of its own — the top bar named
+          it instead. The design gives every view the same opening row, and CSV export is
+          the only action the dashboard has. */}
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <Button variant="outline" nativeButton={false} render={<a href="/export.csv" download />}>
+            <Download className="size-3.5" />
+            Export report
+          </Button>
+        }
+      >
+        Net worth, holdings and daily P&amp;L, priced from the latest close.
+      </PageHeader>
+
       <NetWorthPanel
         investments={payload.portfolioTotal}
         savings={savings}
@@ -190,9 +207,9 @@ export function DashboardCharts({
         onRebuilt={() => setHistoryVersion((v) => v + 1)}
       />
 
-      {/* Current portfolio */}
+      {/* A section break inside the page, so it sits a step below the 30px page title. */}
       <div className="mt-4">
-        <div className="text-[26px] font-bold tracking-[-0.01em]">Current portfolio</div>
+        <div className="text-[20px] font-bold tracking-[-0.02em]">Current portfolio</div>
         <div className="mt-0.5 text-[13px] text-muted-foreground">
           Live snapshot across all years — independent of the selected range
         </div>

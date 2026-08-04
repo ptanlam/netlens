@@ -30,13 +30,27 @@
 - Theme: `next-themes`, `class` attribute, system default. Picked on
   `/settings/appearance` (`components/appearance-settings.tsx`) — Match system / Daylight
   (light) / Midnight (dark). Colors come from CSS vars in `app/globals.css`.
-- Every panel is `card-surface` — a custom utility in `app/globals.css` carrying the
-  radius, hairline border and lift. Don't re-spell it as `rounded-xl border bg-card`, or
-  the card ends up flat while everything around it is raised.
+- **Surfaces are a three-step stack**, from the "Netlens Alpha" design: the page field
+  (`bg-background`) → the panel (`card-surface`) → the in-panel chip (`bg-pane`, e.g. a
+  filter control or a table's column bar). Depth is the step plus a hairline `--border`,
+  never a blur or a drop shadow — a panel that lifts breaks the only thing holding the
+  hierarchy together.
+- Every panel is `card-surface` — a custom utility in `app/globals.css` carrying the 18px
+  radius, the surface fill and the hairline. Don't re-spell it as `rounded-xl border
+  bg-card`, or the radius drifts from every other card on the page. Overlays that set
+  their own corners use `panel-surface`; menus use `floating-menu`.
+- Every page opens with `<PageHeader title actions>` (`components/page-header.tsx`) — a
+  30px title, one line of secondary ink, and the page's actions on the right. Where the
+  primary action is a client dialog (`New deposit`, `Add debt`, `New goal`), the *manager*
+  renders the header so the two can live in one component.
+- **One filled button per view.** `variant="default"` is brand blue with the theme's only
+  glow under it; everything else is `outline` (on `bg-pane`) or `ghost`.
 - Typography is two families: **Space Grotesk** (`font-sans`, and `font-heading`/
-  `font-serif` alias to it) and **JetBrains Mono** (`font-mono`) for every figure.
-  Section headings are `text-[NNpx] font-bold`; micro-labels are sans
-  `text-[10.5px] font-semibold tracking-[0.14em] uppercase text-faint`, never mono.
+  `font-serif` alias to it) and **JetBrains Mono** (`font-mono`) for every figure. Body
+  runs 13.5px/1.45. Page titles are `text-[30px] font-bold tracking-[-0.025em]`, section
+  headings a step down at `text-[16-20px] font-bold`, and labels are sentence case at
+  reading size — the letterspaced uppercase micro-label survives only on table column
+  heads (`table-head-bar` / `<TableHead>`), never on a figure's caption.
 
 ## Colors
 - **Never hardcode a color.** Every colour must resolve to a CSS var from
@@ -51,9 +65,14 @@
 - Asset types have fixed slots: `TYPE_COLORS` in `dashboard-charts.tsx`
   (Funds=chart-1, Stocks=chart-2, Crypto=chart-3, Real Estate=chart-4). Color follows
   the entity, never its rank.
-- `--brand` (violet) is the **action** colour — primary buttons, the active nav pill, the
-  value line on charts. Gains stay `--accent-brand` green. Don't reach for green to mean
-  "primary", or a neutral control starts reading as a profit.
+- `--brand` (blue) is the **action** colour — primary buttons, the brand mark. Gains stay
+  `--accent-brand` green. Don't reach for green to mean "primary", or a neutral control
+  starts reading as a profit — and don't mark the current nav row in brand either; "here"
+  is the `bg-pane` step plus the brighter `--input` hairline.
+- The value line on charts is `--chart-ink`, which is gain-green in this design — a value
+  series is the one thing that never means "click me". `--chart-gold` (amber) is the
+  standalone capital-deployed line; it is deliberately NOT loss-coral, since that chart
+  has no green companion to be measured against.
 - Gains/losses: `text-(--chart-positive)` / `text-(--chart-negative)` (Tailwind v4
   arbitrary-property syntax). Debts/owed amounts render negative-colored.
 

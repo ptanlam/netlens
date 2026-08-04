@@ -20,6 +20,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { SummaryCards } from "@/components/stat-card";
+import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 
 type ActionResult = { ok: boolean; message: string };
@@ -141,7 +142,7 @@ function AddDepositDialog({ funds }: { funds: FundOption[] }) {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
+      <DialogTrigger render={<Button />}>
         <Plus className="size-3.5" />
         New deposit
       </DialogTrigger>
@@ -247,6 +248,11 @@ export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: F
 
   return (
     <div className="flex flex-col gap-3 sm:gap-5">
+      <PageHeader title="Savings" actions={<AddDepositDialog funds={funds} />}>
+        Term deposits — principal, annual rate, and term. Value accrues to maturity
+        (simple pays at maturity; compound accrues monthly).
+      </PageHeader>
+
       <SummaryCards
         stats={[
           { label: "Total principal", value: fmtVND(s.principal) },
@@ -274,12 +280,7 @@ export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: F
         />
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[12.5px] text-muted-foreground text-on-field">
-          Term deposits, newest first.
-        </p>
-        <AddDepositDialog funds={funds} />
-      </div>
+      <p className="text-[12.5px] text-muted-foreground">Term deposits, newest first.</p>
 
       {savings.length === 0 && <p className="text-[13px] text-muted-foreground">No deposits yet.</p>}
       {savings.map((saving) => (

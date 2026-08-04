@@ -39,8 +39,8 @@ export const viewport: Viewport = {
   // controls (traffic lights) that iPadOS 26 overlays on a windowed/split web app.
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f1efe9' },
-    { media: '(prefers-color-scheme: dark)', color: '#0b0c10' },
+    { media: '(prefers-color-scheme: light)', color: '#f4f5f8' },
+    { media: '(prefers-color-scheme: dark)', color: '#050608' },
   ],
 };
 
@@ -64,17 +64,12 @@ export default function RootLayout({
       <body className='min-h-full flex flex-col'>
         <ThemeProvider>
           <TooltipProvider delay={200} closeDelay={0}>
-            {/* Ambient liquid backdrop — a fixed layer of slow-drifting colour orbs the frosted
-                panels refract. Sits behind everything; content lifts above it with z-index. */}
-            <div aria-hidden className='liquid-ambient'>
-              <div className='liquid-orb liquid-orb-1' />
-              <div className='liquid-orb liquid-orb-2' />
-              <div className='liquid-orb liquid-orb-3' />
-              <div className='liquid-orb liquid-orb-4' />
-            </div>
             {process.env.NODE_ENV !== 'production' && <SafeAreaDebug />}
             <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
-            <main className='relative z-10 mx-auto w-full max-w-[1180px] flex-1 pt-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pt-8 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+            {/* The design runs the page on the bare field — no artwork behind it. Depth is
+                the surface step from field to panel, so anything laid between the two would
+                only flatten it. */}
+            <main className='relative z-10 mx-auto w-full max-w-[1180px] flex-1 pt-5 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pt-6 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(1.625rem,env(safe-area-inset-left))] sm:pr-[max(1.625rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
               {children}
             </main>
             <Toaster richColors position='top-center' />

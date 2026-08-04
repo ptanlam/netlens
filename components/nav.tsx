@@ -31,6 +31,36 @@ function isActive(pathname: string, href: string) {
   return href === '/' ? pathname === '/' : pathname.startsWith(href);
 }
 
+/** The design's mark: a glowing brand tile carrying the initial, then the wordmark split
+ *  across two weights — "Net" solid, "lens" light and dropped to secondary ink. The glow is
+ *  the only luminosity in the theme, which is what fixes the accent in the eye before any
+ *  chart uses it. */
+function BrandMark({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
+  const lg = size === 'lg';
+  return (
+    <>
+      <span
+        aria-hidden
+        className={cn(
+          'grid shrink-0 place-items-center rounded-[11px] bg-brand font-bold text-white shadow-[0_0_22px_rgb(43_127_255/0.45)]',
+          lg ? 'size-[34px] text-[15px]' : 'size-[26px] text-[12px]',
+        )}
+      >
+        N
+      </span>
+      <span
+        data-rail-label
+        className={cn(
+          'truncate font-bold whitespace-nowrap tracking-[-0.02em]',
+          lg ? 'text-[19px]' : 'text-[17px]',
+        )}
+      >
+        Net<span className='font-normal text-muted-foreground'>lens</span>
+      </span>
+    </>
+  );
+}
+
 function Wordmark() {
   return (
     // Below 360px even the slimmed-down price controls leave no room for the mark; the
@@ -41,10 +71,7 @@ function Wordmark() {
       className='hidden shrink-0 items-center gap-2.5 text-foreground min-[360px]:flex'
       aria-label='Netlens — home'
     >
-      {/* The mark is the only place the brand violet gets to glow — it's what fixes the
-          accent in the eye before any chart uses it. */}
-      <span className='size-[13px] shrink-0 rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
-      <span className='text-[17px] font-bold whitespace-nowrap tracking-[-0.01em]'>Netlens</span>
+      <BrandMark />
     </Link>
   );
 }
@@ -73,13 +100,16 @@ function NavPill({
       onClick={onClick}
       data-active={active}
       className={cn(
-        'relative z-10 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] whitespace-nowrap transition-colors',
+        // The design's nav row: a 12px corner and the in-panel surface for "here", rather
+        // than a brand wash. Blue is the *action* colour on this palette — a filled button
+        // — so spending it on the current page would put two meanings on one colour.
+        'relative z-10 flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13.5px] whitespace-nowrap transition-colors',
         active
-          ? cn('font-semibold text-foreground', variant === 'solid' && 'bg-brand-soft ring-1 ring-input ring-inset')
-          : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+          ? cn('font-semibold text-foreground', variant === 'solid' && 'bg-pane ring-1 ring-input ring-inset')
+          : 'font-medium text-muted-foreground hover:text-foreground',
       )}
     >
-      <Icon className='size-3.5 shrink-0' />
+      <Icon className='size-4 shrink-0 opacity-90' />
       {label}
     </Link>
   );
@@ -155,7 +185,7 @@ function DesktopNav({ pathname }: { pathname: string }) {
       <span
         ref={sliderRef}
         aria-hidden
-        className='absolute inset-y-0 left-0 z-0 w-0 rounded-full bg-brand-soft opacity-0 ring-1 ring-input ring-inset transition-[left,width,opacity] duration-300 ease-out motion-reduce:transition-none'
+        className='absolute inset-y-0 left-0 z-0 w-0 rounded-xl bg-pane opacity-0 ring-1 ring-input ring-inset transition-[left,width,opacity] duration-300 ease-out motion-reduce:transition-none'
       />
       {LINKS.map((l) => (
         <NavPill
@@ -242,10 +272,9 @@ function MobileNav({ pathname }: { pathname: string }) {
         <DialogPrimitive.Popup
           onTouchStart={onPopupTouchStart}
           onTouchEnd={onPopupTouchEnd}
-          className='glass-panel fixed inset-y-3 left-3 z-50 flex w-64 max-w-[80%] flex-col gap-1 rounded-[22px] p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
-          <DialogPrimitive.Title className='mb-2 flex items-center gap-2.5 px-1.5'>
-            <span className='size-[13px] rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
-            <span className='text-base font-bold tracking-tight'>Netlens</span>
+          className='panel-surface fixed inset-y-3 left-3 z-50 flex w-64 max-w-[80%] flex-col gap-1 rounded-[22px] p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
+          <DialogPrimitive.Title className='mb-3 flex items-center gap-2.5 px-1.5'>
+            <BrandMark />
           </DialogPrimitive.Title>
           <nav className='flex flex-col gap-1'>
             {LINKS.map((l) => (
@@ -259,13 +288,13 @@ function MobileNav({ pathname }: { pathname: string }) {
               href='/settings'
               onClick={() => setOpen(false)}
               className={cn(
-                'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] transition-colors',
+                'flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13.5px] transition-colors',
                 isActive(pathname, '/settings')
-                  ? 'bg-brand-soft font-semibold text-foreground ring-1 ring-input ring-inset'
-                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                  ? 'bg-pane font-semibold text-foreground ring-1 ring-input ring-inset'
+                  : 'font-medium text-muted-foreground hover:text-foreground',
               )}
             >
-              <Settings className='size-3.5' />
+              <Settings className='size-4' />
               Settings
             </Link>
           </div>
@@ -279,7 +308,7 @@ function LogoutButton() {
   return (
     <form action={logout}>
       <IconTooltip label='Sign out'>
-        <Button variant='ghost' size='icon' type='submit' aria-label='Sign out' className='rounded-full'>
+        <Button variant='outline' size='icon' type='submit' aria-label='Sign out' className='rounded-full bg-card text-muted-foreground hover:text-destructive'>
           <LogOut className='size-4' />
         </Button>
       </IconTooltip>
@@ -306,9 +335,12 @@ function RailLink({
       href={href}
       data-active={isActive(pathname, href)}
       title={label}
-      className='flex items-center gap-2.5 rounded-[11px] border border-transparent px-3 py-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-brand-soft data-[active=true]:text-foreground'
+      // The design's rail row: 12px corner, icon in a fixed 20px gutter so every label
+      // starts on the same x, and "here" marked by the in-panel surface plus the brighter
+      // hairline rather than by colour.
+      className='flex items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-pane data-[active=true]:font-semibold data-[active=true]:text-foreground'
     >
-      <Icon className='size-4 shrink-0' />
+      <Icon className='size-4 shrink-0 opacity-90' />
       <span data-rail-label className='min-w-0 truncate'>{label}</span>
     </Link>
   );
@@ -325,16 +357,15 @@ function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: bo
   return (
     <aside data-side-rail>
       <div data-rail-brand>
-        <Link href='/' className='flex min-w-0 items-center gap-2.5 text-foreground' aria-label='Netlens — home'>
-          <span className='size-[14px] shrink-0 rounded-[5px] bg-brand shadow-[0_0_18px_var(--brand)]' />
-          <span data-rail-label className='truncate text-[16px] font-bold tracking-[-0.01em]'>Netlens</span>
+        <Link href='/' className='flex min-w-0 items-center gap-[11px] text-foreground' aria-label='Netlens — home'>
+          <BrandMark size='lg' />
         </Link>
         <button
           type='button'
           onClick={toggleNavCollapsed}
           aria-label='Toggle sidebar width'
           title='Toggle sidebar width'
-          className='grid size-[30px] shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground transition-colors hover:border-brand hover:text-foreground'
+          className='grid size-[30px] shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground transition-colors hover:border-input hover:text-foreground'
         >
           {/* Points the other way when collapsed — a CSS rotation, so the button doesn't
               have to know the state React can't see on the server. */}
@@ -351,14 +382,19 @@ function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: bo
       <div data-rail-foot>
         <RailLink href='/settings' label='Settings' icon={Settings} pathname={pathname} />
         {authEnabled && (
+          // Shaped like the rows above it rather than as a bordered box: the design's foot
+          // is the same list continued, just dropped to the bottom of the rail.
           <form action={logout} data-rail-signout>
             <button
               type='submit'
+              // The label is hidden by CSS in the collapsed rail, so the button would lose
+              // its accessible name with it.
               aria-label='Sign out'
               title='Sign out'
-              className='grid h-[38px] w-full place-items-center rounded-[11px] border border-border text-muted-foreground transition-colors hover:border-destructive hover:text-destructive'
+              className='flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-destructive'
             >
-              <LogOut className='size-4' />
+              <LogOut className='size-4 shrink-0 opacity-90' />
+              <span data-rail-label className='min-w-0 truncate'>Sign out</span>
             </button>
           </form>
         )}
@@ -373,13 +409,13 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
   return (
     <>
       <SideRail pathname={pathname} authEnabled={authEnabled} />
-      <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[24px] backdrop-saturate-150'>
+      <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
         {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
             than the content beneath it. The left/right padding also clears the safe areas:
             the iPhone notch in landscape and, on iPadOS 26, the window-control traffic
             lights overlaid on the top-left of a windowed/split web app — without this they
             sit on top of the drawer's hamburger. */}
-        <div data-app-header-inner className='mx-auto flex h-[64px] w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+        <div data-app-header-inner className='mx-auto flex h-[70px] w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(1.625rem,env(safe-area-inset-left))] sm:pr-[max(1.625rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
           {/* The pills only clear the price controls from ~1024px up; below that they
               collide with them, so the drawer holds the links until lg. With the rail on,
               this whole group is the rail's job and CSS hides it. */}
@@ -395,14 +431,17 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
           </div>
           <div className='flex shrink-0 items-center gap-2'>
             <LivePrices />
+            {/* The design's header affordances are bordered circles on the panel surface,
+                not bare glyphs — they have to hold their own against a chart scrolling
+                under the translucent bar. */}
             <div data-nav-icons className='flex items-center gap-2'>
               <IconTooltip label='Settings'>
                 <Button
-                  variant='ghost'
+                  variant='outline'
                   size='icon'
                   aria-label='Settings'
                   nativeButton={false}
-                  className='hidden rounded-full sm:inline-flex'
+                  className='hidden rounded-full bg-card text-muted-foreground sm:inline-flex'
                   render={<Link href='/settings' />}
                 >
                   <Settings className='size-4' />

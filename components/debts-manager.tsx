@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { DataTable } from "@/components/data-table";
 import { SummaryCards } from "@/components/stat-card";
+import { PageHeader } from "@/components/page-header";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -182,7 +183,7 @@ function AddDebtDialog() {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
+      <DialogTrigger render={<Button />}>
         <Plus className="size-3.5" />
         Add debt
       </DialogTrigger>
@@ -545,6 +546,16 @@ export function DebtsManager({
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader title="Debts" actions={<AddDebtDialog />}>
+        Loans and credit accounts. <span className="italic">Fixed</span> charges interest on
+        the original amount, <span className="italic">Flexible</span> recomputes on the
+        remaining balance, and <span className="italic">Credit</span>{" "}
+        {/* The explicit space is load-bearing: an `&apos;` further down splits this into
+            two JSX text nodes, and the split eats the space that opened the first one. */}
+        flags any card you haven’t paid this month. Record repayments with the wallet
+        button.
+      </PageHeader>
+
       {dueThisMonth.length > 0 && (
         <div className="flex items-start gap-2.5 rounded-[10px] border border-warning-border bg-warning-bg px-[18px] py-3.5">
           <TriangleAlert className="mt-0.5 size-4 text-warning" />
@@ -585,12 +596,11 @@ export function DebtsManager({
         />
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[12.5px] text-muted-foreground">
-          Sorted by interest rate — tackle the highest-rate debts first.
-        </p>
-        <AddDebtDialog />
-      </div>
+      {/* "Add debt" moved up to the page header — the design keeps one create button per
+          view, beside the title. */}
+      <p className="text-[12.5px] text-muted-foreground">
+        Sorted by interest rate — tackle the highest-rate debts first.
+      </p>
 
       <div className="overflow-hidden card-surface px-4 py-2">
         <DataTable

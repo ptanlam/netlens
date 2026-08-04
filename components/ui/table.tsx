@@ -23,7 +23,13 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      // The design's column strip: the in-panel surface, rounded at both ends, with no
+      // divider under it — the bar itself is the separation, so a hairline as well would
+      // read as an empty first row.
+      className={cn(
+        "[&_tr]:border-b-0 [&_tr]:bg-pane [&_th:first-child]:rounded-l-xl [&_th:last-child]:rounded-r-xl",
+        className
+      )}
       {...props}
     />
   )
@@ -70,7 +76,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-10 px-2.5 text-left align-middle text-[11px] font-semibold tracking-[0.06em] whitespace-nowrap text-muted-foreground uppercase [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}

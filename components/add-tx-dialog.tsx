@@ -15,7 +15,7 @@ export function AddTxDialog({ instruments }: { instruments: InstrumentOption[] }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
+      <DialogTrigger render={<Button variant="outline" />}>
         <Plus className="size-3.5" />
         Add transaction
       </DialogTrigger>

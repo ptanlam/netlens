@@ -18,6 +18,7 @@ import {
 import { fmtVND } from "@/lib/format";
 import { shortfall, verdict, type GoalView } from "@/lib/goals";
 import { GoalBar, GoalStatusChip } from "@/components/goal-strip";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import {
@@ -619,24 +620,33 @@ export function GoalsManager({
   const archived = goals.filter((g) => g.goal.archived === 1);
   const [addOpen, setAddOpen] = React.useState(false);
 
+  const addGoalDialog = (
+    <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <DialogTrigger render={<Button />}>
+        <Plus className="size-3.5" />
+        New goal
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>New goal</DialogTitle>
+        </DialogHeader>
+        <GoalForm action={addGoal} current={current} onDone={() => setAddOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <div className="flex flex-col gap-4">
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogTrigger render={<Button variant="outline" className="w-full" />}>
-          <Plus className="size-4" />
-          New goal
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>New goal</DialogTitle>
-          </DialogHeader>
-          <GoalForm action={addGoal} current={current} onDone={() => setAddOpen(false)} />
-        </DialogContent>
-      </Dialog>
+      <PageHeader title="Goals" actions={addGoalDialog}>
+        A target on a figure you already track — or a sinking fund you pay into by hand.
+        Progress is read live from your data, and the projection uses money you&apos;ve
+        committed — recurring rules and repayment schedules — with market growth counted
+        as zero.
+      </PageHeader>
 
       {active.length === 0 && (
         <p className="text-[13px] text-muted-foreground">
-          No goals yet. Add one above — a target on net worth, investments, savings or debts,
+          No goals yet. Add one from the button above — a target on net worth, investments, savings or debts,
           or a sinking fund you pay into by hand.
         </p>
       )}

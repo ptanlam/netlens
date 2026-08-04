@@ -1,5 +1,5 @@
-/** Where the chrome sits: the default top bar, or the side rail from the design file
- *  ("Netlens Dashboard.dc.html").
+/** Where the chrome sits: the default side rail from the design file
+ *  ("Netlens Dashboard - Alpha.dc.html"), or a top bar.
  *
  *  Device-local like the theme — it's a preference about this screen, not about the data,
  *  so it lives in localStorage and never touches the DB. Both flags are mirrored onto
@@ -16,8 +16,8 @@ export const NAV_LAYOUT_KEY = "pf.nav-layout";
 export const NAV_COLLAPSED_KEY = "pf.nav-collapsed";
 
 export const NAV_LAYOUTS = [
+  { value: "side", label: "Sidebar", hint: "Links down the left edge" },
   { value: "top", label: "Top bar", hint: "Links across the header" },
-  { value: "side", label: "Side rail", hint: "Links down the left edge" },
 ] as const;
 
 export type NavLayout = (typeof NAV_LAYOUTS)[number]["value"];
@@ -30,9 +30,9 @@ export function isNavLayout(v: unknown): v is NavLayout {
  *  fallbacks can't drift apart. */
 export const NAV_LAYOUT_SCRIPT = `try{var d=document.documentElement,s=localStorage;d.dataset.nav=s.getItem(${JSON.stringify(
   NAV_LAYOUT_KEY,
-)})==='side'?'side':'top';if(s.getItem(${JSON.stringify(
+)})==='top'?'top':'side';if(s.getItem(${JSON.stringify(
   NAV_COLLAPSED_KEY,
-)})==='1')d.dataset.navCollapsed='1'}catch(e){document.documentElement.dataset.nav='top'}`;
+)})==='1')d.dataset.navCollapsed='1'}catch(e){document.documentElement.dataset.nav='side'}`;
 
 // Same tiny-store shape as the auto-refresh setting in `components/live-prices.tsx`:
 // useSyncExternalStore keeps the SSR snapshot from desyncing against the saved value, and
@@ -60,7 +60,7 @@ function save(key: string, value: string | null) {
 
 function readLayout(): NavLayout {
   const v = document.documentElement.dataset.nav;
-  return isNavLayout(v) ? v : "top";
+  return isNavLayout(v) ? v : "side";
 }
 
 function readCollapsed(): boolean {
@@ -80,9 +80,9 @@ export function toggleNavCollapsed() {
   save(NAV_COLLAPSED_KEY, next ? "1" : null);
 }
 
-/** The current layout. Server (and the first client pass) always sees "top" — the
+/** The current layout. Server (and the first client pass) always sees the default — the
  *  pre-paint script has already applied the real one to the DOM, so this only ever drives
  *  behaviour and labels, never the choice of markup. */
 export function useNavLayout(): NavLayout {
-  return React.useSyncExternalStore(subscribe, readLayout, () => "top" as const);
+  return React.useSyncExternalStore(subscribe, readLayout, () => "side" as const);
 }

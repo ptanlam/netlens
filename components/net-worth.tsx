@@ -102,9 +102,10 @@ export function NetWorthPanel({
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_90%_at_12%_0%,var(--brand-soft),transparent_55%)]"
         />
         <div className="relative">
-          <div className="text-[11px] font-semibold tracking-[0.2em] text-faint uppercase">
-            Net worth
-          </div>
+          {/* Sentence case at reading size — the design labels its figures rather than
+              badging them, and a letterspaced eyebrow over a 76px number reads as two
+              headings stacked. */}
+          <div className="text-[13px] text-muted-foreground">Net worth</div>
           <div className="mt-3.5 flex flex-wrap items-end gap-4">
             <div
               key={flash?.n ?? "static"}
@@ -174,7 +175,9 @@ export function NetWorthPanel({
             aria-hidden
             viewBox="0 0 1000 300"
             preserveAspectRatio="none"
-            className="animate-fade-in relative mt-4 -mb-px block h-[110px] w-[calc(100%+3.5rem)] -translate-x-7 text-brand opacity-50 sm:w-[calc(100%+4.5rem)] sm:-translate-x-9"
+                        // Gain-green, matching the design's net-worth spark — blue is the action
+            // colour on this palette, and the hero already spends it on the corner light.
+            className="animate-fade-in relative mt-4 -mb-px block h-[110px] w-[calc(100%+3.5rem)] -translate-x-7 text-accent-brand opacity-60 sm:w-[calc(100%+4.5rem)] sm:-translate-x-9"
           >
             <defs>
               <linearGradient id="nw-spark" x1="0" y1="0" x2="0" y2="1">

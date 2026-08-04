@@ -6,18 +6,7 @@ export default async function DebtsPage() {
   await connection();
   const [debts, payments] = await Promise.all([db.listDebts(), db.listDebtPayments()]);
 
-  return (
-    <div>
-      <div className="mb-3.5">
-        <div className="text-[26px] font-bold tracking-[-0.01em]">Debts</div>
-        <div className="mt-0.5 max-w-[820px] text-[13px] text-muted-foreground text-on-field">
-          Loans and credit accounts. <span className="italic">Fixed</span> charges interest on
-          the original amount, <span className="italic">Flexible</span> recomputes on the
-          remaining balance, and <span className="italic">Credit</span> flags any card you
-          haven&apos;t paid this month. Record repayments with the wallet button.
-        </div>
-      </div>
-      <DebtsManager debts={debts} payments={payments} />
-    </div>
-  );
+  // The heading lives in <DebtsManager>: the design seats a page's primary action beside
+  // its title, and "Add debt" is a client dialog, so the two have to share a component.
+  return <DebtsManager debts={debts} payments={payments} />;
 }

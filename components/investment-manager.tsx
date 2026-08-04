@@ -16,6 +16,7 @@ import { type InstrumentOption } from "@/components/tx-form";
 import { RecurringManager } from "@/components/recurring-manager";
 import { InvestmentActivity } from "@/components/investment-activity";
 import { SummaryCards, type Stat } from "@/components/stat-card";
+import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 
 export interface HoldingView {
@@ -291,26 +292,28 @@ export function InvestmentManager({
 
   return (
     <div>
-      <div className="mb-3.5">
-        <div className="text-[26px] font-bold tracking-[-0.01em]">Investments</div>
-        <div className="mt-0.5 text-[13px] text-muted-foreground">
-          Your holdings, their transactions, and the recurring rules that automate them — grouped by asset type.
-        </div>
-      </div>
+      {/* The design lifts a page's actions up beside its title rather than stranding them
+          in a bar under the summary tiles — price refresh stays in the header, so it isn't
+          repeated here. */}
+      <PageHeader
+        title="Investments"
+        className="mb-4"
+        actions={
+          <>
+            <Button variant="outline" nativeButton={false} render={<a href="/export.csv" download />}>
+              <Download className="size-3.5" />
+              Export CSV
+            </Button>
+            <AddRecurringDialog instruments={options} />
+            <AddTxDialog instruments={options} />
+            <AddHoldingDialog sources={sourceKeys} />
+          </>
+        }
+      >
+        Your holdings, their transactions, and the recurring rules that automate them — grouped by asset type.
+      </PageHeader>
 
       <SummaryCards stats={kpis} />
-
-      {/* Actions — price refresh lives in the nav, so it isn't repeated here. */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" nativeButton={false} render={<a href="/export.csv" download />}>
-          <Download className="size-3.5" />
-          Export CSV
-        </Button>
-        <div className="flex-1" />
-        <AddHoldingDialog sources={sourceKeys} />
-        <AddRecurringDialog instruments={options} />
-        <AddTxDialog instruments={options} />
-      </div>
 
       <InvestmentActivity txs={allTxs} options={options} />
 
