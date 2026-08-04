@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { fmtVND, MONTHS } from "@/lib/format";
+import { PanelHead } from "@/components/panel-head";
 import { cn } from "@/lib/utils";
 
 /** "2026-07-30" → "Jul 30". Sliced rather than passed through `Date`, which would read the
@@ -14,7 +15,7 @@ function fmtDayShort(iso: string): string {
 /** Down-sample to at most N points and turn them into a line + closed area path over a
  *  1000×300 viewBox. The spark is drawn with `preserveAspectRatio="none"`, so the x scale
  *  is whatever the card is wide — only the shape has to be right. */
-function sparkPaths(values: number[], max = 120): { line: string; area: string } | null {
+export function sparkPaths(values: number[], max = 120): { line: string; area: string } | null {
   if (values.length < 2) return null;
   const step = Math.max(1, Math.ceil(values.length / max));
   const pts = values.filter((_, i) => i % step === 0 || i === values.length - 1);
@@ -31,9 +32,13 @@ function sparkPaths(values: number[], max = 120): { line: string; area: string }
 }
 
 /**
- * The dashboard hero: net worth as a single oversized figure on a brand-lit card, with the
- * components it's made of on a rail beside it. Two cards rather than one so the rail keeps
- * its own edges at every width — below `lg` it stacks underneath.
+ * Net worth, as the design draws it: a compact rail card — label, a 26px mono figure, the
+ * day's move under it, and a small sparkline held to the right at a fixed 110px.
+ *
+ * It was an oversized brand-lit hero spanning the page before. The design deliberately
+ * doesn't do that: the dashboard's width belongs to the chart, and the rail is a column of
+ * quiet cards. The breakdown that used to sit beside the hero is now the card below this
+ * one, which is the same information one step further down the same column.
  */
 export function NetWorthPanel({
   investments,
@@ -92,135 +97,90 @@ export function NetWorthPanel({
 
   const paths = spark ? sparkPaths(spark) : null;
 
+  const formula = hasFunds
+    ? "Investments + Savings + Set aside − Debts"
+    : "Investments + Savings − Debts";
+
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.9fr_1fr]">
-      <div className="card-surface panel-body-x relative flex flex-col overflow-hidden pt-6 sm:pt-7">
-        {/* Brand light spilling in from the top-left corner — the only decoration on the
-            page, and what makes the hero read as the hero. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_90%_at_12%_0%,var(--brand-soft),transparent_55%)]"
+    <>
+      <section className="card-surface panel-body-sm">
+        <PanelHead
+          title="Net worth"
+          tone="label"
+          info={`How this is built: ${formula}. Priced from the latest close each feed has settled.`}
         />
-        <div className="relative">
-          {/* Sentence case at reading size — the design labels its figures rather than
-              badging them, and a letterspaced eyebrow over a 76px number reads as two
-              headings stacked. */}
-          <div className="text-[13px] text-muted-foreground">Net worth</div>
-          <div className="mt-3.5 flex flex-wrap items-end gap-4">
+        <div className="mt-2.5 flex items-end gap-3.5">
+          <div className="min-w-0 flex-1">
             <div
               key={flash?.n ?? "static"}
-              data-hero-number
               onAnimationEnd={() => setFlash(null)}
               className={cn(
-                "font-mono text-[clamp(2.75rem,7vw,4.75rem)] leading-[0.92] font-semibold tracking-[-0.03em] text-foreground tabular-nums will-change-transform",
+                "font-mono text-[26px] leading-none font-semibold tracking-[-0.02em] whitespace-nowrap tabular-nums will-change-transform",
                 flash?.dir === "up" && "animate-nw-flash-up",
                 flash?.dir === "down" && "animate-nw-flash-down",
               )}
             >
               {fmtVND(net)}
             </div>
-            {/* Direction arrow, shown only while a refresh's flash is playing — same
-                green/red cue as the figure, so the move reads at a glance. Sibling (not
-                child) of the number so its own animation-end never clears the flash. */}
-            {flash && (
-              <span
-                aria-hidden
-                className={cn(
-                  "animate-fade-in mb-2 font-mono text-[26px] leading-none sm:text-[32px]",
-                  flash.dir === "up" ? "text-accent-brand" : "text-(--chart-negative)",
-                )}
-              >
-                {flash.dir === "up" ? "▲" : "▼"}
-              </span>
-            )}
-          </div>
-          {/* The day's move sits under the figure rather than beside it: alongside, it had
-              to bottom-align against a number whose size is fluid (clamp), so the two never
-              quite sat right, and on a narrow card it wrapped to its own line anyway. */}
-          <div className="mt-4 flex flex-wrap items-center gap-x-3.5 gap-y-2">
             {todayDelta != null && todayDelta !== 0 && (
-              <span
+              <div
                 title={
                   todayFrom
                     ? `Measured against the close of ${fmtDayShort(todayFrom)} — the latest one a price feed has settled. The days since are carried forward at that price, so this move covers all of them.`
                     : undefined
                 }
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold tabular-nums",
-                  todayDelta < 0
-                    ? "bg-negative-wash text-(--chart-negative)"
-                    : "bg-accent text-accent-brand",
+                  "mt-2 font-mono text-[12px] tabular-nums",
+                  todayDelta < 0 ? "text-(--chart-negative)" : "text-accent-brand",
                 )}
               >
-                {/* The explicit spaces are load-bearing: these are all text nodes, so they
-                    merge into one anonymous flex item and the pill's `gap` never applies. */}
-                {todayDelta < 0 ? "▾" : "▴"}{" "}
-                {todayFrom ? `Since ${fmtDayShort(todayFrom)}` : "Today"}{" "}
-                {todayDelta < 0 ? "−" : "+"}
+                {todayDelta < 0 ? "↘ −" : "↗ +"}
                 {fmtVND(Math.abs(todayDelta)).replace("-", "")}
-              </span>
+                <span className="text-faint">
+                  {" "}
+                  {todayFrom ? `since ${fmtDayShort(todayFrom)}` : "today"}
+                </span>
+              </div>
             )}
-            <span className="text-[13.5px] text-muted-foreground">
-              {hasFunds
-                ? "Investments + Savings + Set aside − Debts"
-                : "Investments + Savings − Debts"}
-            </span>
           </div>
+          {/* Fixed 110×44 and held to the right of the figure, per the design — a spark is
+              a shape, not a chart, so it doesn't get to claim width from the number. */}
+          {paths && (
+            <svg
+              aria-hidden
+              viewBox="0 0 1000 300"
+              preserveAspectRatio="none"
+              className="animate-fade-in h-11 w-[110px] shrink-0 text-accent-brand"
+            >
+              <path
+                d={paths.line}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          )}
         </div>
+      </section>
 
-        {/* Bleeds into the card's bottom edge, so the negative margins have to cancel the
-            card padding exactly — anything less leaves a strip of surface under the fill. */}
-        {paths ? (
-          <svg
-            aria-hidden
-            viewBox="0 0 1000 300"
-            preserveAspectRatio="none"
-                        // Gain-green, matching the design's net-worth spark — blue is the action
-            // colour on this palette, and the hero already spends it on the corner light.
-            //
-            // The bleed cancels the panel's own gutter *by name*: `--panel-px` is set by
-            // `panel-body-x` above and steps at sm, so a hardcoded 3.5rem/4.5rem pair went
-            // stale the moment the panel inset moved (and left a strip of surface showing
-            // under the fill when it did).
-            className="animate-fade-in relative mt-4 -mb-px block h-[110px] w-[calc(100%+var(--panel-px)*2)] translate-x-[calc(var(--panel-px)*-1)] text-accent-brand opacity-60"
-          >
-            <defs>
-              <linearGradient id="nw-spark" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="currentColor" stopOpacity="0.35" />
-                <stop offset="1" stopColor="currentColor" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d={paths.area} fill="url(#nw-spark)" />
-            <path
-              d={paths.line}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-        ) : (
-          <div className="h-[110px]" />
-        )}
-      </div>
-
-      <div className="card-surface panel-body-x flex flex-col justify-center">
+      <section className="card-surface panel-body-x flex flex-col">
         {parts.map((p, i) => (
           <div
             key={p.label}
             className={cn(
-              "flex items-center justify-between py-5",
+              "flex items-center justify-between gap-3 py-3",
               i < parts.length - 1 && "border-b border-divider",
             )}
           >
             <span className="text-[13px] text-muted-foreground">{p.label}</span>
-            <span className={cn("font-mono text-[19px] font-semibold tabular-nums", p.cls)}>
+            <span className={cn("font-mono text-[14px] font-semibold tabular-nums", p.cls)}>
               {p.sign}
               {fmtVND(p.value)}
             </span>
           </div>
         ))}
-      </div>
-    </div>
+      </section>
+    </>
   );
 }

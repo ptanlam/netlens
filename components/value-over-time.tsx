@@ -3,6 +3,7 @@
 import * as React from "react";
 import { fmtMil, fmtVND } from "@/lib/format";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { PanelHead } from "@/components/panel-head";
 import { cn } from "@/lib/utils";
 
 export interface SeriesPoint {
@@ -173,8 +174,7 @@ export function ValueOverTime({
     <div className="card-surface panel-body">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-[16px] font-bold tracking-[-0.01em]">{title}</div>
-          <div className="mt-0.5 text-[12.5px] text-muted-foreground">{subtitle}</div>
+          <PanelHead title={title} info={subtitle} />
           {split && series.length > 1 && (
             <div className="mt-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-2">
               <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">

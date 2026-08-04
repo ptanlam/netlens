@@ -195,22 +195,19 @@
    frosted or lifted: depth is the surface step and the hairline, and the only glow in the
    whole theme is the brand's.
 
-   The design file specifies #050608 → #0c0e13 → #13161d. The whole ramp is raised off that
-   floor, because near-black is a mockup colour: it looks right in a design tool at full
-   brightness and turns into a black hole on a real screen in a lit room, where the panels
-   stop separating from the field at all.
-
-   Raising it also widens the steps — the same hex deltas measure L* +2.3/+3.3 down at the
-   design's floor and +4.9/+5.9 up here, because sRGB is compressed near black. That's the
-   point rather than a side effect: +2.3 L* is a separation you have to hunt for, and the
-   whole hierarchy in this design rests on being able to see one surface sit on another. */
+   The ramp is the design file's own: #050608 → #0c0e13 → #13161d. It was raised once and
+   put back deliberately — near the black floor sRGB is compressed, so those steps measure
+   only L* +2.3 and +3.3, and the separation between field, panel and chip is meant to be
+   quiet. Read this in a lit room and the panels will sit close to the field; that is the
+   design, not a bug, and the hairline `--border` is what carries the edge. Don't lighten
+   the ramp without changing the design file first. */
 .dark {
   color-scheme: dark;         /* so native controls (month picker, scrollbars) go dark too */
-  --background: #0d0f15;      /* the field the panels sit on */
+  --background: #050608;      /* the field the panels sit on */
   --foreground: #f2f4f8;
-  --card: #161a23;            /* panel */
+  --card: #0c0e13;            /* panel */
   --card-foreground: #f2f4f8;
-  --popover: #1a1e28;
+  --popover: #0e1117;
   --popover-foreground: #f2f4f8;
   --brand: #2b7fff;
   --brand-soft: rgb(43 127 255 / 0.16);
@@ -218,14 +215,14 @@
   --primary-foreground: #ffffff;
   --secondary: rgb(255 255 255 / 0.07);
   --secondary-foreground: #f2f4f8;
-  --muted: #212632;
+  --muted: #13161d;
   --muted-foreground: #9aa0ae;
   --accent: rgb(38 208 124 / 0.13);
   --accent-foreground: #26d07c;
   --accent-brand: #26d07c;
   --destructive: #ff5a52;
-  --border: rgb(255 255 255 / 0.08);
-  --input: rgb(255 255 255 / 0.15);
+  --border: rgb(255 255 255 / 0.07);
+  --input: rgb(255 255 255 / 0.13);
   --ring: #2b7fff;
   --chart-1: #2b7fff;         /* Funds */
   --chart-2: #f0b429;         /* Stocks */
@@ -238,12 +235,12 @@
   --negative-rgb: 255 90 82;
   --ink-rgb: 38 208 124;
   --gold-rgb: 240 180 41;
-  --header-bg: rgb(13 15 21 / 0.82);
+  --header-bg: rgb(5 6 8 / 0.82);
   --faint: #5f6472;
-  --divider: rgb(255 255 255 / 0.08);
-  --divider-soft: rgb(255 255 255 / 0.05);
-  --grid: rgb(255 255 255 / 0.065);
-  --grid-strong: rgb(255 255 255 / 0.12);
+  --divider: rgb(255 255 255 / 0.07);
+  --divider-soft: rgb(255 255 255 / 0.045);
+  --grid: rgb(255 255 255 / 0.055);
+  --grid-strong: rgb(255 255 255 / 0.1);
   --chart-ink: #26d07c;
   --chart-gold: #f0b429;
   --warning: #f0b429;
@@ -256,17 +253,17 @@
   --negative-wash-strong: rgb(255 90 82 / 0.2);
   --negative-border: rgb(255 90 82 / 0.28);
   --negative-strong: #ff5a52;
-  --disabled-foreground: #4b505d;
+  --disabled-foreground: #3d414d;
   /* Tooltip surface is paper here (bg-foreground), so tooltip ink goes dark. */
   --tooltip-neutral: #55575f;
   --tooltip-positive: #0f7a4d;
   --tooltip-negative: #a8362b;
   --selection: rgb(43 127 255 / 0.3);
-  --pane: #212632;
-  --pane-2: #2a303e;
+  --pane: #13161d;
+  --pane-2: #1b1f28;
   --pane-sunk: rgb(255 255 255 / 0.05);
-  --pane-strong: #161a23;
-  --menu-surface: #1a1e28;
+  --pane-strong: #0c0e13;
+  --menu-surface: #0e1117;
   /* On a near-black field the hairline carries the whole edge; a lift would only read as
      another dark rectangle. Kept as a token so the two themes share one card rule. */
   --card-shadow: none;
@@ -615,7 +612,7 @@
    is stamped before first paint (`lib/nav-layout.ts`), and never touching the markup is
    what makes that free of a hydration mismatch. Below 900px the drawer takes over. */
 [data-side-rail],
-[data-header-title] {
+[data-header-search] {
   display: none;
 }
 
@@ -697,23 +694,12 @@
     transform: rotate(180deg);
   }
 
-  /* With the rail on, the header keeps only the page name and the price controls — the
-     links, wordmark and icon cluster all live in the rail, and the drawer has nothing
-     left to open. */
-  html[data-nav="side"] [data-nav-brand],
-  html[data-nav="side"] [data-nav-icons] {
+  /* With the rail on, the links and wordmark live in the rail, so the header gives its
+     left side over to the design's search field instead. */
+  html[data-nav="side"] [data-nav-brand] {
     display: none;
   }
-  /* The echo of the page heading (see components/header-page-title.tsx) only earns its
-     place here: the top bar names the page in its own nav pills already. */
-  html[data-nav="side"] [data-header-title] {
+  html[data-nav="side"] [data-header-search] {
     display: block;
-  }
-
-  /* The rail eats a slice of the content column, so the net-worth figure is sized down to
-     match — the design keeps it on one line rather than letting it wrap. */
-  html[data-nav="side"] [data-hero-number] {
-    font-size: clamp(1.5rem, 3.2vw, 2.5rem);
-    white-space: nowrap;
   }
 }

@@ -18,6 +18,7 @@ import { RecurringManager } from "@/components/recurring-manager";
 import { InvestmentActivity } from "@/components/investment-activity";
 import { SummaryCards, type Stat } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
+import { EntityAvatar } from "@/components/entity-avatar";
 import { cn } from "@/lib/utils";
 
 export interface HoldingView {
@@ -173,6 +174,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
           <span className={cn("inline-block font-mono text-[12px] text-faint transition-transform", open && "rotate-90")}>▸</span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
+              <EntityAvatar name={inst.name} color={typeColor(inst.asset_type)} />
               <span className="truncate text-[14px] font-semibold">{inst.name}</span>
               <Badge variant="tag">{inst.asset_type}</Badge>
               {live && <Badge variant="accent">live</Badge>}

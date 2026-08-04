@@ -5,6 +5,7 @@ import type { PnlPoint } from "@/lib/types";
 import { fmtMil, fmtVND } from "@/lib/format";
 import { bucketOf, type Bucket } from "@/components/pnl-chart";
 import { RebuildHistoryButton } from "@/components/rebuild-history-button";
+import { PanelHead } from "@/components/panel-head";
 import { cn } from "@/lib/utils";
 
 const TIMEFRAMES: Bucket[] = ["Daily", "Weekly", "Monthly", "Yearly"];
@@ -83,10 +84,7 @@ export function PortfolioChart({
   return (
     <div className="card-surface panel-body">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-[16px] font-bold tracking-[-0.01em]">{title}</div>
-          <div className="mt-0.5 text-[12.5px] text-muted-foreground">{sub}</div>
-        </div>
+        <PanelHead title={title} info={sub} />
         <div className="flex flex-wrap items-center gap-3.5">
           <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
             {(["value", "pl"] as Metric[]).map((m) => (

@@ -8,6 +8,7 @@ import { addSaving, deleteSaving, updateSaving } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { currentValue, isMatured, maturityDate, maturityValue, summarize } from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
+import { EntityAvatar } from "@/components/entity-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
@@ -170,6 +171,7 @@ function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
     <div className="flex flex-wrap items-center justify-between gap-4 card-surface panel-body">
       <div>
         <div className="flex items-center gap-2">
+          <EntityAvatar name={saving.bank ?? "Term deposit"} color="var(--chart-4)" />
           <span className="text-[14px] font-semibold">{saving.bank ?? "Term deposit"}</span>
           <Badge variant={matured ? "secondary" : "accent"}>{matured ? "Matured" : "Active"}</Badge>
           {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}

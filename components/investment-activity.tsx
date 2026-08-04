@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table";
 import { TxRowActions } from "@/components/tx-row-actions";
 import type { InstrumentOption } from "@/components/tx-form";
+import { PanelHead } from "@/components/panel-head";
+import { EntityAvatar } from "@/components/entity-avatar";
 import { cn } from "@/lib/utils";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -116,9 +118,9 @@ export function InvestmentActivity({
         header: "Holding",
         size: 250,
         cell: ({ row }) => (
-          <div className="flex items-center gap-2 overflow-hidden">
-            <span className="size-2 shrink-0 rounded-[2px]" style={{ background: typeColor(row.original.asset_type) }} />
-            <span className="truncate font-mono text-[12.5px]">{row.original.instrument}</span>
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <EntityAvatar name={row.original.instrument} color={typeColor(row.original.asset_type)} />
+            <span className="truncate text-[13px] font-semibold">{row.original.instrument}</span>
           </div>
         ),
       },
@@ -205,12 +207,7 @@ export function InvestmentActivity({
   return (
     <div className="mt-6 card-surface panel-body">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-[16px] font-bold tracking-[-0.01em]">Activity</div>
-          <div className="mt-0.5 text-[12.5px] text-muted-foreground">
-            Transactions across all holdings in the selected date range
-          </div>
-        </div>
+        <PanelHead title="Activity" info="Every transaction across all holdings, inside the selected date range." />
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-[3px] rounded-full border border-border bg-pane-sunk p-[3px]">
             {presets.map((p) => (

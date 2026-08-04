@@ -9,6 +9,8 @@ import { NetWorthPanel } from "@/components/net-worth";
 import { GoalStrip } from "@/components/goal-strip";
 import { SummaryCards, type Stat } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
+import { PanelHead } from "@/components/panel-head";
+import { QuickActions } from "@/components/quick-actions";
 import { Button } from "@/components/ui/button";
 import type { GoalView } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
@@ -170,20 +172,6 @@ export function DashboardCharts({
         Net worth, holdings and daily P&amp;L, priced from the latest close.
       </PageHeader>
 
-      <NetWorthPanel
-        investments={payload.portfolioTotal}
-        savings={savings}
-        funds={funds}
-        debts={debts}
-        todayDelta={todayDelta}
-        todayFrom={todayFrom}
-        spark={series?.map((p) => p.value) ?? null}
-      />
-
-      <SummaryCards stats={kpis} />
-
-      <GoalStrip goals={goals} />
-
       {pending > 0 && (
         <Link
           href="/investments"
@@ -201,28 +189,43 @@ export function DashboardCharts({
         </Link>
       )}
 
-      <PortfolioChart
-        series={series}
-        error={seriesError}
-        onRebuilt={() => setHistoryVersion((v) => v + 1)}
-      />
+      {/* The full-width strip under the page header — the slot the design gives its
+          watchlist. Goals are this app's version of "the handful of things you're
+          watching", and it's the one block that needs the whole measure. */}
+      <GoalStrip goals={goals} />
 
-      {/* A section break inside the page, so it sits a step below the 30px page title. */}
-      <div className="mt-4">
-        <div className="text-[16px] font-bold tracking-[-0.01em]">Current portfolio</div>
-        <div className="mt-0.5 text-[13px] text-muted-foreground">
-          Live snapshot across all years — independent of the selected range
+      {/* The design's dashboard body: a wide analysis column and a narrow rail of small
+          cards, as a wrapping flex rather than a grid, so the rail drops under the charts
+          on its own once neither basis fits. */}
+      <div className="flex flex-wrap items-start gap-3 sm:gap-4">
+        <div className="flex min-w-0 flex-[1_1_560px] flex-col gap-3 sm:gap-4">
+          <PortfolioChart
+            series={series}
+            error={seriesError}
+            onRebuilt={() => setHistoryVersion((v) => v + 1)}
+          />
+          <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
+          <HoldingsCard payload={payload} />
+          <PnlByHoldingCard payload={payload} />
+        </div>
+
+        <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 sm:gap-4">
+          <NetWorthPanel
+            investments={payload.portfolioTotal}
+            savings={savings}
+            funds={funds}
+            debts={debts}
+            todayDelta={todayDelta}
+            todayFrom={todayFrom}
+            spark={series?.map((p) => p.value) ?? null}
+          />
+          <QuickActions />
+          {/* One column at every width: this strip is in the rail now, and `auto-fit` would
+              otherwise pack three tiles across the moment the rail wraps to full measure. */}
+          <SummaryCards stats={kpis} className="grid-cols-1 lg:grid-cols-1" />
+          <AllocationCard payload={payload} />
         </div>
       </div>
-
-      <div className="grid grid-cols-1 items-stretch gap-3 sm:gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-        <AllocationCard payload={payload} />
-        <HoldingsCard payload={payload} />
-      </div>
-
-      <PnlByHoldingCard payload={payload} />
-
-      <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
     </div>
   );
 }
@@ -243,8 +246,7 @@ function AllocationCard({ payload }: { payload: Payload }) {
 
   return (
     <div className="flex h-full flex-col card-surface panel-body">
-      <div className="text-[16px] font-bold tracking-[-0.01em]">Allocation</div>
-      <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Current value by asset type</div>
+      <PanelHead title="Allocation" info="Current value by asset type, across all years." className="mb-5" />
       <div className="mb-[22px] flex justify-center">
         <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="animate-fade-in">
           <g transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}>
@@ -301,8 +303,7 @@ function HoldingsCard({ payload }: { payload: Payload }) {
 
   return (
     <div className="flex h-full flex-col card-surface panel-body">
-      <div className="text-[16px] font-bold tracking-[-0.01em]">Holdings</div>
-      <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Position values, largest first</div>
+      <PanelHead title="Holdings" info="Every position with a value today, largest first. Bar colour is the asset type." className="mb-5" />
       <div className="flex flex-col gap-[11px]">
         {rows.map((h, i) => (
           <div key={h.name} className="flex items-center gap-3">
@@ -330,7 +331,7 @@ function PnlByHoldingCard({ payload }: { payload: Payload }) {
   if (rows.length === 0) {
     return (
       <div className="card-surface panel-body">
-        <div className="text-[16px] font-bold tracking-[-0.01em]">Profit &amp; loss by holding</div>
+        <PanelHead title="Profit &amp; loss by holding" />
         <p className="py-8 text-center text-sm text-muted-foreground">
           No gains or losses yet — set live quantities or holding values to see P&amp;L.
         </p>
@@ -345,8 +346,11 @@ function PnlByHoldingCard({ payload }: { payload: Payload }) {
 
   return (
     <div className="card-surface panel-body">
-      <div className="text-[16px] font-bold tracking-[-0.01em]">Profit &amp; loss by holding</div>
-      <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Total gain / loss per position, net of any proceeds</div>
+      <PanelHead
+        title="Profit &amp; loss by holding"
+        info="Total gain or loss per position, net of any proceeds. Green bars run right of the zero line, losses left."
+        className="mb-5"
+      />
       <div className="flex flex-col gap-2.5">
         {rows.map((p, i) => {
           const neg = p.pnl < 0;

@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { LivePrices } from '@/components/live-prices';
-import { HeaderPageTitle } from '@/components/header-page-title';
+import { HeaderSearch } from '@/components/header-search';
 import { logout } from '@/app/actions';
 import { toggleNavCollapsed } from '@/lib/nav-layout';
 import { cn } from '@/lib/utils';
@@ -421,7 +421,7 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
               this whole group is the rail's job and CSS hides it. */}
           {/* display:none outside side-rail mode, so it never disturbs the top bar's own
               spacing. */}
-          <HeaderPageTitle />
+          <HeaderSearch />
           <div data-nav-brand className='flex min-w-0 items-center gap-3 lg:gap-7'>
             <div className='lg:hidden'>
               <MobileNav pathname={pathname} />

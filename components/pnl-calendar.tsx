@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { HoldingPnlPoint, PnlDayStatus, PnlPoint } from "@/lib/types";
 import { fmtVND, MONTHS } from "@/lib/format";
+import { PanelHead } from "@/components/panel-head";
 import { cn } from "@/lib/utils";
 
 /** Corner indicator for a day's settlement status (month view). "live" pulses via a
@@ -76,46 +77,10 @@ function RampLegend() {
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/** Width at which a second month fits without the cells getting cramped. */
-const TWO_UP_QUERY = "(min-width: 1180px)";
-
-/**
- * Whether a media query currently matches. This can't be pure CSS: the second month is
- * real data — it feeds the period total, the bar scale and the default selection — so
- * rendering it and hiding it with `hidden` would silently fold an invisible month into the
- * figures above. `useSyncExternalStore` gives server=false / client=real without the
- * set-state-in-effect that the React Compiler lint forbids.
- */
-function useMediaQuery(query: string): boolean {
-  const subscribe = React.useCallback(
-    (cb: () => void) => {
-      const mql = window.matchMedia(query);
-      mql.addEventListener("change", cb);
-      return () => mql.removeEventListener("change", cb);
-    },
-    [query],
-  );
-  return React.useSyncExternalStore(
-    subscribe,
-    () => window.matchMedia(query).matches,
-    () => false,
-  );
-}
-
-/** Step a `YYYY-MM` key by whole months. */
-function shiftMonthKey(ym: string, delta: number): string {
-  const d = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-
-/** Net move across a month's cells — the per-grid caption when two months are shown. */
-function monthTotal(cells: (DayCell | null)[]): number {
-  return cells.reduce((a, c) => (c?.tracked ? a + c.delta : a), 0);
-}
 
 /** Compact signed VND for tight calendar cells: +2.4mil / -830k. */
 function fmtCompact(v: number): string {
@@ -254,19 +219,11 @@ export function PnlCalendar({
   // outside the active month.
   const [selected, setSelected] = React.useState<string | null>(null);
 
-  // From `--breakpoint-xl` up there's room for two months side by side, which is the
-  // difference between reading a month and reading a trend — most of what you want from a
-  // P&L calendar is "is this month worse than last".
-  const twoUp = useMediaQuery(TWO_UP_QUERY) && view === "month";
-
-  /** The month keys on screen, oldest first. The active month is always the last one. */
-  const monthKeys = React.useMemo(() => {
-    if (!active) return [] as string[];
-    if (!twoUp) return [active];
-    const prev = shiftMonthKey(active, -1);
-    // Don't open on a month that predates the data — it'd be a blank half.
-    return bounds && prev < bounds.min ? [active] : [prev, active];
-  }, [active, twoUp, bounds]);
+  /** The month grid is one month, always. It used to open the previous month beside it at
+   *  xl, but the calendar now lives in the dashboard's analysis column rather than across
+   *  the full page — two grids there are each too narrow to read a day in. The Year view is
+   *  the one that exists for comparing months. */
+  const monthKeys = React.useMemo(() => (active ? [active] : []), [active]);
 
   /** Cells for one `YYYY-MM`, padded so the first row starts on a Monday. */
   const buildMonth = React.useCallback(
@@ -416,12 +373,10 @@ export function PnlCalendar({
     <div className="card-surface panel-body">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-5">
-          <div>
-            <div className="text-[16px] font-bold tracking-[-0.01em]">P&amp;L calendar</div>
-            <div className="mt-0.5 text-[12px] text-muted-foreground">
-              Daily change in unrealized P&amp;L — select a day for the breakdown
-            </div>
-          </div>
+          <PanelHead
+            title="P&amp;L calendar"
+            info="Daily change in unrealized P&L. Select a day for the per-holding breakdown."
+          />
           {active && (
             <div className="flex items-center gap-3">
               <button
@@ -487,7 +442,7 @@ export function PnlCalendar({
             // months once the grid goes side by side, not the one the picker names.
             <div className="text-right">
               <div className="text-[12.5px] text-muted-foreground">
-                {view === "year" ? "Year P&L" : months.length > 1 ? "2 months P&L" : "Month P&L"}
+                {view === "year" ? "Year P&L" : "Month P&L"}
               </div>
               <div className={cn("mt-1 font-mono text-[15px] font-semibold tabular-nums", periodTotal < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
                 {fmtSigned(periodTotal)}
@@ -580,21 +535,11 @@ export function PnlCalendar({
               </div>
             </div>
           ) : (
-            <div className={cn("grid gap-x-8 gap-y-6", months.length > 1 && "grid-cols-2")}>
+            <div className="grid gap-x-8 gap-y-6">
               {months.map(({ ym, cells: monthCells }) => (
                 <div key={ym}>
-                  {/* Only worth naming when there are two to tell apart — with one month the
-                      picker in the header already says which. */}
-                  {months.length > 1 && (
-                    <div className="mb-2.5 flex items-baseline justify-between">
-                      <span className="text-[12.5px] font-bold">
-                        {MONTH_NAMES[Number(ym.slice(5, 7)) - 1]} {ym.slice(0, 4)}
-                      </span>
-                      <span className={cn("font-mono text-[11.5px] tabular-nums", monthTotal(monthCells) < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
-                        {fmtCompact(monthTotal(monthCells))}
-                      </span>
-                    </div>
-                  )}
+                  {/* No month caption: the grid is one month and the picker in the header
+                      already names it. */}
                   <div className="mb-1.5 grid grid-cols-7 gap-1.5">
                     {WEEKDAYS.map((w) => (
                       <div key={w} className="text-center text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">{w}</div>
