@@ -44,6 +44,11 @@ function isoFromEpoch(seconds: number, gmtOffsetSeconds = 0): string {
   return new Date((seconds + gmtOffsetSeconds) * 1000).toISOString().slice(0, 10);
 }
 
+/** ICT (+07), the venue offset for HOSE/HNX. Yahoo hands this over as `meta.gmtoffset`;
+ *  DNSE states no offset at all, so its bars — stamped 09:00 ICT, i.e. 02:00Z — need it
+ *  supplied to land on the right calendar day. */
+const HOSE_GMT_OFFSET = 7 * 3600;
+
 /** Add `days` to a YYYY-MM-DD string (UTC math, no timezone drift). */
 function isoAddDays(iso: string, days: number): string {
   return new Date(new Date(`${iso}T00:00:00Z`).valueOf() + days * 86400000).toISOString().slice(0, 10);
@@ -288,13 +293,14 @@ export async function fetchYahooHistory(
           currentTradingPeriod?: { regular?: { start?: number; end?: number } };
         };
         timestamp?: number[];
-        indicators?: { quote?: { close?: (number | null)[] }[] };
+        indicators?: { quote?: { close?: (number | null)[]; volume?: (number | null)[] }[] };
       }[];
     };
   }>(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`);
   const result = data.chart.result?.[0];
   const stamps = result?.timestamp ?? [];
   const closes = result?.indicators?.quote?.[0]?.close ?? [];
+  const volumes = result?.indicators?.quote?.[0]?.volume ?? [];
   const gmtOffset = result?.meta?.gmtoffset ?? 0;
 
   // Compared as epochs, not dates, so this holds for a venue whose session straddles UTC
@@ -308,7 +314,55 @@ export async function fetchYahooHistory(
   const out: Record<string, number> = {};
   stamps.forEach((ts, i) => {
     const c = closes[i];
-    if (c && ts < unsettledFrom) out[isoFromEpoch(ts, gmtOffset)] = c;
+    // A zero-volume bar is a day the venue never traded — a holiday Yahoo pads out rather
+    // than omits — and its "close" is just the previous session's, carried forward. Storing
+    // it would invent a settled close for a day that never had one, and the next real
+    // session's move would then read as a one-day move measured from a price two sessions
+    // old. Dropped, so the day resolves back to the last close that was actually struck.
+    if (c && volumes[i] !== 0 && ts < unsettledFrom) out[isoFromEpoch(ts, gmtOffset)] = c;
+  });
+  return out;
+}
+
+/**
+ * Daily closes from DNSE's public chart API (services.entrade.com.vn).
+ *
+ * Yahoo is the live-price source for VN tickers but cannot be trusted for their daily
+ * history: it silently pads a missing HOSE session with a synthetic bar — `open = high =
+ * low = close` at the previous close, `volume: 0` — instead of omitting the day. Stored,
+ * that invents a settled close nobody traded at, so the real session's move goes missing
+ * from its own day and lands on the next one. 2026-08-03 is the case in point: HOSE traded
+ * (HPG alone did 44M shares) and Yahoo has none of it.
+ *
+ * DNSE is a licensed VN broker and reports the session; SSI's iBoard API returns numbers
+ * identical to it, so two independent brokers corroborate. Note this covers **VN tickers
+ * only** — a non-VN symbol on this strategy returns nothing rather than erroring.
+ */
+export async function fetchEntradeHistory(
+  symbol: string, fromIso?: string,
+): Promise<Record<string, number>> {
+  // Yahoo's suffix, which DNSE doesn't use: our instruments store "FPT.VN", it wants "FPT".
+  const ticker = symbol.replace(/\.VN$/i, "");
+  // A full backfill reaches 3y, comfortably past the 2y Yahoo used to store, so no stretch
+  // of the series is left on Yahoo's basis. That matters beyond staleness: Yahoo's daily
+  // closes are dividend/split-**adjusted** while DNSE reports the raw close, so a range
+  // served half by each puts a step in the chart at the seam — FPT's 2024-12-31 is ₫132,609
+  // on Yahoo against ₫128,370 on DNSE, a phantom -3.5% overnight. One basis throughout.
+  const from = Math.floor(
+    new Date(`${fromIso ?? isoAddDays(todayIso(), -3 * 365)}T00:00:00Z`).valueOf() / 1000,
+  );
+  const to = Math.floor(Date.now() / 1000);
+  const data = await getJson<{ t?: number[]; c?: number[]; v?: number[] }>(
+    `https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?symbol=${encodeURIComponent(ticker)}&resolution=1D&from=${from}&to=${to}`,
+  );
+  const stamps = data.t ?? [];
+  const closes = data.c ?? [];
+  const volumes = data.v ?? [];
+  const out: Record<string, number> = {};
+  stamps.forEach((ts, i) => {
+    const c = closes[i];
+    // DNSE quotes in thousands of VND (67.1 → ₫67,100); the rest of the app is whole VND.
+    if (c && volumes[i] !== 0) out[isoFromEpoch(ts, HOSE_GMT_OFFSET)] = Math.round(c * 1000);
   });
   return out;
 }
@@ -410,6 +464,8 @@ async function fetchHistoryInto(lookbackDays: number | null): Promise<[number, s
       let history: Record<string, number> | null = null;
       if (strat === "yahoo" && row.symbol)
         history = await fetchYahooHistory(row.symbol, yahooRange(lookbackDays));
+      else if (strat === "entrade" && row.symbol)
+        history = await fetchEntradeHistory(row.symbol, fromIso);
       else if (strat === "coingecko" && row.symbol)
         history = await fetchCoingeckoHistory(row.symbol, lookbackDays ?? 365);
       else if (strat === "fmarket") {
