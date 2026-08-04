@@ -17,9 +17,8 @@ import {
 } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { shortfall, verdict, type GoalView } from "@/lib/goals";
-import { GoalBar, GoalStatusChip } from "@/components/goal-strip";
+import { GoalBar, GoalMetricTag, GoalStatusChip } from "@/components/goal-strip";
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import {
@@ -486,7 +485,7 @@ function GoalCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[14px] font-semibold">{goal.name}</span>
-            <Badge variant="tag">{GOAL_METRIC_LABELS[goal.metric]}</Badge>
+            <GoalMetricTag metric={goal.metric} />
             {!archived && <GoalStatusChip status={proj.status} />}
           </div>
           <div className="mt-1 font-mono text-[12px] text-muted-foreground tabular-nums">
@@ -544,7 +543,7 @@ function GoalCard({
       </div>
 
       <div className="mt-3.5 flex items-center gap-3">
-        <GoalBar progress={proj.progress} muted={archived || proj.status === "stalled"} />
+        <GoalBar progress={proj.progress} muted={archived || proj.status === "stalled"} metric={goal.metric} />
         <span className="shrink-0 font-mono text-[11.5px] text-muted-foreground tabular-nums">
           {Math.round(proj.progress * 100)}%
         </span>

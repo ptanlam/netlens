@@ -18,7 +18,7 @@ export function EntityAvatar({
   name: string;
   /** A CSS colour — pass `typeColor(assetType)`. Omit for the neutral tile. */
   color?: string;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   className?: string;
 }) {
   const initial = name.trim().charAt(0).toUpperCase() || "?";
@@ -27,7 +27,9 @@ export function EntityAvatar({
       aria-hidden
       className={cn(
         "grid shrink-0 place-items-center rounded-full font-bold",
-        size === "sm" ? "size-[22px] text-[10px]" : "size-6 text-[10px]",
+        size === "sm" && "size-[22px] text-[10px]",
+        size === "md" && "size-6 text-[10px]",
+        size === "lg" && "size-7 text-[11px]",
         color ? "" : "bg-pane text-muted-foreground",
         className,
       )}

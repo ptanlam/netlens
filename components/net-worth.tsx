@@ -103,19 +103,22 @@ export function NetWorthPanel({
 
   return (
     <>
-      <section className="card-surface panel-body-sm">
+      <section className="@container card-surface panel-body-sm">
         <PanelHead
           title="Net worth"
           tone="label"
           info={`How this is built: ${formula}. Priced from the latest close each feed has settled.`}
         />
-        <div className="mt-2.5 flex items-end gap-3.5">
+        <div className="mt-2.5 flex items-end gap-3.5 @xl:mt-4 @xl:gap-6">
           <div className="min-w-0 flex-1">
             <div
               key={flash?.n ?? "static"}
               onAnimationEnd={() => setFlash(null)}
               className={cn(
-                "font-mono text-[26px] leading-none font-semibold tracking-[-0.02em] whitespace-nowrap tabular-nums will-change-transform",
+                // Sized by the card's own width, not the window's: this panel leads the
+                // dashboard's wide column but is also narrow enough to drop into a rail,
+                // and the figure has to stay on one line in both.
+                "font-mono text-[26px] leading-none font-semibold tracking-[-0.02em] whitespace-nowrap tabular-nums will-change-transform @xl:text-[38px] @3xl:text-[46px]",
                 flash?.dir === "up" && "animate-nw-flash-up",
                 flash?.dir === "down" && "animate-nw-flash-down",
               )}
@@ -150,7 +153,7 @@ export function NetWorthPanel({
               aria-hidden
               viewBox="0 0 1000 300"
               preserveAspectRatio="none"
-              className="animate-fade-in h-11 w-[110px] shrink-0 text-accent-brand"
+              className="animate-fade-in h-11 w-[110px] shrink-0 text-accent-brand @xl:h-16 @xl:w-[200px] @3xl:w-[280px]"
             >
               <path
                 d={paths.line}
@@ -164,22 +167,28 @@ export function NetWorthPanel({
         </div>
       </section>
 
-      <section className="card-surface panel-body-x flex flex-col">
-        {parts.map((p, i) => (
-          <div
-            key={p.label}
-            className={cn(
-              "flex items-center justify-between gap-3 py-3",
-              i < parts.length - 1 && "border-b border-divider",
-            )}
-          >
-            <span className="text-[13px] text-muted-foreground">{p.label}</span>
-            <span className={cn("font-mono text-[14px] font-semibold tabular-nums", p.cls)}>
-              {p.sign}
-              {fmtVND(p.value)}
-            </span>
-          </div>
-        ))}
+      <section className="@container card-surface panel-body-x">
+        {/* The flex row lives on an inner element on purpose: a container query can't ask
+            about the element that *declares* the container, only about an ancestor one. */}
+        <div className="flex flex-col @xl:flex-row @xl:items-stretch">
+          {parts.map((p, i) => (
+            <div
+              key={p.label}
+              className={cn(
+                // Stacked rows in a rail; side by side once the card is wide enough that a
+                // list of three would leave most of its width empty.
+                "flex items-center justify-between gap-3 py-3 @xl:flex-1 @xl:flex-col @xl:items-start @xl:justify-center @xl:gap-1.5 @xl:px-4 @xl:py-1 @xl:first:pl-0 @xl:last:pr-0",
+                i < parts.length - 1 && "border-b border-divider @xl:border-b-0 @xl:border-r",
+              )}
+            >
+              <span className="text-[13px] text-muted-foreground">{p.label}</span>
+              <span className={cn("font-mono text-[14px] font-semibold tabular-nums @xl:text-[17px]", p.cls)}>
+                {p.sign}
+                {fmtVND(p.value)}
+              </span>
+            </div>
+          ))}
+        </div>
       </section>
     </>
   );

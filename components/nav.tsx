@@ -19,12 +19,17 @@ import { cn } from '@/lib/utils';
 
 // Settings isn't here: it's the gear in the right-hand cluster (and a row in the drawer,
 // which is where the gear can't fit).
-const LINKS: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/investments', label: 'Investments', icon: TrendingUp },
-  { href: '/savings', label: 'Savings', icon: PiggyBank },
-  { href: '/debts', label: 'Debts', icon: CreditCard },
-  { href: '/goals', label: 'Goals', icon: Target },
+//
+// `tint` is the section's own hue, from the app's five (see `--color-hue-*`). It only paints
+// the icon, never the label or the row: "here" is still marked by the surface step, so the
+// colour is identity — which section you're looking at — rather than a second, competing
+// signal for which one is current.
+const LINKS: { href: string; label: string; icon: LucideIcon; tint: string }[] = [
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard, tint: 'text-hue-blue' },
+  { href: '/investments', label: 'Investments', icon: TrendingUp, tint: 'text-hue-cyan' },
+  { href: '/savings', label: 'Savings', icon: PiggyBank, tint: 'text-hue-green' },
+  { href: '/debts', label: 'Debts', icon: CreditCard, tint: 'text-hue-amber' },
+  { href: '/goals', label: 'Goals', icon: Target, tint: 'text-hue-violet' },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -42,7 +47,7 @@ function BrandMark({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
       <span
         aria-hidden
         className={cn(
-          'grid shrink-0 place-items-center rounded-lg bg-brand font-bold text-white shadow-[0_0_22px_rgb(43_127_255/0.45)]',
+          'grid shrink-0 place-items-center rounded-lg bg-(image:--brand-gradient) font-bold text-white shadow-[0_0_22px_rgb(43_127_255/0.45)]',
           lg ? 'size-[34px] text-[15px]' : 'size-[26px] text-[12px]',
         )}
       >
@@ -80,6 +85,7 @@ function NavPill({
   href,
   label,
   icon: Icon,
+  tint,
   pathname,
   onClick,
   /** 'slide' leaves the active background to <DesktopNav>'s shared slider; 'solid' paints
@@ -89,6 +95,8 @@ function NavPill({
   href: string;
   label: string;
   icon: LucideIcon;
+  /** The section's hue class. Applied to the icon only. */
+  tint: string;
   pathname: string;
   onClick?: () => void;
   variant?: 'solid' | 'slide';
@@ -103,13 +111,15 @@ function NavPill({
         // The design's nav row: a 12px corner and the in-panel surface for "here", rather
         // than a brand wash. Blue is the *action* colour on this palette — a filled button
         // — so spending it on the current page would put two meanings on one colour.
-        'relative z-10 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] whitespace-nowrap transition-colors',
+        'group/nav relative z-10 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] whitespace-nowrap transition-colors',
         active
           ? cn('font-semibold text-foreground', variant === 'solid' && 'bg-pane ring-1 ring-input ring-inset')
           : 'font-medium text-muted-foreground hover:text-foreground',
       )}
     >
-      <Icon className='size-4 shrink-0 opacity-90' />
+      {/* Full hue on the current section, dimmed elsewhere — the rail stays colourful
+          without every row shouting at once. */}
+      <Icon className={cn('size-4 shrink-0 transition-opacity', tint, active ? 'opacity-100' : 'opacity-60 group-hover/nav:opacity-100')} />
       {label}
     </Link>
   );
@@ -193,6 +203,7 @@ function DesktopNav({ pathname }: { pathname: string }) {
           href={l.href}
           label={l.label}
           icon={l.icon}
+          tint={l.tint}
           pathname={pathname}
           variant='slide'
         />
@@ -278,7 +289,7 @@ function MobileNav({ pathname }: { pathname: string }) {
           </DialogPrimitive.Title>
           <nav className='flex flex-col gap-1'>
             {LINKS.map((l) => (
-              <NavPill key={l.href} href={l.href} label={l.label} icon={l.icon} pathname={pathname} onClick={() => setOpen(false)} />
+              <NavPill key={l.href} href={l.href} label={l.label} icon={l.icon} tint={l.tint} pathname={pathname} onClick={() => setOpen(false)} />
             ))}
           </nav>
           {/* The header row has no width for the gear on a phone, so settings — theme
@@ -323,11 +334,14 @@ function RailLink({
   href,
   label,
   icon: Icon,
+  tint,
   pathname,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** The section's hue class, on the icon only. Settings has none — it isn't a section. */
+  tint?: string;
   pathname: string;
 }) {
   return (
@@ -338,9 +352,9 @@ function RailLink({
       // The design's rail row: 12px corner, icon in a fixed 20px gutter so every label
       // starts on the same x, and "here" marked by the in-panel surface plus the brighter
       // hairline rather than by colour.
-      className='flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-pane data-[active=true]:font-semibold data-[active=true]:text-foreground'
+      className='group/rail flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-pane data-[active=true]:font-semibold data-[active=true]:text-foreground'
     >
-      <Icon className='size-4 shrink-0 opacity-90' />
+      <Icon className={cn('size-4 shrink-0 transition-opacity', tint, tint && (isActive(pathname, href) ? 'opacity-100' : 'opacity-60 group-hover/rail:opacity-100'))} />
       <span data-rail-label className='min-w-0 truncate'>{label}</span>
     </Link>
   );
@@ -375,7 +389,7 @@ function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: bo
 
       <nav data-rail-nav>
         {LINKS.map((l) => (
-          <RailLink key={l.href} href={l.href} label={l.label} icon={l.icon} pathname={pathname} />
+          <RailLink key={l.href} href={l.href} label={l.label} icon={l.icon} tint={l.tint} pathname={pathname} />
         ))}
       </nav>
 

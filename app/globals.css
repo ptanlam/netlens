@@ -44,6 +44,17 @@
   --color-tooltip-positive: var(--tooltip-positive);
   --color-tooltip-negative: var(--tooltip-negative);
   --color-chart-5: var(--chart-5);
+  /* ---- The app's five hues, under names that don't mean "asset type" ----
+     `--chart-1..5` are *slots*: chart-2 IS Stocks, and colour follows the entity there.
+     Chrome needs the same five hues for a different job — telling nav sections and action
+     tiles apart — so it gets them under names that carry no such promise. Same values, one
+     palette: the alternative was a second five-colour ramp that had to be kept in step with
+     this one by hand. */
+  --color-hue-blue: var(--chart-1);
+  --color-hue-amber: var(--chart-2);
+  --color-hue-cyan: var(--chart-3);
+  --color-hue-green: var(--chart-4);
+  --color-hue-violet: var(--chart-5);
   --color-chart-positive: var(--chart-positive);
   --color-chart-negative: var(--chart-negative);
   --color-chart-4: var(--chart-4);
@@ -107,6 +118,9 @@
      is deepened so white label text on a filled button clears AA. */
   --brand: #2b7fff;
   --brand-soft: rgb(43 127 255 / 0.11);
+  /* The design fills its avatar tile with a blue→violet rake rather than flat brand blue.
+     It's the one place two hues meet, which is what stops the mark reading as a swatch. */
+  --brand-gradient: linear-gradient(150deg, #2b7fff, #7c5cff);
   --primary: #1e63e0;
   --primary-foreground: #ffffff;
   --secondary: rgb(13 16 24 / 0.06);
@@ -211,6 +225,7 @@
   --popover-foreground: #f2f4f8;
   --brand: #2b7fff;
   --brand-soft: rgb(43 127 255 / 0.16);
+  --brand-gradient: linear-gradient(150deg, #2b7fff, #7c5cff);
   --primary: #2b7fff;
   --primary-foreground: #ffffff;
   --secondary: rgb(255 255 255 / 0.07);

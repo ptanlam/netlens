@@ -18,11 +18,17 @@ function TooltipContent({
   const { side, ...popupProps } = props
   return (
     <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Positioner sideOffset={sideOffset} side={side}>
+      {/* `z-50` belongs on the *Positioner*, not the popup: that's the element Base UI
+          gives `position: fixed`, so it's the one that takes part in the page's stacking
+          order. With the z-index only on the popup inside, the positioner sat at `auto`
+          and `<main class="relative z-10">` painted over every tooltip in the app. */}
+      <TooltipPrimitive.Positioner sideOffset={sideOffset} side={side} className="isolate z-50">
         <TooltipPrimitive.Popup
           data-slot="tooltip"
           className={cn(
-            "z-50 select-none rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background shadow-md",
+            // Wrapped, not one long line: these carry a sentence explaining a panel now,
+            // and unconstrained they stretched half the width of the screen.
+            "max-w-[min(22rem,calc(100vw-2rem))] text-balance select-none rounded-md bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-md",
             "origin-[var(--transform-origin)] transition-[transform,opacity] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
             className,
           )}

@@ -2,16 +2,20 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Download, TriangleAlert } from "lucide-react";
+import { ChevronDown, Download, Search, TriangleAlert } from "lucide-react";
 import type { HoldingPnlPoint, Payload, PnlPoint } from "@/lib/types";
 import { fmtVND, MONTHS } from "@/lib/format";
-import { NetWorthPanel } from "@/components/net-worth";
+import { NetWorthPanel, sparkPaths } from "@/components/net-worth";
+import { EntityAvatar } from "@/components/entity-avatar";
 import { GoalStrip } from "@/components/goal-strip";
 import { SummaryCards, type Stat } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
 import { PanelHead } from "@/components/panel-head";
 import { QuickActions } from "@/components/quick-actions";
 import { Button } from "@/components/ui/button";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import type { GoalView } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
@@ -29,6 +33,12 @@ const TYPE_COLORS: Record<string, string> = {
   "Real Estate": "var(--chart-4)",
 };
 const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
+
+/** Sentinel for the Holdings filter's "no filter" option — Base UI's Select needs a real
+ *  value, and "" is indistinguishable from a cleared selection. */
+const ALL_TYPES = "__all__";
+/** Rows the Holdings panel shows before you ask for the rest. */
+const COLLAPSED_ROWS = 4;
 
 /** Short VND for bars/legends: ₫1.2bil, ₫372mil, ₫22mil. */
 function fmtMilVND(v: number): string {
@@ -189,27 +199,11 @@ export function DashboardCharts({
         </Link>
       )}
 
-      {/* The full-width strip under the page header — the slot the design gives its
-          watchlist. Goals are this app's version of "the handful of things you're
-          watching", and it's the one block that needs the whole measure. */}
-      <GoalStrip goals={goals} />
-
       {/* The design's dashboard body: a wide analysis column and a narrow rail of small
           cards, as a wrapping flex rather than a grid, so the rail drops under the charts
           on its own once neither basis fits. */}
       <div className="flex flex-wrap items-start gap-3 sm:gap-4">
         <div className="flex min-w-0 flex-[1_1_560px] flex-col gap-3 sm:gap-4">
-          <PortfolioChart
-            series={series}
-            error={seriesError}
-            onRebuilt={() => setHistoryVersion((v) => v + 1)}
-          />
-          <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
-          <HoldingsCard payload={payload} />
-          <PnlByHoldingCard payload={payload} />
-        </div>
-
-        <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 sm:gap-4">
           <NetWorthPanel
             investments={payload.portfolioTotal}
             savings={savings}
@@ -219,11 +213,22 @@ export function DashboardCharts({
             todayFrom={todayFrom}
             spark={series?.map((p) => p.value) ?? null}
           />
+          <PortfolioChart
+            series={series}
+            error={seriesError}
+            onRebuilt={() => setHistoryVersion((v) => v + 1)}
+          />
+          <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
+          <GoalStrip goals={goals} />
+        </div>
+
+        <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 sm:gap-4">
           <QuickActions />
           {/* One column at every width: this strip is in the rail now, and `auto-fit` would
               otherwise pack three tiles across the moment the rail wraps to full measure. */}
           <SummaryCards stats={kpis} className="grid-cols-1 lg:grid-cols-1" />
           <AllocationCard payload={payload} />
+          <HoldingsListCard payload={payload} holdingSeries={holdingSeries} />
         </div>
       </div>
     </div>
@@ -294,88 +299,178 @@ function AllocationCard({ payload }: { payload: Payload }) {
   );
 }
 
-function HoldingsCard({ payload }: { payload: Payload }) {
-  const rows = payload.portfolio
-    .filter((p) => p.value > 0)
-    .slice()
-    .sort((a, b) => b.value - a.value);
-  const max = Math.max(1, ...rows.map((r) => r.value));
+/**
+ * The design's Holdings panel: one row per position — the type-tinted mark, the name over
+ * its asset type, a small value spark, and the money on the right.
+ *
+ * This was two panels, a bar chart of position values and a diverging bar chart of P&L.
+ * They were the same ten holdings ranked two ways, and reading one against the other meant
+ * matching names across half a page. A row carries both figures side by side, which is the
+ * comparison you actually wanted, and it's the shape the design uses.
+ */
+function HoldingsListCard({
+  payload,
+  holdingSeries,
+}: {
+  payload: Payload;
+  holdingSeries: HoldingPnlPoint[] | null;
+}) {
+  const [query, setQuery] = React.useState("");
+  const [type, setType] = React.useState<string>(ALL_TYPES);
+  const [expanded, setExpanded] = React.useState(false);
 
-  return (
-    <div className="flex h-full flex-col card-surface panel-body">
-      <PanelHead title="Holdings" info="Every position with a value today, largest first. Bar colour is the asset type." className="mb-5" />
-      <div className="flex flex-col gap-[11px]">
-        {rows.map((h, i) => (
-          <div key={h.name} className="flex items-center gap-3">
-            <div className="w-[104px] truncate text-right font-mono text-[12px]" title={h.name}>{h.name}</div>
-            <div className="relative h-[18px] flex-1 rounded bg-background">
-              <div
-                className="animate-grow-x absolute top-0 left-0 h-full rounded"
-                style={{ width: `${(h.value / max) * 100}%`, background: typeColor(h.type), animationDelay: `${i * 45}ms` }}
-              />
-            </div>
-            <div className="w-14 text-right font-mono text-[12px] text-muted-foreground tabular-nums">{fmtMilVND(h.value)}</div>
-          </div>
-        ))}
-      </div>
-    </div>
+  const held = React.useMemo(
+    () =>
+      payload.portfolio
+        .filter((p) => p.value > 0 || p.pnl !== 0)
+        .slice()
+        .sort((a, b) => b.value - a.value),
+    [payload.portfolio],
   );
-}
 
-function PnlByHoldingCard({ payload }: { payload: Payload }) {
-  const rows = payload.portfolio
-    .filter((p) => p.pnl !== 0)
-    .slice()
-    .sort((a, b) => b.pnl - a.pnl);
+  /** Only the types actually held — a filter offering "Crypto" to someone holding none is
+   *  a dead end you have to try before you learn it's empty. */
+  const types = React.useMemo(
+    () => Array.from(new Set(held.map((h) => h.type))).sort(),
+    [held],
+  );
 
-  if (rows.length === 0) {
+  const rows = React.useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return held.filter(
+      (h) =>
+        (type === ALL_TYPES || h.type === type) &&
+        (needle === "" || h.name.toLowerCase().includes(needle)),
+    );
+  }, [held, query, type]);
+
+  // Four rows by default. The panel sits in the rail beside a full-height chart column, and
+  // ten holdings there turn it into the tallest thing on the page — but searching or
+  // filtering is an explicit ask for a specific row, so the cap lifts for those.
+  const searching = query.trim() !== "" || type !== ALL_TYPES;
+  const capped = !expanded && !searching;
+  const visible = capped ? rows.slice(0, COLLAPSED_ROWS) : rows;
+  const hiddenCount = rows.length - visible.length;
+
+  // Per-holding value history, keyed by name, for the row sparks. Built once for all rows
+  // rather than re-scanned per row — the series is one pass over every day either way.
+  const sparks = React.useMemo(() => {
+    const out = new Map<string, number[]>();
+    if (!holdingSeries) return out;
+    for (const day of holdingSeries) {
+      for (const h of day.holdings) {
+        const arr = out.get(h.name);
+        if (arr) arr.push(h.value);
+        else out.set(h.name, [h.value]);
+      }
+    }
+    return out;
+  }, [holdingSeries]);
+
+  if (held.length === 0) {
     return (
       <div className="card-surface panel-body">
-        <PanelHead title="Profit &amp; loss by holding" />
+        <PanelHead title="Holdings" />
         <p className="py-8 text-center text-sm text-muted-foreground">
-          No gains or losses yet — set live quantities or holding values to see P&amp;L.
+          No holdings with a value yet — set live quantities or holding values to see them here.
         </p>
       </div>
     );
   }
 
-  const maxPos = Math.max(0, ...rows.map((r) => r.pnl));
-  const maxNeg = Math.max(0, ...rows.map((r) => -r.pnl));
-  const span = maxPos + maxNeg || 1;
-  const zeroPct = (maxNeg / span) * 100;
-
   return (
     <div className="card-surface panel-body">
       <PanelHead
-        title="Profit &amp; loss by holding"
-        info="Total gain or loss per position, net of any proceeds. Green bars run right of the zero line, losses left."
-        className="mb-5"
+        title="Holdings"
+        info="Every position with a value or a realised move, largest first. The spark is that holding's own value history; the second figure is its total gain or loss against cost."
+        className="mb-3"
       />
-      <div className="flex flex-col gap-2.5">
-        {rows.map((p, i) => {
-          const neg = p.pnl < 0;
-          const w = neg ? (Math.abs(p.pnl) / (maxNeg || 1)) * zeroPct : (p.pnl / (maxPos || 1)) * (100 - zeroPct);
-          const left = neg ? zeroPct - w : zeroPct;
-          const color = neg ? "var(--chart-negative)" : "var(--chart-positive)";
+
+      {/* The design's control row: a search field that takes the width, and a filter beside
+          it. The filter is a real <Select> over the types actually held rather than the
+          design's placeholder button. */}
+      <div className="mb-1 flex gap-2.5">
+        <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-border bg-pane px-2.5 focus-within:border-input">
+          <Search className="size-3.5 shrink-0 text-faint" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search"
+            aria-label="Search holdings"
+            className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint"
+          />
+        </label>
+        <Select value={type} onValueChange={(v) => v != null && setType(v)}>
+          <SelectTrigger
+            size="sm"
+            aria-label="Filter by asset type"
+            className="h-9 shrink-0 rounded-[11px] border-border bg-pane text-[12px] font-semibold"
+          >
+            <SelectValue>{type === ALL_TYPES ? "All" : type}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_TYPES}>All types</SelectItem>
+            {types.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-col">
+        {visible.length === 0 && (
+          <p className="py-6 text-center text-[12.5px] text-muted-foreground">
+            No holding matches that.
+          </p>
+        )}
+        {visible.map((h) => {
+          // A percentage only means something against real money still in the position.
+          const pct = h.cost > 0 ? (h.pnl / h.cost) * 100 : null;
+          const neg = h.pnl < 0;
+          const paths = sparkPaths(sparks.get(h.name) ?? []);
           return (
-            <div key={p.name} className="flex items-center gap-3">
-              <div className="w-[104px] truncate text-right font-mono text-[12px]" title={p.name}>{p.name}</div>
-              <div className="relative h-[18px] flex-1">
-                <div className="absolute -top-[3px] -bottom-[3px] w-px bg-input" style={{ left: `${zeroPct}%` }} />
-                {/* Grow out from the zero line: negatives anchor right, positives left. */}
-                <div
-                  className="animate-grow-x absolute top-0 h-full rounded-[3px]"
-                  style={{ left: `${left}%`, width: `${w}%`, background: color, transformOrigin: neg ? "right" : "left", animationDelay: `${i * 45}ms` }}
-                />
+            <div key={h.name} className="flex items-center gap-3 border-t border-divider py-3 first:border-t-0">
+              <EntityAvatar name={h.name} color={typeColor(h.type)} size="lg" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-semibold" title={h.name}>{h.name}</div>
+                <div className="truncate text-[11px] text-faint">{h.type}</div>
               </div>
-              {/* Wide enough for a signed 8-figure VND amount, or the sign wraps onto its own line. */}
-              <div className="w-[94px] shrink-0 text-right font-mono text-[12px] whitespace-nowrap tabular-nums" style={{ color }}>
-                {fmtSigned(p.pnl)}
+              {paths && (
+                <svg
+                  aria-hidden
+                  viewBox="0 0 1000 300"
+                  preserveAspectRatio="none"
+                  className={cn("h-6 w-[58px] shrink-0", neg ? "text-(--chart-negative)" : "text-accent-brand")}
+                >
+                  <path d={paths.line} fill="none" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
+                </svg>
+              )}
+              <div className="shrink-0 text-right">
+                <div className="font-mono text-[12.5px] tabular-nums">{fmtMilVND(h.value)}</div>
+                {h.pnl !== 0 && (
+                  <div className={cn("font-mono text-[10.5px] tabular-nums", neg ? "text-(--chart-negative)" : "text-accent-brand")}>
+                    {neg ? "↘ " : "↗ "}
+                    {pct != null ? `${Math.abs(pct).toFixed(1)}%` : fmtSigned(h.pnl)}
+                  </div>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Only when the cap is actually hiding something, or has been lifted. Searching
+          already shows every match, so no control is offered there. */}
+      {!searching && (hiddenCount > 0 || expanded) && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 flex w-full items-center justify-center gap-1.5 border-t border-divider pt-3 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {expanded ? "Show less" : `Show all ${rows.length}`}
+          <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
+        </button>
+      )}
     </div>
   );
 }
