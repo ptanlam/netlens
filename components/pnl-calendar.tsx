@@ -413,11 +413,11 @@ export function PnlCalendar({
   }
 
   return (
-    <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
+    <div className="card-surface panel-body">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-5">
           <div>
-            <div className="text-[17px] font-bold">P&amp;L calendar</div>
+            <div className="text-[16px] font-bold tracking-[-0.01em]">P&amp;L calendar</div>
             <div className="mt-0.5 text-[12px] text-muted-foreground">
               Daily change in unrealized P&amp;L — select a day for the breakdown
             </div>
@@ -486,7 +486,7 @@ export function PnlCalendar({
             // Labelled, because the figure covers whatever is on screen — and that's two
             // months once the grid goes side by side, not the one the picker names.
             <div className="text-right">
-              <div className="text-[9.5px] font-semibold tracking-[0.14em] text-faint uppercase">
+              <div className="text-[12.5px] text-muted-foreground">
                 {view === "year" ? "Year P&L" : months.length > 1 ? "2 months P&L" : "Month P&L"}
               </div>
               <div className={cn("mt-1 font-mono text-[15px] font-semibold tabular-nums", periodTotal < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
@@ -635,7 +635,7 @@ export function PnlCalendar({
           <div className="mt-[22px] border-t border-border pt-[22px]">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
               <div>
-                <div className="text-[9.5px] font-semibold tracking-[0.16em] text-faint uppercase">
+                <div className="text-[12.5px] text-muted-foreground">
                   Selected day · per holding
                 </div>
                 <div className="mt-1.5 text-[18px] font-bold">

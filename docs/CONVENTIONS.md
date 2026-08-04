@@ -45,12 +45,23 @@
   renders the header so the two can live in one component.
 - **One filled button per view.** `variant="default"` is brand blue with the theme's only
   glow under it; everything else is `outline` (on `bg-pane`) or `ghost`.
+- **Chips are `<Badge>`, and the variant is a matter of meaning, not taste.** `variant="tag"`
+  is a *kind* — "Funds", "Credit", "Sinking fund", an asset type. It's the 7px corner on
+  `bg-pane` in muted ink, and it never signals good or bad. Every other variant is a
+  *state* — Active, live, Behind, Due — and is a full pill tinted by tone (`accent`,
+  `warning`, `destructive`, `secondary`). Don't hand-roll `rounded-sm bg-secondary px-[7px]`;
+  four components each grew their own before this was one component.
 - Typography is two families: **Space Grotesk** (`font-sans`, and `font-heading`/
-  `font-serif` alias to it) and **JetBrains Mono** (`font-mono`) for every figure. Body
-  runs 13.5px/1.45. Page titles are `text-[30px] font-bold tracking-[-0.025em]`, section
-  headings a step down at `text-[16-20px] font-bold`, and labels are sentence case at
-  reading size — the letterspaced uppercase micro-label survives only on table column
-  heads (`table-head-bar` / `<TableHead>`), never on a figure's caption.
+  `font-serif` alias to it) and **JetBrains Mono** (`font-mono`) for every figure. There
+  are exactly four sizes above body:
+  - page title — `text-[30px] font-bold tracking-[-0.025em]` (`<PageHeader>` owns it)
+  - panel title — `text-[16px] font-bold tracking-[-0.01em]`
+  - sub-section caption inside a panel — `text-[13px] font-semibold text-muted-foreground`
+  - label / figure caption — `text-[12.5px] text-muted-foreground`
+
+  Body runs 13.5px/1.45; table body is 12.5px. Labels are sentence case at reading size —
+  the letterspaced uppercase micro-label survives only on table column heads
+  (`<TableHead>`), never on a figure's caption.
 
 ## Colors
 - **Never hardcode a color.** Every colour must resolve to a CSS var from

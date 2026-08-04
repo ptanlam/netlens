@@ -29,7 +29,7 @@ export function TransactionsTable({
         accessorKey: "asset_type",
         header: "Type",
         size: 100,
-        cell: ({ row }) => <Badge variant="secondary">{row.original.asset_type}</Badge>,
+        cell: ({ row }) => <Badge variant="tag">{row.original.asset_type}</Badge>,
       },
       {
         accessorKey: "instrument",

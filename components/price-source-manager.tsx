@@ -249,9 +249,9 @@ function Tag({ children }: { children: React.ReactNode }) {
 
 export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
   return (
-    <div className="card-surface px-6 py-6">
+    <div className="card-surface panel-body">
       {/* A section inside Settings now, so it sits a level below the page title. */}
-      <div className="text-[18px] font-bold tracking-[-0.01em]">Price sources</div>
+      <div className="text-[16px] font-bold tracking-[-0.01em]">Price sources</div>
       <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
         The feeds your holdings are priced against. Each is a self-contained config — a request
         URL and how to read the price out — so you can add one without touching code.
@@ -266,13 +266,13 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
 
       <div className="mt-[18px] flex flex-col gap-3.5">
         {sources.map((s) => (
-          <div key={s.key} className="rounded-[10px] border border-border p-[18px]">
+          <div key={s.key} className="rounded-xl border border-border p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                 <span className="text-[16px] font-bold">{s.label}</span>
-                <span className="rounded-[5px] bg-foreground px-2 py-0.5 font-mono text-[11px] text-background">{s.key}</span>
+                <span className="rounded-sm bg-foreground px-2 py-0.5 font-mono text-[11px] text-background">{s.key}</span>
                 {s.builtin ? (
-                  <span className="rounded-[5px] bg-pane-sunk px-2 py-0.5 font-mono text-[11px] text-muted-foreground">built-in</span>
+                  <span className="rounded-sm bg-pane-sunk px-2 py-0.5 font-mono text-[11px] text-muted-foreground">built-in</span>
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -286,7 +286,7 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
               {s.batch ? <Tag>batch</Tag> : null}
               <Tag>history: {s.history_strategy}</Tag>
             </div>
-            <div className="mt-3 rounded-[7px] border border-divider-soft bg-pane-sunk px-3 py-2.5 font-mono text-[12px] break-all text-muted-foreground">
+            <div className="mt-3 rounded-sm border border-divider-soft bg-pane-sunk px-3 py-2.5 font-mono text-[12px] break-all text-muted-foreground">
               {s.url}
             </div>
           </div>

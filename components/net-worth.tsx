@@ -94,7 +94,7 @@ export function NetWorthPanel({
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.9fr_1fr]">
-      <div className="card-surface relative flex flex-col overflow-hidden px-7 pt-8 sm:px-9">
+      <div className="card-surface panel-body-x relative flex flex-col overflow-hidden pt-6 sm:pt-7">
         {/* Brand light spilling in from the top-left corner — the only decoration on the
             page, and what makes the hero read as the hero. */}
         <div
@@ -177,7 +177,12 @@ export function NetWorthPanel({
             preserveAspectRatio="none"
                         // Gain-green, matching the design's net-worth spark — blue is the action
             // colour on this palette, and the hero already spends it on the corner light.
-            className="animate-fade-in relative mt-4 -mb-px block h-[110px] w-[calc(100%+3.5rem)] -translate-x-7 text-accent-brand opacity-60 sm:w-[calc(100%+4.5rem)] sm:-translate-x-9"
+            //
+            // The bleed cancels the panel's own gutter *by name*: `--panel-px` is set by
+            // `panel-body-x` above and steps at sm, so a hardcoded 3.5rem/4.5rem pair went
+            // stale the moment the panel inset moved (and left a strip of surface showing
+            // under the fill when it did).
+            className="animate-fade-in relative mt-4 -mb-px block h-[110px] w-[calc(100%+var(--panel-px)*2)] translate-x-[calc(var(--panel-px)*-1)] text-accent-brand opacity-60"
           >
             <defs>
               <linearGradient id="nw-spark" x1="0" y1="0" x2="0" y2="1">
@@ -199,7 +204,7 @@ export function NetWorthPanel({
         )}
       </div>
 
-      <div className="card-surface flex flex-col justify-center px-7">
+      <div className="card-surface panel-body-x flex flex-col justify-center">
         {parts.map((p, i) => (
           <div
             key={p.label}

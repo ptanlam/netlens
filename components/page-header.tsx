@@ -26,7 +26,10 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-end justify-between gap-x-5 gap-y-3.5",
+        // Actions align to the *top*, not the bottom: the description is one line on most
+        // pages but runs to three on /goals, and bottom-alignment dropped the button a
+        // whole paragraph below the title it belongs to.
+        "flex flex-wrap items-start justify-between gap-x-5 gap-y-3.5",
         className,
       )}
     >

@@ -132,7 +132,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
         <span className="font-mono tabular-nums">
           {value ? fmtVND(value) : "—"}{" "}
           {inst.quantity != null && inst.last_price != null && (
-            <Badge className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">live</Badge>
+            <Badge variant="accent">live</Badge>
           )}
         </span>
       );

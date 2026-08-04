@@ -12,7 +12,9 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        // 12.5px body type, per the design — a table is dense by nature, and the app's
+        // 14px default made rows read as prose next to the 11px column heads.
+        className={cn("w-full caption-bottom text-[12.5px]", className)}
         {...props}
       />
     </div>
@@ -23,11 +25,13 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      // The design's column strip: the in-panel surface, rounded at both ends, with no
-      // divider under it — the bar itself is the separation, so a hairline as well would
-      // read as an empty first row.
+      // The design's column strip: the in-panel surface on the 12px corner, rounded at both
+      // ends, with no divider under it — the bar itself is the separation, so a hairline as
+      // well would read as an empty first row. The bar is composed across two elements (the
+      // surface lives on the row, the letterspaced type on <TableHead>), which is why there
+      // is no single utility for it.
       className={cn(
-        "[&_tr]:border-b-0 [&_tr]:bg-pane [&_th:first-child]:rounded-l-xl [&_th:last-child]:rounded-r-xl",
+        "[&_tr]:border-b-0 [&_tr]:bg-pane [&_th:first-child]:rounded-l-lg [&_th:last-child]:rounded-r-lg",
         className
       )}
       {...props}
@@ -89,7 +93,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "px-2.5 py-2.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}

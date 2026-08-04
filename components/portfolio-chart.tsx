@@ -81,10 +81,10 @@ export function PortfolioChart({
     );
 
   return (
-    <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
+    <div className="card-surface panel-body">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-[20px] font-bold tracking-[-0.01em]">{title}</div>
+          <div className="text-[16px] font-bold tracking-[-0.01em]">{title}</div>
           <div className="mt-0.5 text-[12.5px] text-muted-foreground">{sub}</div>
         </div>
         <div className="flex flex-wrap items-center gap-3.5">

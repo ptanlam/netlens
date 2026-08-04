@@ -2,22 +2,26 @@ import Link from "next/link";
 import { fmtVND } from "@/lib/format";
 import { GOAL_METRIC_LABELS } from "@/lib/types";
 import { STATUS_LABELS, verdict, type GoalStatus, type GoalView } from "@/lib/goals";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-/** Chip tones reuse the net-worth pill's language: green = fine, rust = not. */
-const STATUS_TONE: Record<GoalStatus, string> = {
-  hit: "bg-accent text-accent-brand",
-  on_track: "bg-accent text-accent-brand",
-  behind: "bg-negative-wash-strong text-(--chart-negative)",
-  stalled: "bg-negative-wash-strong text-(--chart-negative)",
-  open: "bg-secondary text-muted-foreground",
+/** Chip tones reuse the net-worth pill's language: green = fine, rust = not.
+ *  `stalled` deliberately stays neutral — "No pace" means you never set a monthly
+ *  commitment, not that you're failing one. Painting it the same coral as `behind`
+ *  flagged every unplanned goal as a problem and drained the colour of its meaning. */
+const STATUS_TONE: Record<GoalStatus, "accent" | "destructive" | "secondary"> = {
+  hit: "accent",
+  on_track: "accent",
+  behind: "destructive",
+  stalled: "secondary",
+  open: "secondary",
 };
 
 /** The channel is empty glass; `.goal-fill` (see globals.css) is the liquid in it — it pours
  *  out to the target on load, then keeps a crest of light moving through. */
 export function GoalBar({ progress, muted }: { progress: number; muted?: boolean }) {
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+    <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
       <div
         className={cn("goal-fill h-full rounded-full", muted && "goal-fill-muted")}
         style={{ width: `${Math.round(progress * 100)}%` }}
@@ -28,15 +32,9 @@ export function GoalBar({ progress, muted }: { progress: number; muted?: boolean
 
 export function GoalStatusChip({ status, className }: { status: GoalStatus; className?: string }) {
   return (
-    <span
-      className={cn(
-        "shrink-0 rounded-md px-2 py-[3px] font-mono text-[11px] whitespace-nowrap tabular-nums",
-        STATUS_TONE[status],
-        className,
-      )}
-    >
+    <Badge variant={STATUS_TONE[status]} className={className}>
       {STATUS_LABELS[status]}
-    </span>
+    </Badge>
   );
 }
 
@@ -48,7 +46,7 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
   return (
     <div className="card-surface">
       <div className="flex items-center justify-between px-5 pt-4 pb-3">
-        <span className="text-[10.5px] font-semibold tracking-[0.14em] text-faint uppercase">Goals</span>
+        <span className="text-[16px] font-bold tracking-[-0.01em]">Goals</span>
         <Link href="/goals" className="text-[12px] text-muted-foreground hover:text-foreground">
           Manage →
         </Link>
@@ -65,9 +63,7 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
                   number is what makes that order legible rather than arbitrary. */}
               <span className="shrink-0 font-mono text-[11px] text-faint tabular-nums">{i + 1}</span>
               <span className="truncate text-[13.5px] font-medium">{goal.name}</span>
-              <span className="shrink-0 font-mono text-[10px] text-faint uppercase">
-                {GOAL_METRIC_LABELS[goal.metric]}
-              </span>
+              <Badge variant="tag">{GOAL_METRIC_LABELS[goal.metric]}</Badge>
             </div>
 
             <div className="flex flex-1 items-center gap-3">

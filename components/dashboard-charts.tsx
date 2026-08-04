@@ -154,14 +154,14 @@ export function DashboardCharts({
   ];
 
   return (
-    <div className="flex flex-col gap-3 sm:gap-5">
+    <div className="flex flex-col gap-3 sm:gap-4">
       {/* The dashboard is the one page that had no heading of its own — the top bar named
           it instead. The design gives every view the same opening row, and CSV export is
           the only action the dashboard has. */}
       <PageHeader
         title="Dashboard"
         actions={
-          <Button variant="outline" nativeButton={false} render={<a href="/export.csv" download />}>
+          <Button nativeButton={false} render={<a href="/export.csv" download />}>
             <Download className="size-3.5" />
             Export report
           </Button>
@@ -187,7 +187,7 @@ export function DashboardCharts({
       {pending > 0 && (
         <Link
           href="/investments"
-          className="flex items-start gap-2.5 rounded-2xl border border-warning-border bg-warning-bg px-5 py-4 transition-colors hover:border-warning"
+          className="flex items-start gap-2.5 rounded-xl border border-warning-border bg-warning-bg px-5 py-4 transition-colors hover:border-warning"
         >
           <TriangleAlert className="mt-0.5 size-4 text-warning" />
           <div>
@@ -209,13 +209,13 @@ export function DashboardCharts({
 
       {/* A section break inside the page, so it sits a step below the 30px page title. */}
       <div className="mt-4">
-        <div className="text-[20px] font-bold tracking-[-0.02em]">Current portfolio</div>
+        <div className="text-[16px] font-bold tracking-[-0.01em]">Current portfolio</div>
         <div className="mt-0.5 text-[13px] text-muted-foreground">
           Live snapshot across all years — independent of the selected range
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-stretch gap-3 sm:gap-5 lg:grid-cols-[0.85fr_1.15fr]">
+      <div className="grid grid-cols-1 items-stretch gap-3 sm:gap-4 lg:grid-cols-[0.85fr_1.15fr]">
         <AllocationCard payload={payload} />
         <HoldingsCard payload={payload} />
       </div>
@@ -242,8 +242,8 @@ function AllocationCard({ payload }: { payload: Payload }) {
   const C = 2 * Math.PI * R;
 
   return (
-    <div className="flex h-full flex-col card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
-      <div className="text-[17px] font-bold">Allocation</div>
+    <div className="flex h-full flex-col card-surface panel-body">
+      <div className="text-[16px] font-bold tracking-[-0.01em]">Allocation</div>
       <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Current value by asset type</div>
       <div className="mb-[22px] flex justify-center">
         <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="animate-fade-in">
@@ -300,8 +300,8 @@ function HoldingsCard({ payload }: { payload: Payload }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
 
   return (
-    <div className="flex h-full flex-col card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
-      <div className="text-[17px] font-bold">Holdings</div>
+    <div className="flex h-full flex-col card-surface panel-body">
+      <div className="text-[16px] font-bold tracking-[-0.01em]">Holdings</div>
       <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Position values, largest first</div>
       <div className="flex flex-col gap-[11px]">
         {rows.map((h, i) => (
@@ -329,8 +329,8 @@ function PnlByHoldingCard({ payload }: { payload: Payload }) {
 
   if (rows.length === 0) {
     return (
-      <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
-        <div className="text-[17px] font-bold">Profit &amp; loss by holding</div>
+      <div className="card-surface panel-body">
+        <div className="text-[16px] font-bold tracking-[-0.01em]">Profit &amp; loss by holding</div>
         <p className="py-8 text-center text-sm text-muted-foreground">
           No gains or losses yet — set live quantities or holding values to see P&amp;L.
         </p>
@@ -344,8 +344,8 @@ function PnlByHoldingCard({ payload }: { payload: Payload }) {
   const zeroPct = (maxNeg / span) * 100;
 
   return (
-    <div className="card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
-      <div className="text-[17px] font-bold">Profit &amp; loss by holding</div>
+    <div className="card-surface panel-body">
+      <div className="text-[16px] font-bold tracking-[-0.01em]">Profit &amp; loss by holding</div>
       <div className="mt-0.5 mb-5 text-[12px] text-muted-foreground">Total gain / loss per position, net of any proceeds</div>
       <div className="flex flex-col gap-2.5">
         {rows.map((p, i) => {

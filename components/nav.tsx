@@ -42,7 +42,7 @@ function BrandMark({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
       <span
         aria-hidden
         className={cn(
-          'grid shrink-0 place-items-center rounded-[11px] bg-brand font-bold text-white shadow-[0_0_22px_rgb(43_127_255/0.45)]',
+          'grid shrink-0 place-items-center rounded-lg bg-brand font-bold text-white shadow-[0_0_22px_rgb(43_127_255/0.45)]',
           lg ? 'size-[34px] text-[15px]' : 'size-[26px] text-[12px]',
         )}
       >
@@ -103,7 +103,7 @@ function NavPill({
         // The design's nav row: a 12px corner and the in-panel surface for "here", rather
         // than a brand wash. Blue is the *action* colour on this palette — a filled button
         // — so spending it on the current page would put two meanings on one colour.
-        'relative z-10 flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13.5px] whitespace-nowrap transition-colors',
+        'relative z-10 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] whitespace-nowrap transition-colors',
         active
           ? cn('font-semibold text-foreground', variant === 'solid' && 'bg-pane ring-1 ring-input ring-inset')
           : 'font-medium text-muted-foreground hover:text-foreground',
@@ -185,7 +185,7 @@ function DesktopNav({ pathname }: { pathname: string }) {
       <span
         ref={sliderRef}
         aria-hidden
-        className='absolute inset-y-0 left-0 z-0 w-0 rounded-xl bg-pane opacity-0 ring-1 ring-input ring-inset transition-[left,width,opacity] duration-300 ease-out motion-reduce:transition-none'
+        className='absolute inset-y-0 left-0 z-0 w-0 rounded-lg bg-pane opacity-0 ring-1 ring-input ring-inset transition-[left,width,opacity] duration-300 ease-out motion-reduce:transition-none'
       />
       {LINKS.map((l) => (
         <NavPill
@@ -272,7 +272,7 @@ function MobileNav({ pathname }: { pathname: string }) {
         <DialogPrimitive.Popup
           onTouchStart={onPopupTouchStart}
           onTouchEnd={onPopupTouchEnd}
-          className='panel-surface fixed inset-y-3 left-3 z-50 flex w-64 max-w-[80%] flex-col gap-1 rounded-[22px] p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
+          className='panel-surface fixed inset-y-3 left-3 z-50 flex w-64 max-w-[80%] flex-col gap-1 rounded-3xl p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
           <DialogPrimitive.Title className='mb-3 flex items-center gap-2.5 px-1.5'>
             <BrandMark />
           </DialogPrimitive.Title>
@@ -288,7 +288,7 @@ function MobileNav({ pathname }: { pathname: string }) {
               href='/settings'
               onClick={() => setOpen(false)}
               className={cn(
-                'flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13.5px] transition-colors',
+                'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors',
                 isActive(pathname, '/settings')
                   ? 'bg-pane font-semibold text-foreground ring-1 ring-input ring-inset'
                   : 'font-medium text-muted-foreground hover:text-foreground',
@@ -338,7 +338,7 @@ function RailLink({
       // The design's rail row: 12px corner, icon in a fixed 20px gutter so every label
       // starts on the same x, and "here" marked by the in-panel surface plus the brighter
       // hairline rather than by colour.
-      className='flex items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-pane data-[active=true]:font-semibold data-[active=true]:text-foreground'
+      className='flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-pane data-[active=true]:font-semibold data-[active=true]:text-foreground'
     >
       <Icon className='size-4 shrink-0 opacity-90' />
       <span data-rail-label className='min-w-0 truncate'>{label}</span>
@@ -365,7 +365,7 @@ function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: bo
           onClick={toggleNavCollapsed}
           aria-label='Toggle sidebar width'
           title='Toggle sidebar width'
-          className='grid size-[30px] shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground transition-colors hover:border-input hover:text-foreground'
+          className='grid size-[30px] shrink-0 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:border-input hover:text-foreground'
         >
           {/* Points the other way when collapsed — a CSS rotation, so the button doesn't
               have to know the state React can't see on the server. */}
@@ -391,7 +391,7 @@ function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: bo
               // its accessible name with it.
               aria-label='Sign out'
               title='Sign out'
-              className='flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-destructive'
+              className='flex w-full items-center gap-2.5 rounded-lg border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-destructive'
             >
               <LogOut className='size-4 shrink-0 opacity-90' />
               <span data-rail-label className='min-w-0 truncate'>Sign out</span>

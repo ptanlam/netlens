@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { Tx } from "@/lib/types";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table";
 import { TxRowActions } from "@/components/tx-row-actions";
 import type { InstrumentOption } from "@/components/tx-form";
@@ -129,14 +130,11 @@ export function InvestmentActivity({
         cell: ({ row }) => {
           const isBuy = row.original.amount >= 0;
           return (
-            <span
-              className={cn(
-                "inline-block rounded-[5px] px-[7px] py-0.5 text-center font-mono text-[10px]",
-                isBuy ? "bg-divider-soft text-muted-foreground" : "bg-accent text-accent-brand",
-              )}
-            >
+            // Buy/Sell is a kind, so both keep the tag's shape — only the tone moves,
+            // because a sell is the rare event worth spotting down a long column.
+            <Badge variant="tag" className={cn(!isBuy && "bg-accent text-accent-brand")}>
               {isBuy ? "Buy" : "Sell"}
-            </span>
+            </Badge>
           );
         },
       },
@@ -205,10 +203,10 @@ export function InvestmentActivity({
     );
 
   return (
-    <div className="mt-6 card-surface px-5 py-6 sm:px-[30px] sm:py-[26px]">
+    <div className="mt-6 card-surface panel-body">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-[19px] font-bold">Activity</div>
+          <div className="text-[16px] font-bold tracking-[-0.01em]">Activity</div>
           <div className="mt-0.5 text-[12.5px] text-muted-foreground">
             Transactions across all holdings in the selected date range
           </div>
@@ -235,7 +233,7 @@ export function InvestmentActivity({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2.5">
-        <span className="text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">Filter</span>
+        <span className="text-[12.5px] text-muted-foreground">Filter</span>
         <select value={filterHolding} onChange={(e) => setFilterHolding(e.target.value)} className={selectCls}>
           <option value="All">All holdings</option>
           {holdingNames.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -249,7 +247,7 @@ export function InvestmentActivity({
 
       {/* Summary tiles. Monthly average and Best month are scoped to the selected range
           like everything else here, so they move with the 1M/3M/YTD/All picker. */}
-      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-divider bg-divider lg:grid-cols-3">
+      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-divider bg-divider lg:grid-cols-3">
         <SummaryTile label="Transactions" value={String(filtered.length)} />
         <SummaryTile label="Invested" value={fmtVND(invested)} />
         <SummaryTile label="Proceeds" value={proceeds > 0 ? fmtVND(proceeds) : "₫0"} valueCls="text-accent-brand" />
@@ -258,12 +256,12 @@ export function InvestmentActivity({
         <SummaryTile label="Best month" value={best ? `${best.label} · ${fmtVND(best.amt)}` : "—"} />
       </div>
 
-      <div className="mt-6 mb-3 text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">
+      <div className="mt-6 mb-3 text-[13px] font-semibold text-muted-foreground">
         Cumulative capital deployed
       </div>
       <CumulativeChart txs={filtered} from={from} to={to} />
 
-      <div className="mt-6 mb-2.5 text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">
+      <div className="mt-6 mb-2.5 text-[13px] font-semibold text-muted-foreground">
         Capital deployed by month
       </div>
       {/* Bars stretch to fill on desktop, but hold a floor width and scroll sideways once
@@ -272,8 +270,13 @@ export function InvestmentActivity({
         <div className="flex min-w-full items-end gap-2 sm:gap-3">
           {bars.map((b) => (
             <div key={b.key} className="flex min-w-[34px] flex-1 flex-col items-center gap-1.5">
-              <div className="flex h-[54px] w-full items-end">
-                <div className="w-full rounded-t-[3px] bg-chart-1" style={{ height: `${Math.max(3, Math.round((b.amt / maxBar) * 100))}%` }} />
+              {/* The design's bar: brand blue fading out towards the baseline, so a column
+                  of them reads as a field rather than as a row of solid blocks. */}
+              <div className="flex h-[72px] w-full items-end">
+                <div
+                  className="w-full rounded-t-md bg-linear-to-b from-brand/60 to-brand/20"
+                  style={{ height: `${Math.max(3, Math.round((b.amt / maxBar) * 100))}%` }}
+                />
               </div>
               <div className="font-mono text-[10px] text-faint">{b.label}</div>
               <div className="font-mono text-[9.5px] text-muted-foreground tabular-nums">{milVND(b.amt)}</div>
@@ -300,10 +303,11 @@ export function InvestmentActivity({
 function SummaryTile({ label, value, valueCls }: { label: string; value: string; valueCls?: string }) {
   return (
     <div className="bg-pane px-4 py-3.5">
-      <div className="text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">{label}</div>
-      {/* "Best month" carries a month label as well as an amount, so it's the widest thing
-          in the grid — the whole row steps down rather than letting that one tile wrap. */}
-      <div className={cn("mt-1.5 font-mono text-[15px] whitespace-nowrap tabular-nums sm:text-[19px]", valueCls)}>
+      <div className="text-[12.5px] text-muted-foreground">{label}</div>
+      {/* Same label/figure recipe as <StatCard>, one step smaller: "Best month" carries a
+          month label as well as an amount, so it's the widest thing in the grid — the whole
+          row steps down rather than letting that one tile wrap. */}
+      <div className={cn("mt-1.5 font-mono text-[15px] font-semibold whitespace-nowrap tabular-nums sm:text-[19px]", valueCls)}>
         {value}
       </div>
     </div>

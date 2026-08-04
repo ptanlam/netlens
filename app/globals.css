@@ -43,14 +43,6 @@
   --color-tooltip-neutral: var(--tooltip-neutral);
   --color-tooltip-positive: var(--tooltip-positive);
   --color-tooltip-negative: var(--tooltip-negative);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
   --color-chart-positive: var(--chart-positive);
   --color-chart-negative: var(--chart-negative);
@@ -74,15 +66,26 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* The design's radii: controls 11–13px, panels 18px, pills fully round. `--radius` is
-     the *control* radius, and the panel steps sit above it — a card is `rounded-2xl`. */
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  /* ---- The corner ladder ----
+     Read off the design file rather than derived from one base, because the design's
+     rungs aren't a geometric series — it uses 7 / 9 / 12 / 16 / 18 and nothing between.
+     Deriving them from `--radius` was what let call sites drift onto `rounded-[5px]`,
+     `rounded-[7px]` and `rounded-[10px]` for what is the same object three times over.
+
+       sm  7px   micro tag ("Funds", "live", an asset-type chip)
+       md  9px   small icon button, pagination arrow
+       lg  12px  button, nav row, table column bar   ← `--radius`, the control corner
+       xl  16px  strip / alert / inset block inside a panel
+       2xl 18px  a panel — `card-surface` hard-codes this, so they can't diverge
+       3xl 22px  the mobile drawer
+       4xl        badges, which are pills at their own height */
+  --radius-sm: 7px;
+  --radius-md: 9px;
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.2);
-  --radius-2xl: calc(var(--radius) * 1.5);
-  --radius-3xl: calc(var(--radius) * 2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: 16px;
+  --radius-2xl: 18px;
+  --radius-3xl: 22px;
+  --radius-4xl: 30px;
 }
 
 /* ---- "Daylight" — the Alpha palette on paper. ----
@@ -184,28 +187,30 @@
   /* The glow under a primary button and the brand mark — the design's one piece of
      luminosity, and the thing that fixes the accent in the eye. */
   --brand-glow: 0 6px 20px rgb(43 127 255 / 0.24);
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0d1018;
-  --sidebar-primary: #2b7fff;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgb(8 119 74 / 0.11);
-  --sidebar-accent-foreground: #076241;
-  --sidebar-border: rgb(13 16 24 / 0.09);
-  --sidebar-ring: #2b7fff;
 }
 
 /* ---- "Netlens Alpha" — the design's home turf. ----
-   A near-black field with three flat surface steps stacked on it (field #050608 → panel
-   #0c0e13 → in-panel chip #13161d) and borders faint enough to read as an edge rather
-   than a drawn line. Nothing here is frosted or lifted: depth is the surface step and the
-   hairline, and the only glow in the whole theme is the brand's. */
+   Three flat surface steps stacked on a cool dark field (field → panel → in-panel chip),
+   with borders faint enough to read as an edge rather than a drawn line. Nothing here is
+   frosted or lifted: depth is the surface step and the hairline, and the only glow in the
+   whole theme is the brand's.
+
+   The design file specifies #050608 → #0c0e13 → #13161d. The whole ramp is raised off that
+   floor, because near-black is a mockup colour: it looks right in a design tool at full
+   brightness and turns into a black hole on a real screen in a lit room, where the panels
+   stop separating from the field at all.
+
+   Raising it also widens the steps — the same hex deltas measure L* +2.3/+3.3 down at the
+   design's floor and +4.9/+5.9 up here, because sRGB is compressed near black. That's the
+   point rather than a side effect: +2.3 L* is a separation you have to hunt for, and the
+   whole hierarchy in this design rests on being able to see one surface sit on another. */
 .dark {
   color-scheme: dark;         /* so native controls (month picker, scrollbars) go dark too */
-  --background: #050608;
+  --background: #0d0f15;      /* the field the panels sit on */
   --foreground: #f2f4f8;
-  --card: #0c0e13;            /* panel */
+  --card: #161a23;            /* panel */
   --card-foreground: #f2f4f8;
-  --popover: #0e1117;
+  --popover: #1a1e28;
   --popover-foreground: #f2f4f8;
   --brand: #2b7fff;
   --brand-soft: rgb(43 127 255 / 0.16);
@@ -213,14 +218,14 @@
   --primary-foreground: #ffffff;
   --secondary: rgb(255 255 255 / 0.07);
   --secondary-foreground: #f2f4f8;
-  --muted: #13161d;
+  --muted: #212632;
   --muted-foreground: #9aa0ae;
   --accent: rgb(38 208 124 / 0.13);
   --accent-foreground: #26d07c;
   --accent-brand: #26d07c;
   --destructive: #ff5a52;
-  --border: rgb(255 255 255 / 0.07);
-  --input: rgb(255 255 255 / 0.13);
+  --border: rgb(255 255 255 / 0.08);
+  --input: rgb(255 255 255 / 0.15);
   --ring: #2b7fff;
   --chart-1: #2b7fff;         /* Funds */
   --chart-2: #f0b429;         /* Stocks */
@@ -233,12 +238,12 @@
   --negative-rgb: 255 90 82;
   --ink-rgb: 38 208 124;
   --gold-rgb: 240 180 41;
-  --header-bg: rgb(5 6 8 / 0.82);
+  --header-bg: rgb(13 15 21 / 0.82);
   --faint: #5f6472;
-  --divider: rgb(255 255 255 / 0.07);
-  --divider-soft: rgb(255 255 255 / 0.045);
-  --grid: rgb(255 255 255 / 0.055);
-  --grid-strong: rgb(255 255 255 / 0.1);
+  --divider: rgb(255 255 255 / 0.08);
+  --divider-soft: rgb(255 255 255 / 0.05);
+  --grid: rgb(255 255 255 / 0.065);
+  --grid-strong: rgb(255 255 255 / 0.12);
   --chart-ink: #26d07c;
   --chart-gold: #f0b429;
   --warning: #f0b429;
@@ -251,31 +256,23 @@
   --negative-wash-strong: rgb(255 90 82 / 0.2);
   --negative-border: rgb(255 90 82 / 0.28);
   --negative-strong: #ff5a52;
-  --disabled-foreground: #3d414d;
+  --disabled-foreground: #4b505d;
   /* Tooltip surface is paper here (bg-foreground), so tooltip ink goes dark. */
   --tooltip-neutral: #55575f;
   --tooltip-positive: #0f7a4d;
   --tooltip-negative: #a8362b;
   --selection: rgb(43 127 255 / 0.3);
-  --pane: #13161d;
-  --pane-2: #1b1f28;
+  --pane: #212632;
+  --pane-2: #2a303e;
   --pane-sunk: rgb(255 255 255 / 0.05);
-  --pane-strong: #0c0e13;
-  --menu-surface: #0e1117;
+  --pane-strong: #161a23;
+  --menu-surface: #1a1e28;
   /* On a near-black field the hairline carries the whole edge; a lift would only read as
      another dark rectangle. Kept as a token so the two themes share one card rule. */
   --card-shadow: none;
   --card-shadow-hover: none;
   --menu-shadow: 0 24px 60px rgb(0 0 0 / 0.6);
   --brand-glow: 0 6px 20px rgb(43 127 255 / 0.32);
-  --sidebar: #0c0e13;
-  --sidebar-foreground: #f2f4f8;
-  --sidebar-primary: #2b7fff;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgb(38 208 124 / 0.13);
-  --sidebar-accent-foreground: #26d07c;
-  --sidebar-border: rgb(255 255 255 / 0.07);
-  --sidebar-ring: #2b7fff;
 }
 
 @layer base {
@@ -352,6 +349,50 @@
     box-shadow 0.25s ease;
 }
 
+/* ---- Panel padding ----
+   The design uses exactly two insets — 20/22 for a content panel, 18/20 for a compact
+   one (a summary tile, a sidebar card) — and `card-surface` on its own carries neither,
+   because a few panels are deliberately edge-to-edge (a table, a list of rows that own
+   their own dividers).
+
+   These exist as utilities rather than as `px-5 py-6 sm:px-[30px] sm:py-[26px]` at each
+   call site because that is exactly how the panels drifted: eight different recipes for
+   one object, so a chart panel and a settings panel that sit on the same page had
+   6px more air on one side than the other. Expose the inset as a variable too, so a
+   child that has to bleed to the panel's edge (the hero's sparkline) can cancel the
+   padding by name instead of re-deriving it and going stale. */
+@utility panel-body {
+  --panel-px: 18px;
+  --panel-py: 18px;
+  padding: var(--panel-py) var(--panel-px);
+  @media (width >= 40rem) {
+    --panel-px: 22px;
+    --panel-py: 20px;
+  }
+}
+
+@utility panel-body-sm {
+  --panel-px: 16px;
+  --panel-py: 16px;
+  padding: var(--panel-py) var(--panel-px);
+  @media (width >= 40rem) {
+    --panel-px: 20px;
+    --panel-py: 18px;
+  }
+}
+
+/* Horizontal inset only — for the two panels whose vertical rhythm belongs to their rows
+   (the net-worth rail) or to content that bleeds off the bottom edge (the hero's spark).
+   They still get the same gutter as every other panel, so the figures inside line up
+   across the pair. */
+@utility panel-body-x {
+  --panel-px: 18px;
+  padding-inline: var(--panel-px);
+  @media (width >= 40rem) {
+    --panel-px: 22px;
+  }
+}
+
 /* Same surface, no committed radius — for overlays (dialogs, the mobile drawer) that set
    their own corners. Opaque and shadowed: it lands over live content and has to mask it. */
 @utility panel-surface {
@@ -375,16 +416,6 @@
 
 /* The header bar above a table: the in-panel step, uppercase and letterspaced, so the
    column names read as furniture rather than as a first row of data. */
-@utility table-head-bar {
-  border-radius: 12px;
-  background: var(--pane);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-
 /* ---------- playful, accessibility-safe motion ---------- */
 @keyframes pop-in {
   from {

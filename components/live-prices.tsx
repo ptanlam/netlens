@@ -272,7 +272,7 @@ export function LivePrices() {
       {/* The nav pills gained icons and now need the width the clock used to take at lg,
           so it waits for xl. */}
       <div className="hidden text-right leading-tight xl:block">
-        <div className="text-[10px] font-semibold tracking-[0.14em] text-faint uppercase">Live prices</div>
+        <div className="text-[11.5px] text-faint">Live prices</div>
         <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
       </div>
 

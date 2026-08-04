@@ -95,8 +95,8 @@ export function AppearanceSettings() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="card-surface px-6 py-6">
-        <div className="text-[18px] font-bold tracking-[-0.01em]">Appearance</div>
+      <div className="card-surface panel-body">
+        <div className="text-[16px] font-bold tracking-[-0.01em]">Appearance</div>
         <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
           The theme this browser uses. Stored on this device, not in your data.
         </div>
@@ -104,8 +104,8 @@ export function AppearanceSettings() {
         <ChoiceGrid label="Theme" options={THEMES} value={current} onChange={setTheme} ready={mounted} />
       </div>
 
-      <div className="card-surface px-6 py-6">
-        <div className="text-[18px] font-bold tracking-[-0.01em]">Navigation</div>
+      <div className="card-surface panel-body">
+        <div className="text-[16px] font-bold tracking-[-0.01em]">Navigation</div>
         <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
           Where the links sit on a wide screen. Narrow screens keep the slide-out drawer
           either way — there isn&apos;t room for a rail beside the content.

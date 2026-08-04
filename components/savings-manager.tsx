@@ -8,6 +8,7 @@ import { addSaving, deleteSaving, updateSaving } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { currentValue, isMatured, maturityDate, maturityValue, summarize } from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import {
@@ -21,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { SummaryCards } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
-import { cn } from "@/lib/utils";
 
 type ActionResult = { ok: boolean; message: string };
 
@@ -167,23 +167,12 @@ function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
   const earmarked = funds.find((f) => f.id === saving.goal_id);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 card-surface px-5 py-4">
+    <div className="flex flex-wrap items-center justify-between gap-4 card-surface panel-body">
       <div>
         <div className="flex items-center gap-2">
           <span className="text-[14px] font-semibold">{saving.bank ?? "Term deposit"}</span>
-          <span
-            className={cn(
-              "rounded-[5px] px-[7px] py-0.5 font-mono text-[10px]",
-              matured ? "bg-secondary text-muted-foreground" : "bg-accent text-accent-brand",
-            )}
-          >
-            {matured ? "Matured" : "Active"}
-          </span>
-          {earmarked && (
-            <span className="rounded-[5px] bg-secondary px-[7px] py-0.5 font-mono text-[10px] text-muted-foreground">
-              For {earmarked.name}
-            </span>
-          )}
+          <Badge variant={matured ? "secondary" : "accent"}>{matured ? "Matured" : "Active"}</Badge>
+          {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
         </div>
         <div className="mt-1 font-mono text-[12px] text-muted-foreground tabular-nums">
           {fmtVND(saving.principal)} · {saving.rate}%/yr · {saving.term_months}mo · {saving.start_date} → {maturityDate(saving)}
@@ -247,7 +236,7 @@ export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: F
   }));
 
   return (
-    <div className="flex flex-col gap-3 sm:gap-5">
+    <div className="flex flex-col gap-3 sm:gap-4">
       <PageHeader title="Savings" actions={<AddDepositDialog funds={funds} />}>
         Term deposits — principal, annual rate, and term. Value accrues to maturity
         (simple pays at maturity; compound accrues monthly).

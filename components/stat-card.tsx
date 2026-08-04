@@ -27,7 +27,7 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
   return (
     <div
       className={cn(
-        "grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
+        "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
         className,
       )}
     >
@@ -48,7 +48,7 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
           <div
             key={s.label}
             className={cn(
-              "card-surface px-4 py-[16px] sm:px-5 sm:py-[18px]",
+              "card-surface panel-body-sm",
               wash,
               odd && i === stats.length - 1 && "col-span-2 lg:col-span-1",
             )}

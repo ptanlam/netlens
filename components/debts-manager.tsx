@@ -383,9 +383,10 @@ function DeleteDebtButton({ debt }: { debt: Debt }) {
 }
 
 function typeBadge(d: Debt) {
-  if (d.kind === "credit") return <Badge variant="outline">Credit</Badge>;
+  // Kind is a tag; "Due" is a state the loan has reached, so it keeps the pill.
   if (isMatured(d)) return <Badge variant="secondary">Due</Badge>;
-  return <Badge variant="outline">{d.kind === "flexible" ? "Flexible" : "Fixed"}</Badge>;
+  if (d.kind === "credit") return <Badge variant="tag">Credit</Badge>;
+  return <Badge variant="tag">{d.kind === "flexible" ? "Flexible" : "Fixed"}</Badge>;
 }
 
 const columns: ColumnDef<DebtRow>[] = [
@@ -557,7 +558,7 @@ export function DebtsManager({
       </PageHeader>
 
       {dueThisMonth.length > 0 && (
-        <div className="flex items-start gap-2.5 rounded-[10px] border border-warning-border bg-warning-bg px-[18px] py-3.5">
+        <div className="flex items-start gap-2.5 rounded-xl border border-warning-border bg-warning-bg px-5 py-4">
           <TriangleAlert className="mt-0.5 size-4 text-warning" />
           <div>
             <div className="text-[13.5px] font-semibold">
@@ -602,7 +603,7 @@ export function DebtsManager({
         Sorted by interest rate — tackle the highest-rate debts first.
       </p>
 
-      <div className="overflow-hidden card-surface px-4 py-2">
+      <div className="overflow-hidden card-surface panel-body">
         <DataTable
           columns={columns}
           data={rows}

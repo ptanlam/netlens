@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { Tx } from "@/lib/types";
 import { setTxQty } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export interface PendingRow {
@@ -22,7 +24,7 @@ function PendingItem({ row }: { row: PendingRow }) {
   const id = `units-${row.tx.id}`;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-5 rounded-[10px] border border-divider bg-pane-sunk px-4 py-3.5">
+    <div className="flex flex-wrap items-center justify-between gap-5 rounded-xl border border-border bg-card px-4 py-3.5">
       <div>
         <div className="text-[14px] font-semibold">{row.tx.instrument}</div>
         <div className="mt-[3px] font-mono text-[12px] text-muted-foreground tabular-nums">
@@ -31,7 +33,7 @@ function PendingItem({ row }: { row: PendingRow }) {
       </div>
       <div className="flex flex-wrap items-end gap-3.5">
         <div>
-          <label htmlFor={id} className="mb-1.5 block font-mono text-[10.5px] text-faint">
+          <label htmlFor={id} className="mb-1.5 block text-[12px] text-muted-foreground">
             Confirmed units{row.estUnits ? ` (est. ${row.estUnits})` : ""}
           </label>
           <input
@@ -54,8 +56,7 @@ function PendingItem({ row }: { row: PendingRow }) {
             add to holding
           </label>
         )}
-        <button
-          type="button"
+        <Button
           disabled={pending || !units || Number(units) <= 0}
           onClick={() =>
             startTransition(async () => {
@@ -64,10 +65,9 @@ function PendingItem({ row }: { row: PendingRow }) {
               else toast.error(res.message);
             })
           }
-          className="rounded-lg bg-primary px-4 py-2 text-[13px] text-primary-foreground transition-colors hover:bg-primary/85 disabled:opacity-50"
         >
           Save
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -77,22 +77,18 @@ export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
   const [open, setOpen] = React.useState(false);
 
   return (
-    <div className="card-surface px-6 py-5">
+    // The same amber alert the dashboard shows for this exact condition — it links here,
+    // so arriving at a neutral panel made the two read as different problems.
+    <div className="rounded-xl border border-warning-border bg-warning-bg px-5 py-4">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 text-left"
+        className="flex w-full items-center gap-2.5 text-left"
       >
-        {/* Pulsing beacon — signals items are still awaiting confirmation. */}
-        <span className="relative flex size-1.5 shrink-0">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-warning opacity-75" />
-          <span className="relative inline-flex size-1.5 rounded-full bg-warning" />
-        </span>
-        <span className="text-[17px] font-bold">Awaiting fund units</span>
-        <span className="rounded-full bg-pane-sunk px-2 py-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
-          {pending.length}
-        </span>
+        <TriangleAlert className="size-4 shrink-0 text-warning" />
+        <span className="text-[13.5px] font-semibold">Awaiting fund units</span>
+        <Badge variant="warning">{pending.length}</Badge>
         <ChevronDown
           className={cn(
             "ml-auto size-4 text-muted-foreground transition-transform duration-200",

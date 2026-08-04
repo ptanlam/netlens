@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { Instrument, RecurringRule, Tx } from "@/lib/types";
 import { deleteHolding, setHoldingArchived } from "@/app/actions";
 import { fmtUnits, fmtVND } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { AddHoldingDialog, EditHoldingDialog } from "@/components/add-holding-dialog";
@@ -173,12 +174,12 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="truncate text-[14px] font-semibold">{inst.name}</span>
-              <span className="rounded-[5px] bg-pane-sunk px-[7px] py-0.5 font-mono text-[10px] text-muted-foreground">{inst.asset_type}</span>
-              {live && <span className="rounded-[5px] bg-accent px-[7px] py-0.5 font-mono text-[10px] text-accent-brand">live</span>}
+              <Badge variant="tag">{inst.asset_type}</Badge>
+              {live && <Badge variant="accent">live</Badge>}
               {usesFallback && (
-                <span title={`No live price from ${inst.price_source} — showing the fallback value.`} className="rounded-[5px] bg-warning-bg px-[7px] py-0.5 font-mono text-[10px] text-warning">
+                <Badge variant="warning" title={`No live price from ${inst.price_source} — showing the fallback value.`}>
                   fallback
-                </span>
+                </Badge>
               )}
             </div>
             <div className="mt-1 font-mono text-[11.5px] text-faint tabular-nums">
@@ -258,12 +259,16 @@ export function InvestmentManager({
   txsByInstrument,
   rulesByInstrument,
   sourceKeys,
+  banner,
 }: {
   holdings: HoldingView[];
   allTxs: Tx[];
   txsByInstrument: Record<string, Tx[]>;
   rulesByInstrument: Record<string, RuleView[]>;
   sourceKeys: string[];
+  /** Page-level alert. Rendered under the heading, because the design opens every view
+   *  with its <h1> — a banner above it pushes the page title off the top of the screen. */
+  banner?: React.ReactNode;
 }) {
   // Totals stay over every holding so archiving a sold-out one never moves a KPI — its
   // value is 0 and its realised P&L is preserved. Archived rows only leave the live list.
@@ -313,12 +318,14 @@ export function InvestmentManager({
         Your holdings, their transactions, and the recurring rules that automate them — grouped by asset type.
       </PageHeader>
 
+      {banner && <div className="mb-4">{banner}</div>}
+
       <SummaryCards stats={kpis} />
 
       <InvestmentActivity txs={allTxs} options={options} />
 
       <div className="mt-6 mb-3.5">
-        <div className="text-[19px] font-bold">Holdings</div>
+        <div className="text-[16px] font-bold tracking-[-0.01em]">Holdings</div>
         <div className="mt-0.5 text-[12.5px] text-muted-foreground">Select a holding to see its transactions</div>
       </div>
 
@@ -329,7 +336,7 @@ export function InvestmentManager({
             : "No holdings yet — add one to start tracking."}
         </p>
       ) : (
-        <div className="flex flex-col gap-[22px]">
+        <div className="flex flex-col gap-4">
           {groups.map((group) => (
             <section key={group.type}>
               <div className="flex items-center justify-between px-1 pb-2.5">
