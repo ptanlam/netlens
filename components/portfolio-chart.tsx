@@ -226,6 +226,18 @@ function ChartSvg({
   const baseY = metric === "value" ? H : zeroY;
   const area = line + "L" + X(n - 1).toFixed(1) + " " + baseY.toFixed(1) + " L 0 " + baseY.toFixed(1) + " Z";
 
+  // The band between the two lines: out along value, back along cost. Where they cross it
+  // pinches to a point and the two lobes wind opposite ways — both still fill, and each is
+  // then tinted by which line was on top, so a crossing changes colour exactly at the cross.
+  let band = "";
+  let costArea = "";
+  if (hasCost) {
+    band = line;
+    for (let i = n - 1; i >= 0; i--) band += "L" + X(i).toFixed(1) + " " + Y(pts[i].cost as number).toFixed(1) + " ";
+    band += "Z";
+    costArea = costLine + "L" + X(n - 1).toFixed(1) + " " + H + " L 0 " + H + " Z";
+  }
+
   const ink = "var(--chart-ink)";   // the portfolio-value line is neutral (value isn't a gain)
   // Amber for cost basis, not the design's coral. The design pairs green Value against a
   // coral Invested, but coral is this app's loss colour everywhere else, and a red line for
@@ -285,10 +297,34 @@ function ChartSvg({
           ))}
           {metric === "value" ? (
             <>
-              <path className="animate-fade-in" d={area} fill="rgb(var(--ink-rgb) / 0.11)" />
-              {/* Cost first, so the value line crosses over it rather than under. No area
-                  fill under this one — two stacked washes just muddy the band between them,
-                  and that band *is* the P&L, which is the thing worth seeing. */}
+              {hasCost ? (
+                <>
+                  <defs>
+                    {/* Everything below each line. Their intersection is everything below the
+                        *lower* of the two, which is where the neutral wash stops and the
+                        tinted band takes over. */}
+                    <clipPath id="underValue"><path d={area} /></clipPath>
+                    <clipPath id="underCost"><path d={costArea} /></clipPath>
+                  </defs>
+                  {/* Nested clips = intersection: the plain wash fills only up to the lower
+                      line, so the band above it is a single tint rather than two stacked.
+                      Neutral grey, not the usual ink wash — `--ink-rgb` *is* the positive
+                      green, so a gain band on top of it would be green on green and vanish.
+                      Below the lower line nothing has been won or lost yet, so it earns no
+                      colour. */}
+                  <g clipPath="url(#underCost)">
+                    <path className="animate-fade-in" d={area} fill="color-mix(in oklch, var(--foreground) 7%, transparent)" />
+                  </g>
+                  {/* The gap, coloured by sign. Clipping the band to "below value" keeps only
+                      the stretches where value is the upper line — the gain — and clipping it
+                      to "below cost" keeps the mirror case, where you're still under water. */}
+                  <path className="animate-fade-in" d={band} fill="rgb(var(--positive-rgb) / 0.18)" clipPath="url(#underValue)" />
+                  <path className="animate-fade-in" d={band} fill="rgb(var(--negative-rgb) / 0.18)" clipPath="url(#underCost)" />
+                </>
+              ) : (
+                <path className="animate-fade-in" d={area} fill="rgb(var(--ink-rgb) / 0.11)" />
+              )}
+              {/* Cost first, so the value line crosses over it rather than under. */}
               {hasCost && (
                 <path className="animate-draw-line" pathLength={1} d={costLine} fill="none" stroke={gold} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeDasharray="5 4" />
               )}

@@ -82,8 +82,13 @@
   is the `bg-pane` step plus the brighter `--input` hairline.
 - The value line on charts is `--chart-ink`, which is gain-green in this design — a value
   series is the one thing that never means "click me". `--chart-gold` (amber) is the
-  standalone capital-deployed line; it is deliberately NOT loss-coral, since that chart
-  has no green companion to be measured against.
+  capital-deployed line, both standalone (Investments) and paired against value on the
+  dashboard; it is deliberately NOT loss-coral, or "money you put in" would read as a
+  warning about the money.
+- Where value and cost are drawn together, the band between them is filled by sign —
+  positive wash above the cost line, negative below it — and the wash under the *lower*
+  line goes neutral grey. `--ink-rgb` is the same green as `--positive-rgb`, so an ink
+  wash under a gain band would hide it.
 - Gains/losses: `text-(--chart-positive)` / `text-(--chart-negative)` (Tailwind v4
   arbitrary-property syntax). Debts/owed amounts render negative-colored.
 
