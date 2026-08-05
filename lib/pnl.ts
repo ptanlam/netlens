@@ -9,8 +9,11 @@
  * today's move tracks every price refresh. Funds are the exception: they report NAV a day
  * late, so today uses the stored close for them too (see NAV_STRATEGIES in lib/types.ts).
  */
-import { listInstruments, listPriceSources, pnlTransactions, priceHistoryByInstrument, todayIso } from "./db";
-import type { HoldingPnlPoint, PnlPoint } from "./types";
+import {
+  listInstruments, listPriceSources, pnlTransactions, priceHistoryByInstrument, recentCloses,
+  todayIso, txRollup, txUnitPrices,
+} from "./db";
+import type { HoldingDayPnl, HoldingPnlPoint, PnlPoint } from "./types";
 import { NAV_STRATEGIES } from "./types";
 
 export type { HoldingPnlPoint, PnlPoint } from "./types";
@@ -204,4 +207,148 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
 
 export async function buildDailySeries(): Promise<PnlPoint[]> {
   return (await buildDaily()).series;
+}
+
+/** The day before `iso`, in UTC arithmetic so a DST boundary can't shift it. */
+function isoPrevDay(iso: string): string {
+  return new Date(new Date(`${iso}T00:00:00Z`).valueOf() - 86400000).toISOString().slice(0, 10);
+}
+
+/**
+ * Today's point alone, without reconstructing the days behind it.
+ *
+ * `buildDaily` walks every day from the first transaction to now, and the dashboard asks
+ * for the last point again on every live-price tick — so that walk was being repeated in
+ * full, hundreds of times an hour, to keep one day. This computes the same point directly.
+ *
+ * It can, because on the final day the per-instrument unit count collapses to a constant.
+ * Every event dated on or before today has been consumed by then, so `cumUnits` is the
+ * whole of `totalUnits`, and with `offset = qtyNow - totalUnits` the expression
+ *
+ *     units = max(offset + cumUnits, 0)
+ *
+ * reduces to `max(qtyNow - futureUnits, 0)` — no history required. The rest of the day's
+ * figures need only today's and yesterday's closes. `held`/`settled`/`lastClose` drop out
+ * entirely: they exist to decide `status`, which is unconditionally "live" on this day.
+ *
+ * **This must agree with `buildDaily().series.at(-1)` exactly.** Two details are easy to
+ * lose: the aggregate value sums the *unrounded* per-instrument values and rounds once at
+ * the end, while each holding row carries the *rounded* one; and a holding is emitted only
+ * when its value or its move is non-zero. Change either function and re-check the other.
+ */
+export async function buildLatest(): Promise<{
+  point: PnlPoint | null;
+  holdings: HoldingPnlPoint | null;
+}> {
+  const end = todayIso();
+  const [rollups, closes, instruments, sources] = await Promise.all([
+    txRollup(end),
+    recentCloses(end),
+    listInstruments(),
+    listPriceSources(),
+  ]);
+  // No transactions at all — `buildDaily` returns an empty series for this.
+  if (!rollups.length) return { point: null, holdings: null };
+
+  const firstTx = rollups.reduce((min, r) => (r.first_date < min ? r.first_date : min), rollups[0].first_date);
+  // Every transaction still in the future: `buildDaily`'s loop breaks before its first
+  // iteration, so there is no series and therefore no latest point.
+  if (firstTx > end) return { point: null, holdings: null };
+  // What the day's move is measured against. Empty when today *is* the first day, matching
+  // the `prevDs = ""` the day loop starts with — there is no previous day to compare to.
+  const prevDs = firstTx < end ? isoPrevDay(end) : "";
+
+  const strategyBySource = new Map(sources.map((s) => [s.key, s.history_strategy]));
+  const rollupBy = new Map(rollups.map((r) => [r.instrument, r]));
+  const closeBy = new Map<string, { date: string; price: number }[]>();
+  for (const c of closes) {
+    const arr = closeBy.get(c.instrument);
+    if (arr) arr.push(c);
+    else closeBy.set(c.instrument, [c]);
+  }
+
+  // Only two shapes of holding can't be settled from `instruments.quantity` alone: one with
+  // no quantity of its own (its units are the sum of its transactions) and one holding
+  // future-dated rows (which must be subtracted back off). Everything else skips this read.
+  const needUnits: string[] = [];
+  for (const inst of instruments) {
+    const r = rollupBy.get(inst.name);
+    if (!r || !closeBy.get(inst.name)?.length) continue;
+    if (inst.quantity == null || r.future_count > 0) needUnits.push(inst.name);
+  }
+  const upTo = new Map<string, number>();
+  const after = new Map<string, number>();
+  for (const t of await txUnitPrices(needUnits)) {
+    const px = t.px_at ?? t.px_first;
+    const u = t.quantity != null ? t.quantity : px ? t.amount / px : 0;
+    const bucket = t.date <= end ? upTo : after;
+    bucket.set(t.instrument, (bucket.get(t.instrument) ?? 0) + u);
+  }
+
+  let value = 0;
+  let invested = 0;
+  for (const r of rollups) invested += r.invested;
+
+  // `buildDaily` emits every tracked holding before every manual one, in instrument order.
+  const trackedRows: HoldingDayPnl[] = [];
+  const manualRows: HoldingDayPnl[] = [];
+  let baseline: string | undefined;
+
+  for (const inst of instruments) {
+    const r = rollupBy.get(inst.name);
+    if (!r) continue; // no transactions — never enters the series
+    const rows = closeBy.get(inst.name);
+
+    if (rows?.length) {
+      const today = rows[0];
+      // `priceAt(prevDs)` / `anchorAt(prevDs)`: the newest close is the answer when it
+      // already predates yesterday (the feed hasn't settled today), otherwise the one
+      // behind it. With a single row dated today, `priceLookup` falls back to that row.
+      const yest = today.date <= prevDs ? today : (rows[1] ?? today);
+
+      const strat = strategyBySource.get(inst.price_source) ?? "none";
+      const livePrice = NAV_STRATEGIES.has(strat) ? null : inst.last_price;
+      const price = livePrice ?? today.price;
+
+      const boughtToday = r.today_qty + (today.price ? r.today_amount_unqty / today.price : 0);
+      const future = after.get(inst.name) ?? 0;
+      const qtyNow = inst.quantity ?? (upTo.get(inst.name) ?? 0) + future;
+      const units = Math.max(qtyNow - future, 0);
+      const unitsYest = Math.max(qtyNow - future - boughtToday, 0);
+
+      let raw = 0;
+      if (end >= r.first_date && units) {
+        raw = units * price;
+        // Only a live-priced holding that actually moved can widen the span back past
+        // yesterday — see the long note in `buildDaily`.
+        if (livePrice != null && prevDs && price !== yest.price)
+          if (baseline === undefined || yest.date < baseline) baseline = yest.date;
+      }
+      value += raw;
+      const v = Math.round(raw);
+      const vYest = prevDs && prevDs >= r.first_date && unitsYest ? Math.round(unitsYest * yest.price) : 0;
+      const pnl = v - vYest - r.today_amount;
+      if (v !== 0 || pnl !== 0)
+        trackedRows.push({ name: inst.name, type: inst.asset_type, value: v, pnl });
+    } else {
+      // No close on or before today: valued at its static figure, as `buildDaily`'s
+      // `manual` branch does.
+      const mv = inst.manual_value ?? 0;
+      const v = end >= r.first_date ? mv : 0;
+      const vYest = prevDs && prevDs >= r.first_date ? mv : 0;
+      value += v;
+      const pnl = v - vYest - r.today_amount;
+      if (v !== 0 || pnl !== 0)
+        manualRows.push({ name: inst.name, type: inst.asset_type, value: v, pnl });
+    }
+  }
+
+  const rounded = Math.round(value);
+  return {
+    point: {
+      date: end, invested, value: rounded, pnl: rounded - invested, status: "live",
+      ...(baseline ? { baseline } : {}),
+    },
+    holdings: { date: end, holdings: [...trackedRows, ...manualRows] },
+  };
 }

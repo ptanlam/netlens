@@ -114,6 +114,13 @@ entire transactions table for a field that is dead on arrival.
 
 # Implementation details
 
+> **Status.** Steps 0 and 1 are done. Measured on the real local dataset (56
+> transactions, 10 instruments, 5,533 price-history rows over 876 days), the rows a
+> `?today=1` tick reads went from **5,589 to 28** — and the 28 is constant in the length
+> of the history, where the 5,589 grew every day. Parity with `buildDaily` was verified
+> black-box, including the three paths the dataset doesn't naturally exercise. Steps 2
+> and 3 remain open.
+
 ## Step 0 — drop the dead `Payload.contributions` field (5 minutes, zero risk)
 
 Do this first: it is independent, removes a full-table scan from every dashboard render,

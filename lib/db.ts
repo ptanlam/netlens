@@ -570,6 +570,105 @@ export async function priceHistoryByInstrument(): Promise<Record<string, [string
   return out;
 }
 
+// ---------- the live point (see `buildLatest` in lib/pnl.ts) ----------
+//
+// The three queries below exist so today's P&L point can be computed without reading the
+// whole of `transactions` and `price_history`. They are what `pnlTransactions` +
+// `priceHistoryByInstrument` are to `buildDaily`, except that none of them is bounded by
+// how many days of history the app has accumulated — which is the property that matters,
+// since the dashboard re-asks for today's point on every live-price tick.
+
+/** One row per instrument, rolling up everything `buildLatest` needs from `transactions`.
+ *
+ *  Conditional aggregation rather than a `WHERE date <= end`, because the two figures want
+ *  different windows: `invested` must ignore a future-dated transaction (the day loop in
+ *  `buildDaily` only consumes rows with `date <= ds`), while `first_date` is the true
+ *  minimum over *all* rows — an instrument whose only transaction is in the future has not
+ *  started yet and must value at zero, which a filtered MIN would hide. */
+export interface TxRollup {
+  instrument: string;
+  /** SUM(amount) over rows dated on or before `end`. */
+  invested: number;
+  /** MIN(date) over every row, future ones included. */
+  first_date: string;
+  /** SUM(amount) for rows dated exactly `end` — the day's contribution, netted out of P&L. */
+  today_amount: number;
+  /** Units bought today that state their own quantity. */
+  today_qty: number;
+  /** Amount bought today with no recorded quantity — units are `amount / price(end)`. */
+  today_amount_unqty: number;
+  /** Rows dated after `end`. Normally 0; non-zero means `buildLatest` must price them. */
+  future_count: number;
+}
+
+export async function txRollup(endIso: string): Promise<TxRollup[]> {
+  return q(
+    `SELECT instrument,
+            SUM(CASE WHEN date <= ?1 THEN amount ELSE 0 END)  AS invested,
+            MIN(date)                                          AS first_date,
+            SUM(CASE WHEN date  = ?1 THEN amount ELSE 0 END)  AS today_amount,
+            SUM(CASE WHEN date  = ?1 AND quantity IS NOT NULL
+                     THEN quantity ELSE 0 END)                 AS today_qty,
+            SUM(CASE WHEN date  = ?1 AND quantity IS NULL
+                     THEN amount ELSE 0 END)                   AS today_amount_unqty,
+            COUNT(CASE WHEN date > ?1 THEN 1 END)              AS future_count
+       FROM transactions
+      GROUP BY instrument`,
+  ).all<TxRollup>(endIso);
+}
+
+/** The two most recent stored closes per instrument, newest first.
+ *
+ *  Two is exactly enough. The newest is `priceAt(end)`; yesterday's is the same row when it
+ *  predates yesterday (the feed has not settled today yet) and the second row otherwise.
+ *  The row's `date` is what `anchorAt` returns, which is how `buildLatest` recovers the
+ *  span a live move is really measured over.
+ *
+ *  Restricted to `date <= end`, which also serves as the tracked/manual test: an instrument
+ *  with no close on or before today has nothing to price against and falls back to its
+ *  manual value, exactly as an instrument with no price history at all does. */
+export async function recentCloses(endIso: string): Promise<
+  { instrument: string; date: string; price: number }[]
+> {
+  return q(
+    `SELECT instrument, date, price
+       FROM (SELECT instrument, date, price,
+                    ROW_NUMBER() OVER (PARTITION BY instrument ORDER BY date DESC) rn
+               FROM price_history
+              WHERE date <= ?1)
+      WHERE rn <= 2
+      ORDER BY instrument, date DESC`,
+  ).all<{ instrument: string; date: string; price: number }>(endIso);
+}
+
+/** Transactions for named instruments, each carrying the close it would have been priced
+ *  at — the SQL form of `priceLookup(points).priceAt(t.date)`, including its fallback to
+ *  the earliest stored price for a transaction that predates the whole series.
+ *
+ *  Only called for instruments `buildLatest` cannot shortcut: one with no `quantity` of its
+ *  own (its unit count is the sum of its transactions, so every one has to be priced) or
+ *  one holding future-dated rows. Both are rare, and the read is bounded by those
+ *  instruments' transaction counts — never by the length of the price history. */
+export async function txUnitPrices(instruments: string[]): Promise<
+  { instrument: string; date: string; amount: number; quantity: number | null;
+    px_at: number | null; px_first: number | null }[]
+> {
+  if (!instruments.length) return [];
+  const holes = instruments.map(() => "?").join(",");
+  return q(
+    `SELECT t.instrument, t.date, t.amount, t.quantity,
+            (SELECT p.price FROM price_history p
+              WHERE p.instrument = t.instrument AND p.date <= t.date
+              ORDER BY p.date DESC LIMIT 1) AS px_at,
+            (SELECT p.price FROM price_history p
+              WHERE p.instrument = t.instrument
+              ORDER BY p.date ASC LIMIT 1)  AS px_first
+       FROM transactions t
+      WHERE t.instrument IN (${holes})
+      ORDER BY t.date, t.id`,
+  ).all(...instruments);
+}
+
 export async function metaGet(key: string): Promise<string | null> {
   const row = await q("SELECT value FROM meta WHERE key=?").get<{ value: string }>(key);
   return row?.value ?? null;
