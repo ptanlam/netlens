@@ -20,14 +20,16 @@ export interface Stat {
  * some of them washing the signed tiles).
  */
 export function SummaryCards({ stats, className }: { stats: Stat[]; className?: string }) {
-  // Two-up on a phone, then as many columns as fit. An odd count would otherwise leave the
-  // last card stranded at half width with a hole beside it, so it spans the row instead.
+  // One per row on a phone, two from `sm`, then as many columns as fit. Two-up on a phone
+  // squeezed a nine-figure VND amount into ~130px and left an odd count stranded at half
+  // width with a hole beside it — a full-width row reads cleanly and costs only scroll,
+  // which a phone has plenty of. From `sm` the odd last card spans the row instead.
   const odd = stats.length % 2 === 1;
 
   return (
     <div
       className={cn(
-        "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
+        "grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
         className,
       )}
     >
@@ -50,7 +52,7 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
             className={cn(
               "card-surface panel-body-sm",
               wash,
-              odd && i === stats.length - 1 && "col-span-2 lg:col-span-1",
+              odd && i === stats.length - 1 && "sm:col-span-2 lg:col-span-1",
             )}
           >
             {/* Sentence case at reading size, not a small-caps eyebrow: on this palette the
@@ -59,12 +61,13 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
             <div className={cn("text-[12.5px]", tone ?? "text-muted-foreground")}>
               {s.label}
             </div>
-            {/* Two per row on a phone leaves ~130px of usable width, which a signed
-                nine-figure VND amount overruns — it has to shrink rather than wrap, or the
-                minus sign ends up stranded on its own line. */}
+            {/* A full-width row on a phone fits the figure at nearly full size; from `sm`
+                two share the row and it steps up to the design's 22px. `whitespace-nowrap`
+                stays either way — a signed VND amount that wraps strands its minus sign on
+                a line of its own. */}
             <div
               className={cn(
-                "mt-2.5 font-mono text-[15px] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-[22px]",
+                "mt-2.5 font-mono text-[19px] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-[22px]",
                 tone,
               )}
             >

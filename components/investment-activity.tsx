@@ -10,6 +10,7 @@ import { DataTable } from "@/components/data-table";
 import { TxRowActions } from "@/components/tx-row-actions";
 import type { InstrumentOption } from "@/components/tx-form";
 import { PanelHead } from "@/components/panel-head";
+import { ChartTip } from "@/components/chart-tip";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { cn } from "@/lib/utils";
 
@@ -391,10 +392,10 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
           />
         )}
         {hi != null && (
-          <div className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 whitespace-nowrap" style={{ left: `${tipLeft}%` }}>
+          <ChartTip leftPct={tipLeft} topFrac={Y(pts[hi].v) / H}>
             <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].date} · {pts[hi].label}</div>
             <div className="font-mono text-[12.5px] tabular-nums text-background">Deployed {fmtVND(pts[hi].v)}</div>
-          </div>
+          </ChartTip>
         )}
       </div>
       <div className="mt-1.5 ml-[52px] flex justify-between font-mono text-[10px] text-faint tabular-nums">

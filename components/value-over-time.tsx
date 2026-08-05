@@ -4,6 +4,7 @@ import * as React from "react";
 import { fmtMil, fmtVND } from "@/lib/format";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { PanelHead } from "@/components/panel-head";
+import { ChartTip } from "@/components/chart-tip";
 import { cn } from "@/lib/utils";
 
 export interface SeriesPoint {
@@ -390,7 +391,7 @@ function ChartSvg({
           />
         )}
         {hi != null && (
-          <div className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 whitespace-nowrap" style={{ left: `${tipLeft}%` }}>
+          <ChartTip leftPct={tipLeft} topFrac={Y(pts[hi].v) / H}>
             <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].date}</div>
             <div className="font-mono text-[12.5px] tabular-nums text-background">
               {tipLabel} {fmtVND(pts[hi].v)}
@@ -401,7 +402,7 @@ function ChartSvg({
                 <div>{bandLabel} +{fmtVND(pts[hi].v - baseOf(pts[hi]))}</div>
               </div>
             )}
-          </div>
+          </ChartTip>
         )}
       </div>
       <div className="absolute top-0 left-0 h-[220px] w-[46px]">

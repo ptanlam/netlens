@@ -6,6 +6,7 @@ import { fmtMil, fmtVND } from "@/lib/format";
 import { bucketOf, type Bucket } from "@/components/pnl-chart";
 import { RebuildHistoryButton } from "@/components/rebuild-history-button";
 import { PanelHead } from "@/components/panel-head";
+import { ChartTip } from "@/components/chart-tip";
 import { cn } from "@/lib/utils";
 
 const TIMEFRAMES: Bucket[] = ["Daily", "Weekly", "Monthly", "Yearly"];
@@ -87,7 +88,12 @@ export function PortfolioChart({
 
   return (
     <div className="card-surface panel-body">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      {/* Two fixed rows — title (plus the key, when there is one) over the controls —
+          rather than one wrapping row. Wrapping made the layout a function of the legend:
+          "Value" carries a key wide enough to push the controls onto a second line, "P&L"
+          doesn't, so switching metric reflowed the header and jumped the chart up or down
+          under the pointer that had just clicked. */}
+      <div className="flex flex-col gap-3.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5">
           <PanelHead title={title} info={sub} />
           {/* Two lines need naming; one doesn't. The dashed swatch matches the stroke so
@@ -287,6 +293,12 @@ function ChartSvg({
 
   const hi = hoverIdx != null && pts[hi_ok(hoverIdx, n)] ? hoverIdx : null;
   const tipLeft = hi != null ? Math.max(6, Math.min(94, (X(hi) / W) * 100)) : 0;
+  // Whichever of the two plotted markers sits highest decides which half of the plot the
+  // hover card is parked in — see <ChartTip>.
+  const tipTopFrac =
+    hi != null
+      ? Math.min(Y(pts[hi].v), hasCost ? Y(pts[hi].cost as number) : Y(pts[hi].v)) / H
+      : 1;
 
   return (
     <div className="relative">
@@ -373,7 +385,7 @@ function ChartSvg({
           />
         )}
         {hi != null && (
-          <div className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 whitespace-nowrap" style={{ left: `${tipLeft}%` }}>
+          <ChartTip leftPct={tipLeft} topFrac={tipTopFrac}>
             <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].label}</div>
             {hasCost ? (
               // Value, cost and the gap between them. The gap is the whole reason the second
@@ -394,7 +406,7 @@ function ChartSvg({
                 {fmtVND(pts[hi].v)}
               </div>
             )}
-          </div>
+          </ChartTip>
         )}
       </div>
       <div className="absolute top-0 left-0 h-[250px] w-[46px]">
