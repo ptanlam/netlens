@@ -45,6 +45,10 @@
   renders the header so the two can live in one component.
 - **One filled button per view.** `variant="default"` is brand blue with the theme's only
   glow under it; everything else is `outline` (on `bg-pane`) or `ghost`.
+- Every "over time" panel takes its window from `<DateRange from to min max onChange>`
+  (`components/date-range.tsx`) — 1M/3M/YTD/All plus the two dates spelled out. `max` is the
+  anchor the presets count back from, so pass the newest point you actually hold, not today.
+  Three panels had hand-rolled this and the copies had already drifted.
 - **Chips are `<Badge>`, and the variant is a matter of meaning, not taste.** `variant="tag"`
   is a *kind* — "Funds", "Credit", "Sinking fund", an asset type. It's the 7px corner on
   `bg-pane` in muted ink, and it never signals good or bad. Every other variant is a

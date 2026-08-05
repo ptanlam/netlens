@@ -12,6 +12,7 @@ import type { InstrumentOption } from "@/components/tx-form";
 import { PanelHead } from "@/components/panel-head";
 import { ChartTip } from "@/components/chart-tip";
 import { EntityAvatar } from "@/components/entity-avatar";
+import { DateRange } from "@/components/date-range";
 import { cn } from "@/lib/utils";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -188,46 +189,22 @@ export function InvestmentActivity({
     [options],
   );
 
-  const presets: { label: string; from: string }[] = [
-    { label: "1M", from: shiftMonths(today, -1) },
-    { label: "3M", from: shiftMonths(today, -3) },
-    { label: "YTD", from: `${year}-01-01` },
-    { label: "All", from: minDate },
-  ];
-
-  // Fixed height, not padding: a <select> and a date field derive different intrinsic
-  // heights from the same padding, and the row sits next to the range pills.
+  // Fixed height, not padding: a <select> derives a different intrinsic height from the
+  // same padding as the date fields it sits under.
   const selectCls =
     "h-7 rounded-lg border border-input bg-pane px-2.5 font-mono text-[12px] outline-none focus:border-ring";
-  const pill = (active: boolean) =>
-    cn(
-      "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
-      active ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
-    );
 
   return (
     <div className="mt-6 card-surface panel-body">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PanelHead title="Activity" info="Every transaction across all holdings, inside the selected date range." />
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex gap-[3px] rounded-full border border-border bg-pane-sunk p-[3px]">
-            {presets.map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                className={pill(from === p.from && to === today)}
-                onClick={() => { setFrom(p.from); setTo(today); }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={selectCls} />
-            <span className="text-faint">–</span>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={selectCls} />
-          </div>
-        </div>
+        <DateRange
+          from={from}
+          to={to}
+          min={minDate}
+          max={today}
+          onChange={(f, t) => { setFrom(f); setTo(t); }}
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2.5">
@@ -403,10 +380,4 @@ function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: strin
       </div>
     </div>
   );
-}
-
-function shiftMonths(iso: string, delta: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(y, m - 1 + delta, d);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }

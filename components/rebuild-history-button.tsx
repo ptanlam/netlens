@@ -10,11 +10,12 @@ import { cn } from "@/lib/utils";
 /**
  * Refetches the daily closes the P&L chart is reconstructed from.
  *
- * `onDone` exists because the series is client-fetched from `/api/pnl-history`: the
- * action's `revalidatePath` refreshes the server-rendered tree but cannot touch state this
- * component's parent is holding, so the owner has to re-pull it. Only the aggregate matters
- * here — unlike a price refresh, which moves today alone, a rebuild can rewrite any day in
- * the range, so there is no narrow top-up to do.
+ * Lives in Settings → Price sources: it drives every configured feed's history fetcher, and
+ * a full backfill is a maintenance job, not something to keep within one click of the chart.
+ *
+ * `onDone` is for a caller holding the series in client state — `/api/pnl-history` is
+ * fetched after mount, so the action's `revalidatePath` refreshes the server tree but can't
+ * touch it. Nothing needs that from here; the dashboard re-pulls on its next mount.
  */
 export function RebuildHistoryButton({ onDone }: { onDone?: () => void }) {
   const [pending, setPending] = React.useState(false);
@@ -57,7 +58,7 @@ export function RebuildHistoryButton({ onDone }: { onDone?: () => void }) {
       onClick={() => void run()}
       disabled={pending}
       title="Refetch every holding's daily price history"
-      className="flex h-[30px] shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-input bg-transparent px-3 text-[12px] font-semibold text-muted-foreground transition-colors hover:border-brand hover:text-brand disabled:cursor-default disabled:opacity-60"
+      className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-transparent px-3 text-[12px] font-semibold text-muted-foreground transition-colors hover:border-brand hover:text-brand disabled:cursor-default disabled:opacity-60"
     >
       <History className={cn("size-3.5", pending && "animate-spin")} />
       {pending ? "Rebuilding…" : "Rebuild history"}

@@ -85,9 +85,6 @@ export function DashboardCharts({
   const [seriesError, setSeriesError] = React.useState<string | null>(null);
   const refreshCount = usePriceRefreshCount();
   const loaded = series !== null;
-  // Bumped by the chart's "Rebuild history" button. A rebuild can rewrite any day in the
-  // range, so the whole series is re-pulled — the `today=1` top-up below is not enough.
-  const [historyVersion, setHistoryVersion] = React.useState(0);
 
   React.useEffect(() => {
     let alive = true;
@@ -101,10 +98,7 @@ export function DashboardCharts({
       })
       .catch((e: Error) => alive && setSeriesError(e.message));
     return () => { alive = false; };
-    // Deliberately keeps the previous series on screen while a rebuild re-fetches, rather
-    // than nulling it first: the button already shows the work in progress, and blanking
-    // the chart to "Loading…" for the length of a full backfill reads as a fault.
-  }, [historyVersion]);
+  }, []);
 
   // Prices moved, so today's P&L moved with them — re-pull just that day and splice it
   // in. Waits on `loaded` so the refresh fired on app open still lands (it usually
@@ -213,11 +207,7 @@ export function DashboardCharts({
             todayFrom={todayFrom}
             spark={series?.map((p) => p.value) ?? null}
           />
-          <PortfolioChart
-            series={series}
-            error={seriesError}
-            onRebuilt={() => setHistoryVersion((v) => v + 1)}
-          />
+          <PortfolioChart series={series} error={seriesError} />
           <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
           <GoalStrip goals={goals} />
         </div>

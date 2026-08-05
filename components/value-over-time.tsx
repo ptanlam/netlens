@@ -5,6 +5,7 @@ import { fmtMil, fmtVND } from "@/lib/format";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { PanelHead } from "@/components/panel-head";
 import { ChartTip } from "@/components/chart-tip";
+import { DateRange } from "@/components/date-range";
 import { cn } from "@/lib/utils";
 
 export interface SeriesPoint {
@@ -97,12 +98,6 @@ function niceMax(v: number): number {
   return (NICE_STEPS.find((s) => n <= s) ?? 10) * p;
 }
 
-function shiftMonths(iso: string, delta: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(y, m - 1 + delta, d);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-}
-
 /**
  * A headline "over time" line chart driven by a date-range picker. `series` is the
  * full daily (ascending) series; the picker slices it. Shared by Savings and Debts.
@@ -151,20 +146,6 @@ export function ValueOverTime({
     [series, metric],
   );
 
-  const presets = React.useMemo(
-    () => [
-      { label: "1M", from: shiftMonths(maxDate || minDate, -1) },
-      { label: "3M", from: shiftMonths(maxDate || minDate, -3) },
-      { label: "YTD", from: `${(maxDate || minDate).slice(0, 4)}-01-01` },
-      { label: "All", from: minDate },
-    ],
-    [minDate, maxDate],
-  );
-
-  // Fixed height, not padding: a <select> and a date field derive different intrinsic
-  // heights from the same padding, and the row sits next to the range pills.
-  const selectCls =
-    "h-7 rounded-lg border border-input bg-pane px-2.5 font-mono text-[12px] outline-none focus:border-ring";
   const pill = (active: boolean) =>
     cn(
       "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
@@ -206,39 +187,13 @@ export function ValueOverTime({
           )}
         </div>
         {series.length > 1 && (
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
-              {presets.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  className={pill(from === p.from && to === maxDate)}
-                  onClick={() => { setFrom(p.from); setTo(maxDate); setHoverIdx(null); }}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="date"
-                value={from}
-                min={minDate}
-                max={to}
-                onChange={(e) => { if (e.target.value) { setFrom(e.target.value); setHoverIdx(null); } }}
-                className={selectCls}
-              />
-              <span className="text-faint">–</span>
-              <input
-                type="date"
-                value={to}
-                min={from}
-                max={maxDate}
-                onChange={(e) => { if (e.target.value) { setTo(e.target.value); setHoverIdx(null); } }}
-                className={selectCls}
-              />
-            </div>
-          </div>
+          <DateRange
+            from={from}
+            to={to}
+            min={minDate}
+            max={maxDate}
+            onChange={(f, t) => { setFrom(f); setTo(t); setHoverIdx(null); }}
+          />
         )}
       </div>
 

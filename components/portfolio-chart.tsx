@@ -4,7 +4,7 @@ import * as React from "react";
 import type { PnlPoint } from "@/lib/types";
 import { fmtMil, fmtVND } from "@/lib/format";
 import { bucketOf, type Bucket } from "@/components/pnl-chart";
-import { RebuildHistoryButton } from "@/components/rebuild-history-button";
+import { DateRange } from "@/components/date-range";
 import { PanelHead } from "@/components/panel-head";
 import { ChartTip } from "@/components/chart-tip";
 import { cn } from "@/lib/utils";
@@ -45,22 +45,29 @@ function fmtAxisLabel(date: string, tf: Bucket, compact: boolean): string {
 export function PortfolioChart({
   series,
   error,
-  onRebuilt,
 }: {
   series: PnlPoint[] | null;
   error: string | null;
-  /** Called after a history rebuild, so the owner of the series can re-pull it. */
-  onRebuilt?: () => void;
 }) {
   const [metric, setMetric] = React.useState<Metric>("value");
-  const [timeframe, setTimeframe] = React.useState<Bucket>("Daily");
+  const [timeframe, setTimeframe] = React.useState<Bucket>("Weekly");
   const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
+  // `null` is the full span, not a stored pair: the series is fetched after mount, so there
+  // is no span to seed a default from at first render — and this way a rebuild that extends
+  // the history widens the untouched window with it.
+  const [range, setRange] = React.useState<{ from: string; to: string } | null>(null);
+
+  const minDate = series?.length ? series[0].date : "";
+  const maxDate = series?.length ? series[series.length - 1].date : "";
+  const from = range?.from ?? minDate;
+  const to = range?.to ?? maxDate;
 
   // Last point of each bucket, projected onto the chosen metric.
   const pts = React.useMemo<Point[]>(() => {
     if (!series) return [];
     const out: PnlPoint[] = [];
     for (const p of series) {
+      if (p.date < from || p.date > to) continue;
       const key = bucketOf(p.date, timeframe);
       if (out.length && bucketOf(out[out.length - 1].date, timeframe) === key)
         out[out.length - 1] = p;
@@ -72,7 +79,7 @@ export function PortfolioChart({
       date: p.date,
       label: fmtLabel(p.date, timeframe),
     }));
-  }, [series, metric, timeframe]);
+  }, [series, metric, timeframe, from, to]);
 
   const title = metric === "value" ? "Portfolio value over time" : "P&L over time";
   const sub =
@@ -129,8 +136,19 @@ export function PortfolioChart({
               </button>
             ))}
           </div>
-          <RebuildHistoryButton onDone={onRebuilt} />
         </div>
+        {/* Its own row rather than a fourth group on the one above: those two pick *what*
+            is plotted and how finely, this picks the window, and at anything under a wide
+            desktop all five controls on one line wrap at an arbitrary point. */}
+        {series && series.length > 1 && (
+          <DateRange
+            from={from}
+            to={to}
+            min={minDate}
+            max={maxDate}
+            onChange={(f, t) => { setRange({ from: f, to: t }); setHoverIdx(null); }}
+          />
+        )}
       </div>
 
       <div className="mt-5">
@@ -140,6 +158,13 @@ export function PortfolioChart({
           </p>
         ) : !series ? (
           <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>
+        ) : series.length && !pts.length ? (
+          // Distinguish "you have no history" from "your window missed it" — the empty
+          // state below tells you to add transactions, which is unhelpful advice when the
+          // fix is to widen the dates.
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            No history between {from} and {to}.
+          </p>
         ) : (
           <ChartSvg
             pts={pts}
@@ -318,19 +343,20 @@ function ChartSvg({
                     <clipPath id="underValue"><path d={area} /></clipPath>
                     <clipPath id="underCost"><path d={costArea} /></clipPath>
                   </defs>
-                  {/* Nested clips = intersection: the plain wash fills only up to the lower
-                      line, so the band above it is a single tint rather than two stacked.
-                      Neutral grey, not the usual ink wash — `--ink-rgb` *is* the positive
-                      green, so a gain band on top of it would be green on green and vanish.
-                      Below the lower line nothing has been won or lost yet, so it earns no
-                      colour. */}
+                  {/* Nested clips = intersection: the wash fills only up to the lower line, so
+                      the band above it is a single tint rather than two stacked. Green at a
+                      low alpha — everything under the value line is money you hold, and the
+                      gap above gets the same green a step stronger, so the fill reads as one
+                      quantity in two parts rather than a grey slab with a green hat. */}
                   <g clipPath="url(#underCost)">
-                    <path className="animate-fade-in" d={area} fill="color-mix(in oklch, var(--foreground) 7%, transparent)" />
+                    <path className="animate-fade-in" d={area} fill="rgb(var(--positive-rgb) / 0.09)" />
                   </g>
                   {/* The gap, coloured by sign. Clipping the band to "below value" keeps only
                       the stretches where value is the upper line — the gain — and clipping it
-                      to "below cost" keeps the mirror case, where you're still under water. */}
-                  <path className="animate-fade-in" d={band} fill="rgb(var(--positive-rgb) / 0.18)" clipPath="url(#underValue)" />
+                      to "below cost" keeps the mirror case, where you're still under water.
+                      The loss band sits *above* the value line, so it never lands on the green
+                      wash and stays a clean red. */}
+                  <path className="animate-fade-in" d={band} fill="rgb(var(--positive-rgb) / 0.2)" clipPath="url(#underValue)" />
                   <path className="animate-fade-in" d={band} fill="rgb(var(--negative-rgb) / 0.18)" clipPath="url(#underCost)" />
                 </>
               ) : (

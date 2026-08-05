@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { PriceSource } from "@/lib/types";
 import { addPriceSource, deletePriceSource, testPriceSource, updatePriceSource } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { RebuildHistoryButton } from "@/components/rebuild-history-button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
@@ -257,11 +258,16 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
         URL and how to read the price out — so you can add one without touching code.
       </div>
 
-      <div className="mt-5 flex items-center justify-between border-b border-divider pb-4">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-divider pb-4">
         <span className="text-[13px] text-muted-foreground">
           {sources.length} source{sources.length === 1 ? "" : "s"}. Holdings pick one of these to price against.
         </span>
-        <AddSourceDialog />
+        {/* A rebuild refetches every holding's daily closes through these feeds, so it
+            belongs beside them rather than on the dashboard chart it happens to feed. */}
+        <div className="flex items-center gap-2.5">
+          <RebuildHistoryButton />
+          <AddSourceDialog />
+        </div>
       </div>
 
       <div className="mt-[18px] flex flex-col gap-3.5">
