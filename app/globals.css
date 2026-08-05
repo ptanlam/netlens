@@ -43,6 +43,7 @@
   --color-tooltip-neutral: var(--tooltip-neutral);
   --color-tooltip-positive: var(--tooltip-positive);
   --color-tooltip-negative: var(--tooltip-negative);
+  --color-tooltip-gold: var(--tooltip-gold);
   --color-chart-5: var(--chart-5);
   /* ---- The app's five hues, under names that don't mean "asset type" ----
      `--chart-1..5` are *slots*: chart-2 IS Stocks, and colour follows the entity there.
@@ -180,6 +181,7 @@
   --tooltip-neutral: #b9bdc9;
   --tooltip-positive: #5fdca4;
   --tooltip-negative: #ff938a;
+  --tooltip-gold: #f0c15e;
   --selection: rgb(43 127 255 / 0.16);
   --radius: 0.75rem;
   /* ---- In-panel surfaces ----
@@ -273,6 +275,7 @@
   --tooltip-neutral: #55575f;
   --tooltip-positive: #0f7a4d;
   --tooltip-negative: #a8362b;
+  --tooltip-gold: #8a5d06;
   --selection: rgb(43 127 255 / 0.3);
   --pane: #13161d;
   --pane-2: #1b1f28;

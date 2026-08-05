@@ -101,6 +101,12 @@ export function NetWorthPanel({
     ? "Investments + Savings + Set aside − Debts"
     : "Investments + Savings − Debts";
 
+  // The move as a share of what the figure was before it. Guarded against a zero baseline —
+  // a first-ever day with nothing behind it would divide by zero and render "Infinity%".
+  const before = todayDelta != null ? net - todayDelta : null;
+  const todayPct =
+    todayDelta != null && before != null && before !== 0 ? (todayDelta / Math.abs(before)) * 100 : null;
+
   return (
     <>
       <section className="@container card-surface panel-body-sm">
@@ -125,6 +131,9 @@ export function NetWorthPanel({
             >
               {fmtVND(net)}
             </div>
+            {/* The day's move, as a tinted pill rather than a line of small text. It's the
+                second thing you come to this panel for, and at 12px beside a 46px figure it
+                read as a caption on the number instead of a figure of its own. */}
             {todayDelta != null && todayDelta !== 0 && (
               <div
                 title={
@@ -133,27 +142,41 @@ export function NetWorthPanel({
                     : undefined
                 }
                 className={cn(
-                  "mt-2 font-mono text-[12px] tabular-nums",
-                  todayDelta < 0 ? "text-(--chart-negative)" : "text-accent-brand",
+                  "mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[12px] whitespace-nowrap tabular-nums @xl:mt-3.5 @xl:px-3 @xl:text-[13.5px]",
+                  todayDelta < 0
+                    ? "bg-negative-wash text-(--chart-negative)"
+                    : "bg-accent text-accent-brand",
                 )}
               >
-                {todayDelta < 0 ? "↘ −" : "↗ +"}
-                {fmtVND(Math.abs(todayDelta)).replace("-", "")}
-                <span className="text-faint">
-                  {" "}
+                <span className="font-semibold">
+                  {todayDelta < 0 ? "↘ −" : "↗ +"}
+                  {fmtVND(Math.abs(todayDelta)).replace("-", "")}
+                </span>
+                {/* Percent of the figure directly above: it moved by the amount shown, so
+                    this is that amount over what it was. Self-consistent with what's on
+                    screen rather than measured against a total the panel doesn't name. */}
+                {todayPct != null && (
+                  <span className="opacity-80">
+                    ({todayPct < 0 ? "−" : "+"}
+                    {Math.abs(todayPct).toFixed(2)}%)
+                  </span>
+                )}
+                <span className="opacity-70">
                   {todayFrom ? `since ${fmtDayShort(todayFrom)}` : "today"}
                 </span>
               </div>
             )}
           </div>
-          {/* Fixed 110×44 and held to the right of the figure, per the design — a spark is
-              a shape, not a chart, so it doesn't get to claim width from the number. */}
+          {/* Held to the right of the figure at a fixed size, per the design — a spark is a
+              shape, not a chart, so it doesn't get to claim width from the number. On a
+              narrow card it's dropped entirely rather than squeezed: the figure and the
+              day's move are what the panel is for, and the full history is one panel down. */}
           {paths && (
             <svg
               aria-hidden
               viewBox="0 0 1000 300"
               preserveAspectRatio="none"
-              className="animate-fade-in h-11 w-[110px] shrink-0 text-accent-brand @xl:h-16 @xl:w-[200px] @3xl:w-[280px]"
+              className="animate-fade-in hidden h-11 w-[110px] shrink-0 text-accent-brand @xs:block @xl:h-16 @xl:w-[200px] @3xl:w-[280px]"
             >
               <path
                 d={paths.line}

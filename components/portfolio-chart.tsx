@@ -13,6 +13,9 @@ type Metric = "value" | "pl";
 
 interface Point {
   v: number;
+  /** Cost basis at that point — the second line on the Value view. Undefined on P&L, where
+   *  money-in has no meaning against an axis of gains. */
+  cost?: number;
   date: string;
   label: string;
 }
@@ -64,6 +67,7 @@ export function PortfolioChart({
     }
     return out.map((p) => ({
       v: metric === "value" ? p.value : p.pnl,
+      cost: metric === "value" ? p.invested : undefined,
       date: p.date,
       label: fmtLabel(p.date, timeframe),
     }));
@@ -84,7 +88,26 @@ export function PortfolioChart({
   return (
     <div className="card-surface panel-body">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <PanelHead title={title} info={sub} />
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5">
+          <PanelHead title={title} info={sub} />
+          {/* Two lines need naming; one doesn't. The dashed swatch matches the stroke so
+              the key is readable at a glance rather than by elimination. */}
+          {metric === "value" && (
+            <div className="flex items-center gap-3.5">
+              <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                <span className="h-[2px] w-3.5 rounded-full bg-chart-ink" />
+                Value
+              </span>
+              <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                <span
+                  className="h-[2px] w-3.5"
+                  style={{ backgroundImage: "repeating-linear-gradient(to right, var(--chart-gold) 0 5px, transparent 5px 9px)" }}
+                />
+                Invested
+              </span>
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-3.5">
           <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
             {(["value", "pl"] as Metric[]).map((m) => (
@@ -125,6 +148,16 @@ export function PortfolioChart({
   );
 }
 
+/** One line of the value/invested/P&L tooltip. */
+function TipRow({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 font-mono text-[12px] tabular-nums">
+      <span className="text-background/60">{label}</span>
+      <span style={{ color }}>{value}</span>
+    </div>
+  );
+}
+
 function ChartSvg({
   pts,
   metric,
@@ -156,7 +189,10 @@ function ChartSvg({
   const { yMin, yMax, ticks } = React.useMemo(() => {
     const vals = pts.map((p) => p.v);
     if (metric === "value") {
-      const max = niceMax(Math.max(1, ...vals));
+      // Both lines share one axis, so the max has to clear whichever is higher — early on
+      // that's cost, since you're under water until the holdings catch up.
+      const costs = pts.map((p) => p.cost ?? 0);
+      const max = niceMax(Math.max(1, ...vals, ...costs));
       return { yMin: 0, yMax: max, ticks: [0, 0.25, 0.5, 0.75, 1].map((f) => f * max) };
     }
     const mag = niceMax(Math.max(1, ...vals.map(Math.abs)));
@@ -176,11 +212,26 @@ function ChartSvg({
 
   let line = "";
   pts.forEach((p, i) => { line += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(p.v).toFixed(1) + " "; });
+  // The cost line only exists where every point carries one — a partial series would
+  // otherwise draw a line that silently jumps across the gaps.
+  const hasCost = metric === "value" && pts.every((p) => p.cost != null);
+  let costLine = "";
+  if (hasCost) {
+    pts.forEach((p, i) => {
+      costLine += (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(p.cost as number).toFixed(1) + " ";
+    });
+  }
+
   const zeroY = Y(0);
   const baseY = metric === "value" ? H : zeroY;
   const area = line + "L" + X(n - 1).toFixed(1) + " " + baseY.toFixed(1) + " L 0 " + baseY.toFixed(1) + " Z";
 
   const ink = "var(--chart-ink)";   // the portfolio-value line is neutral (value isn't a gain)
+  // Amber for cost basis, not the design's coral. The design pairs green Value against a
+  // coral Invested, but coral is this app's loss colour everywhere else, and a red line for
+  // "money you put in" reads as a warning. Amber is already the capital-deployed colour on
+  // the Investments page, so the two charts agree.
+  const gold = "var(--chart-gold)";
   const green = "var(--chart-positive)";
   const red = "var(--chart-negative)";
 
@@ -235,6 +286,12 @@ function ChartSvg({
           {metric === "value" ? (
             <>
               <path className="animate-fade-in" d={area} fill="rgb(var(--ink-rgb) / 0.11)" />
+              {/* Cost first, so the value line crosses over it rather than under. No area
+                  fill under this one — two stacked washes just muddy the band between them,
+                  and that band *is* the P&L, which is the thing worth seeing. */}
+              {hasCost && (
+                <path className="animate-draw-line" pathLength={1} d={costLine} fill="none" stroke={gold} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeDasharray="5 4" />
+              )}
               <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke={ink} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
             </>
           ) : (
@@ -273,13 +330,34 @@ function ChartSvg({
             style={{ left: `${(X(hi) / W) * 100}%`, top: `${(Y(pts[hi].v) / H) * 100}%`, borderColor: pts[hi].v < 0 ? red : metric === "value" ? ink : green, background: "var(--card)" }}
           />
         )}
+        {hi != null && hasCost && (
+          <div
+            className="pointer-events-none absolute z-10 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
+            style={{ left: `${(X(hi) / W) * 100}%`, top: `${(Y(pts[hi].cost as number) / H) * 100}%`, borderColor: gold, background: "var(--card)" }}
+          />
+        )}
         {hi != null && (
           <div className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-md bg-foreground px-2.5 py-1.5 whitespace-nowrap" style={{ left: `${tipLeft}%` }}>
             <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].label}</div>
-            <div className="font-mono text-[12.5px] tabular-nums" style={{ color: pts[hi].v < 0 ? "var(--tooltip-negative)" : metric === "value" ? "var(--tooltip-neutral)" : "var(--tooltip-positive)" }}>
-              {pts[hi].v >= 0 && metric === "pl" ? "+" : ""}
-              {fmtVND(pts[hi].v)}
-            </div>
+            {hasCost ? (
+              // Value, cost and the gap between them. The gap is the whole reason the second
+              // line is worth drawing, so the tooltip states it rather than making you
+              // subtract two numbers by eye.
+              <div className="flex flex-col gap-0.5">
+                <TipRow label="Value" value={fmtVND(pts[hi].v)} color="var(--tooltip-neutral)" />
+                <TipRow label="Invested" value={fmtVND(pts[hi].cost as number)} color="var(--tooltip-gold)" />
+                <TipRow
+                  label="P&L"
+                  value={`${pts[hi].v - (pts[hi].cost as number) >= 0 ? "+" : "−"}${fmtVND(Math.abs(pts[hi].v - (pts[hi].cost as number)))}`}
+                  color={pts[hi].v - (pts[hi].cost as number) < 0 ? "var(--tooltip-negative)" : "var(--tooltip-positive)"}
+                />
+              </div>
+            ) : (
+              <div className="font-mono text-[12.5px] tabular-nums" style={{ color: pts[hi].v < 0 ? "var(--tooltip-negative)" : metric === "value" ? "var(--tooltip-neutral)" : "var(--tooltip-positive)" }}>
+                {pts[hi].v >= 0 && metric === "pl" ? "+" : ""}
+                {fmtVND(pts[hi].v)}
+              </div>
+            )}
           </div>
         )}
       </div>
