@@ -187,7 +187,6 @@ export interface GoalContribution {
 }
 
 export interface Payload {
-  contributions: { date: string; asset_type: string; amount: number }[];
   portfolio: { name: string; value: number; type: string; live: boolean; cost: number; pnl: number }[];
   portfolioTotal: number;
   investedTotal: number;

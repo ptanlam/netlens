@@ -799,9 +799,7 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
 // ---------- dashboard payload ----------
 
 export async function buildPayload(): Promise<Payload> {
-  const [txRows, costRows, instruments, investedRow, asOfRow] = await Promise.all([
-    q("SELECT date, asset_type, amount FROM transactions ORDER BY date, id")
-      .all<{ date: string; asset_type: string; amount: number }>(),
+  const [costRows, instruments, investedRow, asOfRow] = await Promise.all([
     q("SELECT instrument, SUM(amount) c FROM transactions GROUP BY instrument")
       .all<{ instrument: string; c: number }>(),
     listInstruments(),
@@ -832,7 +830,7 @@ export async function buildPayload(): Promise<Payload> {
   for (const p of portfolio) alloc[p.type] = (alloc[p.type] ?? 0) + p.value;
 
   return {
-    contributions: txRows, portfolio, portfolioTotal, investedTotal,
+    portfolio, portfolioTotal, investedTotal,
     pnl: portfolioTotal - investedTotal,
     allocation: Object.entries(alloc)
       .map(([type, value]) => ({ type, value }))
