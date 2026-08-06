@@ -241,9 +241,8 @@ export async function buildLatest(): Promise<{
   holdings: HoldingPnlPoint | null;
 }> {
   const end = todayIso();
-  const [rollups, closes, instruments, sources] = await Promise.all([
+  const [rollups, instruments, sources] = await Promise.all([
     txRollup(end),
-    recentCloses(end),
     listInstruments(),
     listPriceSources(),
   ]);
@@ -260,6 +259,14 @@ export async function buildLatest(): Promise<{
 
   const strategyBySource = new Map(sources.map((s) => [s.key, s.history_strategy]));
   const rollupBy = new Map(rollups.map((r) => [r.instrument, r]));
+
+  // Closes are asked for one instrument at a time (see `recentCloses`), so this needs the
+  // names first and can't join the fan-out above. Only instruments carrying transactions
+  // are worth asking about — the rest never reach the series.
+  const closes = await recentCloses(
+    instruments.filter((i) => rollupBy.has(i.name)).map((i) => i.name),
+    end,
+  );
   const closeBy = new Map<string, { date: string; price: number }[]>();
   for (const c of closes) {
     const arr = closeBy.get(c.instrument);

@@ -114,12 +114,21 @@ entire transactions table for a field that is dead on arrival.
 
 # Implementation details
 
-> **Status.** Steps 0 and 1 are done. Measured on the real local dataset (56
-> transactions, 10 instruments, 5,533 price-history rows over 876 days), the rows a
-> `?today=1` tick reads went from **5,589 to 28** — and the 28 is constant in the length
-> of the history, where the 5,589 grew every day. Parity with `buildDaily` was verified
-> black-box, including the three paths the dataset doesn't naturally exercise. Steps 2
-> and 3 remain open.
+> **Status.** Steps 0 and 1 are done. Parity with `buildDaily` was verified black-box,
+> including the three paths the dataset doesn't naturally exercise. Steps 2 and 3 remain
+> open — and production data so far argues against needing either.
+>
+> **Correction (post-deploy).** Step 1 shipped with `recentCloses` written as a
+> `ROW_NUMBER() OVER (PARTITION BY ...)` window function. It was correct but **not
+> bounded**: SQLite cannot rank within a partition without reading every row the `WHERE`
+> admits, so `EXPLAIN QUERY PLAN` showed `SCAN price_history` and `wrangler d1 insights`
+> measured ~22k rows read per call against a 5.5k-row table. Local wall-clock could never
+> have caught this — a scan of 5.5k rows still returns in single-digit ms. Rewritten as one
+> indexed seek per instrument (`SEARCH ... (instrument=? AND date<?)`) batched into a single
+> round trip: **2 rows per instrument**, confirmed against remote D1.
+>
+> **Lesson worth keeping:** for a "top N per group" query, check `EXPLAIN QUERY PLAN`.
+> A window function reads the whole partition set; N indexed seeks in a `batch()` do not.
 
 ## Step 0 — drop the dead `Payload.contributions` field (5 minutes, zero risk)
 

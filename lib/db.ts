@@ -626,19 +626,36 @@ export async function txRollup(endIso: string): Promise<TxRollup[]> {
  *
  *  Restricted to `date <= end`, which also serves as the tracked/manual test: an instrument
  *  with no close on or before today has nothing to price against and falls back to its
- *  manual value, exactly as an instrument with no price history at all does. */
-export async function recentCloses(endIso: string): Promise<
-  { instrument: string; date: string; price: number }[]
-> {
-  return q(
-    `SELECT instrument, date, price
-       FROM (SELECT instrument, date, price,
-                    ROW_NUMBER() OVER (PARTITION BY instrument ORDER BY date DESC) rn
-               FROM price_history
-              WHERE date <= ?1)
-      WHERE rn <= 2
-      ORDER BY instrument, date DESC`,
-  ).all<{ instrument: string; date: string; price: number }>(endIso);
+ *  manual value, exactly as an instrument with no price history at all does.
+ *
+ *  **One seek per instrument, batched — deliberately not a window function.** The obvious
+ *  spelling of "top 2 per group" is `ROW_NUMBER() OVER (PARTITION BY instrument ...)`, and
+ *  that is what this was. It returns the right answer and looks bounded, but SQLite cannot
+ *  rank rows within a partition without first reading every row the `WHERE` admits:
+ *  `EXPLAIN QUERY PLAN` reports `SCAN price_history`, and D1 measured it reading ~22k rows
+ *  a call against a 5.5k-row table. That is the whole point of this function defeated — the
+ *  read grew with the length of the history, which is the thing `buildLatest` exists to
+ *  stop depending on.
+ *
+ *  Asked one instrument at a time it is a `SEARCH ... (instrument=? AND date<?)` against the
+ *  `(instrument, date)` primary key — an index seek that reads exactly the 2 rows it
+ *  returns. `batch()` keeps the whole set to a single round trip, so this is N seeks but not
+ *  N network hops. Check the query plan, not just the wall clock, before believing either
+ *  shape is cheap: on a table this small a full scan still returns in single-digit ms. */
+export async function recentCloses(
+  instruments: string[], endIso: string,
+): Promise<{ instrument: string; date: string; price: number }[]> {
+  if (!instruments.length) return [];
+  const stmt = q(
+    "SELECT date, price FROM price_history WHERE instrument=? AND date<=? ORDER BY date DESC LIMIT 2",
+  );
+  const batched = await db().batch<{ date: string; price: number }>(
+    instruments.map((name) => stmt.bound(name, endIso)),
+  );
+  const out: { instrument: string; date: string; price: number }[] = [];
+  for (let i = 0; i < batched.length; i += 1)
+    for (const r of batched[i].results) out.push({ instrument: instruments[i], ...r });
+  return out;
 }
 
 /** Transactions for named instruments, each carrying the close it would have been priced
