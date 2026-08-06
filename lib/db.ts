@@ -113,6 +113,24 @@ export function todayIso(): string {
   return dayFormatter.format(new Date());
 }
 
+/**
+ * The instant a request is being rendered at.
+ *
+ * Exists so a server page can fix one timestamp and hand it to the client components below
+ * it, instead of each of them reading its own clock. Interest on deposits and debts accrues
+ * by the second, so a client component that calls `new Date()` during render computes a
+ * figure a rounding step away from the server's and React reports a hydration mismatch.
+ * `buildGoalWorld` has always done this for `GoalWorld.nowMs`; Savings and Debts now do too.
+ *
+ * It lives here rather than being inlined in the page because the React Compiler's
+ * `react-hooks/purity` rule — correctly — refuses a `Date.now()` call during a component's
+ * render. Reading the clock is a data concern, and this module is where the other one
+ * (`todayIso`) already lives.
+ */
+export function nowMs(): number {
+  return Date.now();
+}
+
 function nowIso(): string {
   return new Date().toISOString().slice(0, 19);
 }

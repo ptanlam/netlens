@@ -12,5 +12,6 @@ export default async function SavingsPage() {
 
   // The heading lives in <SavingsManager>: the design seats a page's primary action beside
   // its title, and "New deposit" is a client dialog, so the two have to share a component.
-  return <SavingsManager savings={savings} funds={funds} />;
+  // Read once here, not in the client component — see the note in app/debts/page.tsx.
+  return <SavingsManager savings={savings} funds={funds} nowMs={db.nowMs()} />;
 }

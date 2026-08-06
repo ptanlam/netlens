@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { buildDaily, buildLatest } from "@/lib/pnl";
-import { refreshHistory } from "@/lib/prices";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +23,19 @@ export async function GET(req: Request) {
       errors: [],
     });
   }
-  const errors = (await refreshHistory())[1];
+  // Read-only, deliberately.
+  //
+  // This used to `await refreshHistory()` first. That call self-throttles to 12h, so it was
+  // usually a no-op — but on the one page load an hour that opened the gate it ran the full
+  // backfill *inside the request*: ten upstream feeds fetched in series, years of JSON
+  // parsed, and thousands of rows written in ~55 batches, all before a byte was returned.
+  // That is how a dashboard load exceeded the Worker's CPU limit.
+  //
+  // Nothing was lost by removing it. The cron in custom-worker.ts calls `refreshHistory()`
+  // every five minutes against the same 12h gate, so the backfill still happens on exactly
+  // the same schedule — just never on a reader's request. The Settings page keeps its
+  // explicit "Rebuild history" button (`rebuildHistory` in app/actions.ts) for forcing one.
+  // The `errors` this used to surface had no consumer; the field stays for shape stability.
   const { series, holdings } = await buildDaily();
-  return NextResponse.json({ series, holdings, errors });
+  return NextResponse.json({ series, holdings, errors: [] });
 }

@@ -157,12 +157,12 @@ function AddDepositDialog({ funds }: { funds: FundOption[] }) {
   );
 }
 
-function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
+function SavingRow({ saving, funds, now }: { saving: Saving; funds: FundOption[]; now: Date }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 
-  const matured = isMatured(saving);
-  const cur = currentValue(saving);
+  const matured = isMatured(saving, now);
+  const cur = currentValue(saving, now);
   const matVal = maturityValue(saving);
   const interest = cur - saving.principal;
   const earmarked = funds.find((f) => f.id === saving.goal_id);
@@ -228,14 +228,27 @@ function SavingRow({ saving, funds }: { saving: Saving; funds: FundOption[] }) {
   );
 }
 
-export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: FundOption[] }) {
-  const s = summarize(savings);
+export function SavingsManager({
+  savings,
+  funds,
+  nowMs,
+}: {
+  savings: Saving[];
+  funds: FundOption[];
+  /** Fixed by the server — deposits accrue by the second, so a client-read clock made the
+   *  hydrated figures differ from the server's by a rounding step. Same as Debts. */
+  nowMs: number;
+}) {
+  const now = React.useMemo(() => new Date(nowMs), [nowMs]);
+  const s = summarize(savings, now);
   // Baseline is the deposit's own principal, so the shaded band is interest accrued.
   // Nothing is ever withdrawn from a deposit, so lifetime interest is the same figure.
-  const series = buildDailySeries(savings, currentValue, (d, at) => ({
-    base: d.principal,
-    interest: currentValue(d, at) - d.principal,
-  }));
+  const series = buildDailySeries(
+    savings,
+    currentValue,
+    (d, at) => ({ base: d.principal, interest: currentValue(d, at) - d.principal }),
+    nowMs,
+  );
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4">
@@ -275,7 +288,7 @@ export function SavingsManager({ savings, funds }: { savings: Saving[]; funds: F
 
       {savings.length === 0 && <p className="text-[13px] text-muted-foreground">No deposits yet.</p>}
       {savings.map((saving) => (
-        <SavingRow key={saving.id} saving={saving} funds={funds} />
+        <SavingRow key={saving.id} saving={saving} funds={funds} now={now} />
       ))}
     </div>
   );

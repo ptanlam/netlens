@@ -487,10 +487,17 @@ const columns: ColumnDef<DebtRow>[] = [
 export function DebtsManager({
   debts,
   payments,
+  nowMs,
 }: {
   debts: Debt[];
   payments: DebtPayment[];
+  /** The instant every figure on this page is computed against, fixed by the server.
+   *  Debt interest accrues by the second, so letting the client read its own clock made
+   *  hydration disagree with the server render by a rounding step — a real React hydration
+   *  error on every load. See the note on `buildDailySeries`. */
+  nowMs: number;
 }) {
+  const now = React.useMemo(() => new Date(nowMs), [nowMs]);
   const byDebt = React.useMemo(() => {
     const m = new Map<number, DebtPayment[]>();
     for (const p of payments) {
@@ -508,16 +515,16 @@ export function DebtsManager({
         return {
           debt,
           payments: pmts,
-          owed: debtOwed(debt, pmts),
+          owed: debtOwed(debt, pmts, now),
           paid: pmts.reduce((a, p) => a + p.amount, 0),
           maturityMs: isRevolving(debt)
             ? Number.POSITIVE_INFINITY
             : Date.parse(maturityDate(debt) + "T00:00:00Z"),
           isCredit: debt.kind === "credit",
-          paidThisMonth: paidThisMonth(pmts),
+          paidThisMonth: paidThisMonth(pmts, now),
         };
       }),
-    [debts, byDebt],
+    [debts, byDebt, now],
   );
 
   const owedSum = rows.reduce((a, r) => a + r.owed, 0);
@@ -543,6 +550,7 @@ export function DebtsManager({
         interest: debtOwed(debt, pmts, at) + paid - debt.principal,
       };
     },
+    nowMs,
   );
 
   return (

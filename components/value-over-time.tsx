@@ -28,17 +28,27 @@ export interface SeriesPoint {
  * `base` is the interest-free part of it (the chart shades the gap), and `interest` is
  * the lifetime figure the summary tiles quote.
  */
+/**
+ * `nowMs` is the instant the series ends at, and it must be supplied by the server.
+ *
+ * Reading the clock here instead — which this used to do — makes the output a function of
+ * *when* it ran, so the server's render and the browser's hydration of the same page
+ * disagree: interest accrues by the second, and a figure a fraction of a second older
+ * rounds to a different whole VND. React reports that as a hydration mismatch and throws
+ * away the server HTML for that subtree. Same reasoning as `GoalWorld.nowMs`.
+ */
 export function buildDailySeries<T extends { start_date: string }>(
   items: T[],
   valueAt: (item: T, at: Date) => number,
-  splitAt?: (item: T, at: Date) => { base: number; interest: number },
+  splitAt: ((item: T, at: Date) => { base: number; interest: number }) | undefined,
+  nowMs: number,
 ): SeriesPoint[] {
   if (!items.length) return [];
   const DAY = 86_400_000;
   const starts = items.map((s) => Date.parse(s.start_date + "T00:00:00Z")).filter((t) => !Number.isNaN(t));
   if (!starts.length) return [];
   const startMs = Math.min(...starts);
-  const todayMs = Date.now();
+  const todayMs = nowMs;
   if (startMs >= todayMs) return [];
 
   const nDays = Math.floor((todayMs - startMs) / DAY);
