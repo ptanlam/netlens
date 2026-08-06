@@ -14,10 +14,13 @@ export const dynamic = "force-dynamic";
  *  `price_history` to keep one point, hundreds of times an hour per open tab. */
 export async function GET(req: Request) {
   if (new URL(req.url).searchParams.has("today")) {
-    const { point, holdings } = await buildLatest();
+    const { point, holdings, live } = await buildLatest();
     return NextResponse.json({
       series: point ? [point] : [],
       holdings: holdings ? [holdings] : [],
+      // The price-derived dashboard figures, so a tick doesn't need `router.refresh()` —
+      // which re-read savings, debts and the whole goal world to update a stock price.
+      live,
       errors: [],
     });
   }

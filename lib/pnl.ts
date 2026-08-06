@@ -10,10 +10,10 @@
  * late, so today uses the stored close for them too (see NAV_STRATEGIES in lib/types.ts).
  */
 import {
-  listInstruments, listPriceSources, pnlTransactions, priceHistoryByInstrument, recentCloses,
-  todayIso, txRollup, txUnitPrices,
+  listInstruments, listPriceSources, livePayload, pnlTransactions, priceHistoryByInstrument,
+  recentCloses, todayIso, txRollup, txUnitPrices,
 } from "./db";
-import type { HoldingDayPnl, HoldingPnlPoint, PnlPoint } from "./types";
+import type { HoldingDayPnl, HoldingPnlPoint, LivePayload, PnlPoint } from "./types";
 import { NAV_STRATEGIES } from "./types";
 
 export type { HoldingPnlPoint, PnlPoint } from "./types";
@@ -239,6 +239,10 @@ function isoPrevDay(iso: string): string {
 export async function buildLatest(): Promise<{
   point: PnlPoint | null;
   holdings: HoldingPnlPoint | null;
+  /** The dashboard's price-derived figures, on the `holdingValue` basis — see the warning
+   *  on `livePayload`. Computed from rows already read here, so it costs no extra query.
+   *  Present even when there's no series to speak of; an empty portfolio is a real answer. */
+  live: LivePayload;
 }> {
   const end = todayIso();
   const [rollups, instruments, sources] = await Promise.all([
@@ -246,13 +250,18 @@ export async function buildLatest(): Promise<{
     listInstruments(),
     listPriceSources(),
   ]);
+  // The cost basis is not a function of today, so it comes straight off the rollup.
+  const costByInstrument: Record<string, number> = {};
+  for (const r of rollups) costByInstrument[r.instrument] = r.cost_all;
+  const live = livePayload(instruments, costByInstrument);
+
   // No transactions at all — `buildDaily` returns an empty series for this.
-  if (!rollups.length) return { point: null, holdings: null };
+  if (!rollups.length) return { point: null, holdings: null, live };
 
   const firstTx = rollups.reduce((min, r) => (r.first_date < min ? r.first_date : min), rollups[0].first_date);
   // Every transaction still in the future: `buildDaily`'s loop breaks before its first
   // iteration, so there is no series and therefore no latest point.
-  if (firstTx > end) return { point: null, holdings: null };
+  if (firstTx > end) return { point: null, holdings: null, live };
   // What the day's move is measured against. Empty when today *is* the first day, matching
   // the `prevDs = ""` the day loop starts with — there is no previous day to compare to.
   const prevDs = firstTx < end ? isoPrevDay(end) : "";
@@ -357,5 +366,6 @@ export async function buildLatest(): Promise<{
       ...(baseline ? { baseline } : {}),
     },
     holdings: { date: end, holdings: [...trackedRows, ...manualRows] },
+    live,
   };
 }

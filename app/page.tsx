@@ -2,7 +2,6 @@ import { connection } from "next/server";
 import * as db from "@/lib/db";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { summarize, debtOwed, type Payment } from "@/lib/savings";
-import { project, type GoalView } from "@/lib/goals";
 
 export default async function Dashboard() {
   await connection();
@@ -37,8 +36,12 @@ export default async function Dashboard() {
 
   // Needs the portfolio total, so it can't join the fan-out above.
   const world = await db.buildGoalWorld(payload.portfolioTotal);
-  const goals: GoalView[] = goalRows.map((goal) => ({ goal, proj: project(goal, world) }));
 
+  // `world` and `goalRows` go to the client rather than a finished `GoalView[]`: a price
+  // tick moves `investments`, and everything else in the world (deposits, debts, fund
+  // ledgers) is price-independent, so the client can re-project from the same inputs
+  // instead of asking the server to rebuild all of it. `project` is pure and deterministic
+  // given a world — it reads `nowMs` from it, never the clock — so SSR and hydration agree.
   return (
     <DashboardCharts
       payload={payload}
@@ -46,7 +49,8 @@ export default async function Dashboard() {
       funds={fundsCash}
       debts={debtsValue}
       pending={pending.length}
-      goals={goals}
+      goalRows={goalRows}
+      world={world}
     />
   );
 }

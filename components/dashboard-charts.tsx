@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { ChevronDown, Download, Search, TriangleAlert } from "lucide-react";
-import type { HoldingPnlPoint, Payload, PnlPoint } from "@/lib/types";
+import type { Goal, HoldingPnlPoint, LivePayload, Payload, PnlPoint } from "@/lib/types";
 import { fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel, sparkPaths } from "@/components/net-worth";
 import { EntityAvatar } from "@/components/entity-avatar";
@@ -16,14 +16,14 @@ import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import type { GoalView } from "@/lib/goals";
+import { project, type GoalView, type GoalWorld } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
 import { usePriceRefreshCount } from "@/components/live-prices";
 import { cn } from "@/lib/utils";
 
 /** What `/api/pnl-history` returns. */
-type PnlHistory = { series: PnlPoint[]; holdings: HoldingPnlPoint[] };
+type PnlHistory = { series: PnlPoint[]; holdings: HoldingPnlPoint[]; live?: LivePayload };
 
 /** Fixed slot per asset type — colour follows the entity, never its rank. */
 const TYPE_COLORS: Record<string, string> = {
@@ -69,22 +69,44 @@ export function DashboardCharts({
   funds,
   debts,
   pending,
-  goals,
+  goalRows,
+  world,
 }: {
   payload: Payload;
   savings: number;
   funds: number;
   debts: number;
   pending: number;
-  goals: GoalView[];
+  goalRows: Goal[];
+  world: GoalWorld;
 }) {
   // `Response.json()` resolves to `unknown` under the Workers type definitions (the DOM
   // lib types it as `any`), so the shape is asserted here rather than in each callback.
   const [series, setSeries] = React.useState<PnlPoint[] | null>(null);
   const [holdingSeries, setHoldingSeries] = React.useState<HoldingPnlPoint[] | null>(null);
   const [seriesError, setSeriesError] = React.useState<string | null>(null);
+  // The price-derived figures, refreshed by each tick's `?today=1` call. Null until the
+  // first tick lands, at which point the server-rendered `payload` takes over below. This
+  // is what lets a tick skip `router.refresh()` on the dashboard entirely.
+  const [live, setLive] = React.useState<LivePayload | null>(null);
   const refreshCount = usePriceRefreshCount();
   const loaded = series !== null;
+
+  // Everything price-derived reads through here, so a panel can't accidentally keep
+  // rendering the render-time snapshot after a tick has moved on.
+  const figures: LivePayload = live ?? payload;
+
+  // Goals track the investments total, so they'd contradict the net-worth panel above them
+  // within one tick if they didn't move with it. Re-projected from the same world the
+  // server built, with only `investments` swapped — the rest is price-independent.
+  const goals: GoalView[] = React.useMemo(
+    () =>
+      goalRows.map((goal) => ({
+        goal,
+        proj: project(goal, live ? { ...world, investments: live.portfolioTotal } : world),
+      })),
+    [goalRows, world, live],
+  );
 
   React.useEffect(() => {
     let alive = true;
@@ -112,8 +134,9 @@ export function DashboardCharts({
         if (!alive) return;
         setSeries((s) => (s ? withLatest(s, d.series) : s));
         setHoldingSeries((h) => (h ? withLatest(h, d.holdings) : h));
+        if (d.live) setLive(d.live);
       })
-      .catch(() => {}); // a failed top-up just leaves the last good point on screen
+      .catch(() => {}); // a failed top-up just leaves the last good figures on screen
     return () => { alive = false; };
   }, [refreshCount, loaded]);
 
@@ -139,16 +162,16 @@ export function DashboardCharts({
     };
   }, [series]);
 
-  const pnlPct = payload.investedTotal ? (payload.pnl / payload.investedTotal) * 100 : 0;
+  const pnlPct = figures.investedTotal ? (figures.pnl / figures.investedTotal) * 100 : 0;
 
   // No "Portfolio value" tile here, unlike the Investments page: the hero's rail already
   // carries that exact figure as its Investments row, directly above this strip.
   const kpis: Stat[] = [
-    { label: "Total invested", value: fmtVND(payload.investedTotal), sub: "Cost basis, all time" },
+    { label: "Total invested", value: fmtVND(figures.investedTotal), sub: "Cost basis, all time" },
     {
       label: "Total P&L",
-      value: `${payload.pnl >= 0 ? "+" : "−"}₫${Math.abs(Math.round(payload.pnl)).toLocaleString("de-DE")}`,
-      tone: payload.pnl >= 0 ? "gain" : "loss",
+      value: `${figures.pnl >= 0 ? "+" : "−"}₫${Math.abs(Math.round(figures.pnl)).toLocaleString("de-DE")}`,
+      tone: figures.pnl >= 0 ? "gain" : "loss",
       sub: `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`,
     },
     {
@@ -199,7 +222,7 @@ export function DashboardCharts({
       <div className="flex flex-wrap items-start gap-3 sm:gap-4">
         <div className="flex min-w-0 flex-[1_1_560px] flex-col gap-3 sm:gap-4">
           <NetWorthPanel
-            investments={payload.portfolioTotal}
+            investments={figures.portfolioTotal}
             savings={savings}
             funds={funds}
             debts={debts}
@@ -217,15 +240,15 @@ export function DashboardCharts({
           {/* One column at every width: this strip is in the rail now, and `auto-fit` would
               otherwise pack three tiles across the moment the rail wraps to full measure. */}
           <SummaryCards stats={kpis} className="grid-cols-1 lg:grid-cols-1" />
-          <AllocationCard payload={payload} />
-          <HoldingsListCard payload={payload} holdingSeries={holdingSeries} />
+          <AllocationCard payload={figures} />
+          <HoldingsListCard payload={figures} holdingSeries={holdingSeries} />
         </div>
       </div>
     </div>
   );
 }
 
-function AllocationCard({ payload }: { payload: Payload }) {
+function AllocationCard({ payload }: { payload: LivePayload }) {
   const total = payload.allocation.reduce((a, x) => a + x.value, 0) || 1;
   const rows = payload.allocation
     .slice()
@@ -302,7 +325,7 @@ function HoldingsListCard({
   payload,
   holdingSeries,
 }: {
-  payload: Payload;
+  payload: LivePayload;
   holdingSeries: HoldingPnlPoint[] | null;
 }) {
   const [query, setQuery] = React.useState("");

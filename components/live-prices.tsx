@@ -132,6 +132,13 @@ function setBusy(v: boolean) {
  *  minute doesn't spam — failures still surface. */
 function useRefreshPrices() {
   const [, startTransition] = React.useTransition();
+  // The dashboard re-reads its own price-derived figures from `?today=1` (see
+  // `DashboardCharts`), so re-rendering the server tree for it is pure waste — that render
+  // costs ~19 D1 queries, of which only the portfolio ones can have moved. Every other
+  // route still needs the refresh: /investments and /goals render prices server-side and
+  // have no such channel. Kept as a route list rather than a flag so the two places that
+  // decide "does this page show prices" stay next to each other.
+  const selfUpdating = usePathname() === "/";
   const pending = React.useSyncExternalStore(
     subscribeBusy,
     () => busy,
@@ -163,9 +170,10 @@ function useRefreshPrices() {
         // prices we just wrote. The action's revalidatePath alone leaves the client
         // sitting on the tree it already has. This one *is* a transition: it's a
         // background update, and it must never block what the reader is doing.
-        startTransition(() => {
-          router.refresh();
-        });
+        if (!selfUpdating)
+          startTransition(() => {
+            router.refresh();
+          });
         refreshCount += 1;
         for (const cb of refreshListeners) cb();
         if (res.ok) {
@@ -185,7 +193,7 @@ function useRefreshPrices() {
         setBusy(false);
       }
     },
-    [startTransition, router],
+    [startTransition, router, selfUpdating],
   );
 
   return { pending, run, lastUpdated };

@@ -1,5 +1,16 @@
 # Spec: make a price tick cost 4 queries instead of 19
 
+> **Status: §1 and §2 are done.** §3 is still open and still wants a measurement first.
+>
+> Verified on a real dashboard with Live at 5s: **0 RSC refreshes** on `/` over 16s (was one
+> per tick), while `/investments` still takes its 3 — the gate discriminates correctly. The
+> net-worth goal renders the identical figure to the Net worth panel, which is the invariant
+> that proves goals re-project client-side rather than going stale.
+>
+> `buildPayload` also dropped from 4 queries to 2 along the way: summing the per-instrument
+> `GROUP BY` gives the same `investedTotal` as its own `SUM(amount)` query, and
+> `MAX(last_price_at)` is already available in the `instruments` rows.
+
 Follow-on to [`pnl-history-memory-growth.md`](pnl-history-memory-growth.md), which fixed
 what `?today=1` reads. This one is about what a *tick* does around it.
 

@@ -186,13 +186,25 @@ export interface GoalContribution {
   created_at: string;
 }
 
-export interface Payload {
+/**
+ * Everything in `Payload` that a price refresh can actually move.
+ *
+ * Split out so `/api/pnl-history?today=1` can hand the dashboard fresh figures without a
+ * full server re-render — the tick used to go through `router.refresh()`, which re-read
+ * savings, debts, payments and the whole goal world, none of which change because a price
+ * did. Both this and `buildPayload` are produced by the same `livePayload()` in lib/db.ts,
+ * so the tick and a hard reload cannot disagree.
+ */
+export interface LivePayload {
   portfolio: { name: string; value: number; type: string; live: boolean; cost: number; pnl: number }[];
   portfolioTotal: number;
   investedTotal: number;
   pnl: number;
   allocation: { type: string; value: number }[];
   pricesAsOf: string | null;
+}
+
+export interface Payload extends LivePayload {
   generated: string;
 }
 

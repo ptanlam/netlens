@@ -18,12 +18,12 @@
  * The schema lives in `migrations/`, not in a string here — see `migrations/0001_init.sql`.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { Debt, DebtPayment, Goal, GoalContribution, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
+import type { Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
 import { fundCashAt, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
 
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
-export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
+export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
 
 /** Set by `bindD1`, for callers that have no Cloudflare context to read. */
 let boundDb: D1Database | null = null;
@@ -589,6 +589,9 @@ export interface TxRollup {
   instrument: string;
   /** SUM(amount) over rows dated on or before `end`. */
   invested: number;
+  /** SUM(amount) over *every* row, future-dated included — the cost basis, which is not a
+   *  function of today. Feeds `livePayload`, so a tick needs no extra query for it. */
+  cost_all: number;
   /** MIN(date) over every row, future ones included. */
   first_date: string;
   /** SUM(amount) for rows dated exactly `end` — the day's contribution, netted out of P&L. */
@@ -605,6 +608,7 @@ export async function txRollup(endIso: string): Promise<TxRollup[]> {
   return q(
     `SELECT instrument,
             SUM(CASE WHEN date <= ?1 THEN amount ELSE 0 END)  AS invested,
+            SUM(amount)                                        AS cost_all,
             MIN(date)                                          AS first_date,
             SUM(CASE WHEN date  = ?1 THEN amount ELSE 0 END)  AS today_amount,
             SUM(CASE WHEN date  = ?1 AND quantity IS NOT NULL
@@ -914,19 +918,26 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
 
 // ---------- dashboard payload ----------
 
-export async function buildPayload(): Promise<Payload> {
-  const [costRows, instruments, investedRow, asOfRow] = await Promise.all([
-    q("SELECT instrument, SUM(amount) c FROM transactions GROUP BY instrument")
-      .all<{ instrument: string; c: number }>(),
-    listInstruments(),
-    q("SELECT COALESCE(SUM(amount),0) s FROM transactions").get<{ s: number }>(),
-    q("SELECT MAX(last_price_at) m FROM instruments").get<{ m: string | null }>(),
-  ]);
-
-  const costByInstrument: Record<string, number> = {};
-  for (const r of costRows) costByInstrument[r.instrument] = r.c;
-
-  const portfolio: Payload["portfolio"] = [];
+/**
+ * The price-derived figures, from rows the caller already holds. Pure — no queries.
+ *
+ * Shared by `buildPayload` (a full page render) and `buildLatest` (a live tick), which is
+ * the point: the dashboard shows these numbers continuously, and two code paths computing
+ * them separately would eventually disagree and make the KPI tiles contradict the
+ * allocation donut beside them.
+ *
+ * `costByInstrument` is `SUM(amount) GROUP BY instrument` over *all* transactions —
+ * unfiltered by date, which is what the cost basis means. Note this is a different
+ * valuation basis from `lib/pnl.ts`: here a holding is `quantity × last_price`
+ * (`holdingValue`), whereas the P&L series prices a NAV fund at its stored close because
+ * its `last_price` is a past valuation day's NAV. Both are right in their own place; don't
+ * cross them.
+ */
+export function livePayload(
+  instruments: Instrument[],
+  costByInstrument: Record<string, number>,
+): LivePayload {
+  const portfolio: LivePayload["portfolio"] = [];
   for (const row of instruments) {
     const value = holdingValue(row);
     if (!value) continue;
@@ -939,11 +950,20 @@ export async function buildPayload(): Promise<Payload> {
   }
   portfolio.sort((a, b) => b.value - a.value);
 
-  const investedTotal = investedRow?.s ?? 0;
   const portfolioTotal = portfolio.reduce((a, p) => a + p.value, 0);
+  // Summing the per-instrument totals is the same figure the old dedicated
+  // `SELECT SUM(amount) FROM transactions` returned — the GROUP BY covers every row —
+  // so that query, and the MAX(last_price_at) one below it, are no longer issued.
+  let investedTotal = 0;
+  for (const c of Object.values(costByInstrument)) investedTotal += c;
 
   const alloc: Record<string, number> = {};
   for (const p of portfolio) alloc[p.type] = (alloc[p.type] ?? 0) + p.value;
+
+  let pricesAsOf: string | null = null;
+  for (const r of instruments)
+    if (r.last_price_at && (pricesAsOf === null || r.last_price_at > pricesAsOf))
+      pricesAsOf = r.last_price_at;
 
   return {
     portfolio, portfolioTotal, investedTotal,
@@ -951,7 +971,22 @@ export async function buildPayload(): Promise<Payload> {
     allocation: Object.entries(alloc)
       .map(([type, value]) => ({ type, value }))
       .sort((a, b) => b.value - a.value),
-    pricesAsOf: asOfRow?.m ?? null,
+    pricesAsOf,
+  };
+}
+
+export async function buildPayload(): Promise<Payload> {
+  const [costRows, instruments] = await Promise.all([
+    q("SELECT instrument, SUM(amount) c FROM transactions GROUP BY instrument")
+      .all<{ instrument: string; c: number }>(),
+    listInstruments(),
+  ]);
+
+  const costByInstrument: Record<string, number> = {};
+  for (const r of costRows) costByInstrument[r.instrument] = r.c;
+
+  return {
+    ...livePayload(instruments, costByInstrument),
     generated: new Date().toLocaleString("sv-SE").slice(0, 16),
   };
 }
