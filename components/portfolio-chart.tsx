@@ -52,14 +52,18 @@ export function PortfolioChart({
   const [metric, setMetric] = React.useState<Metric>("value");
   const [timeframe, setTimeframe] = React.useState<Bucket>("Weekly");
   const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
-  // `null` is the full span, not a stored pair: the series is fetched after mount, so there
-  // is no span to seed a default from at first render — and this way a rebuild that extends
-  // the history widens the untouched window with it.
+  // `null` means "whatever the default is", not a stored pair: the series is fetched after
+  // mount, so there is no span to seed a default from at first render — and this way a
+  // rebuild that extends the history is reflected in an untouched window straight away.
   const [range, setRange] = React.useState<{ from: string; to: string } | null>(null);
 
   const minDate = series?.length ? series[0].date : "";
   const maxDate = series?.length ? series[series.length - 1].date : "";
-  const from = range?.from ?? minDate;
+  // Year to date, matching the preset of that name so its pill reads as active on arrival.
+  // Clamped to the first point: on a series younger than this year the window is the whole
+  // of it, and "All" is then the honest label for what you're looking at.
+  const ytd = maxDate ? `${maxDate.slice(0, 4)}-01-01` : "";
+  const from = range?.from ?? (ytd > minDate ? ytd : minDate);
   const to = range?.to ?? maxDate;
 
   // Last point of each bucket, projected onto the chosen metric.

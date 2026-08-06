@@ -112,9 +112,14 @@ function SoldOutPrompt({ name }: { name: string }) {
   );
 }
 
+/** Shared with the spacer rows in `TxList`, which is what keeps a short page exactly as
+ *  tall as a full one. The divider sits on top rather than below so trailing spacers draw
+ *  no line — `first:border-t-0` then does what `last:border-0` used to. */
+const TX_ROW = "flex items-center gap-3 border-t border-divider-soft py-2 text-sm first:border-t-0";
+
 function TxRow({ tx, option }: { tx: Tx; option: InstrumentOption }) {
   return (
-    <div className="flex items-center gap-3 border-b border-divider-soft py-2 text-sm last:border-0">
+    <div className={TX_ROW}>
       <span className="font-mono whitespace-nowrap tabular-nums text-muted-foreground">{tx.date}</span>
       <span className={cn("font-mono whitespace-nowrap font-medium tabular-nums", tx.amount < 0 && "text-(--chart-negative)")}>
         {fmtVND(tx.amount)}
@@ -133,10 +138,14 @@ const TX_PAGE_SIZE = 5;
 /**
  * Up to five transactions, the list just is what it is — it hugs its rows.
  *
- * Past five it pages, and only then is the row area pinned to a fixed height: that keeps
- * a partial last page from shrinking the panel under the pager, which would otherwise
- * make the whole layout jump as you step through pages. A short list doesn't need that
- * and shouldn't pay for it with an empty box.
+ * Past five it pages, and a short last page is padded out with empty rows so the panel
+ * doesn't shrink under the pager and make the layout jump as you step through pages.
+ *
+ * That padding used to be a fixed `h-[225px]` with the overflow hidden, which assumed a
+ * 45px row. A row is 49px — `py-2` either side of the action buttons, which are `size-8`
+ * — so five of them came to 244px and the last one was clipped by 19px. Spacers can't
+ * drift like that: they *are* rows, and they take their height from the same token the
+ * real ones do.
  */
 function TxList({ txs, option }: { txs: Tx[]; option: InstrumentOption }) {
   const [page, setPage] = React.useState(0);
@@ -148,15 +157,18 @@ function TxList({ txs, option }: { txs: Tx[]; option: InstrumentOption }) {
 
   return (
     <>
-      <div
-        className={cn(
-          "rounded-lg border border-border bg-pane px-3",
-          paged && "h-[225px] overflow-y-hidden",
-        )}
-      >
+      <div className="rounded-lg border border-border bg-pane px-3">
         {visible.map((tx) => (
           <TxRow key={tx.id} tx={tx} option={option} />
         ))}
+        {paged &&
+          Array.from({ length: TX_PAGE_SIZE - visible.length }, (_, i) => (
+            // `size-8` is the action buttons' own size (`icon-sm`), which is what sets a
+            // row's height — so a spacer measures the same as a row by construction.
+            <div key={`pad-${i}`} aria-hidden className={cn(TX_ROW, "border-t-0")}>
+              <span className="block size-8" />
+            </div>
+          ))}
       </div>
       {paged && (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">

@@ -14,6 +14,7 @@ import { IconTooltip } from '@/components/ui/tooltip';
 import { LivePrices } from '@/components/live-prices';
 import { HeaderSearch } from '@/components/header-search';
 import { logout } from '@/app/actions';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { toggleNavCollapsed } from '@/lib/nav-layout';
 import { cn } from '@/lib/utils';
 
@@ -292,8 +293,9 @@ function MobileNav({ pathname }: { pathname: string }) {
               <NavPill key={l.href} href={l.href} label={l.label} icon={l.icon} tint={l.tint} pathname={pathname} onClick={() => setOpen(false)} />
             ))}
           </nav>
-          {/* The header row has no width for the gear on a phone, so settings — theme
-              included — is reached from here instead. */}
+          {/* The header row has no width for the gear on a phone, so settings is reached
+              from here instead. The theme picker is not in here: it kept its place in the
+              header at every width, being narrow enough to. */}
           <div className='mt-auto border-t border-border pt-3 sm:hidden'>
             <Link
               href='/settings'
@@ -445,6 +447,10 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
           </div>
           <div className='flex shrink-0 items-center gap-2'>
             <LivePrices />
+            {/* Outside `data-nav-icons` on purpose: that group is hidden in side-rail mode
+                because the rail carries its own Settings and Sign out, but the rail has no
+                theme control, so this one has to survive both layouts. */}
+            <ThemeToggle />
             {/* The design's header affordances are bordered circles on the panel surface,
                 not bare glyphs — they have to hold their own against a chart scrolling
                 under the translucent bar. */}

@@ -5,7 +5,9 @@ export const SETTINGS_SECTIONS = [
   {
     href: "/settings/appearance",
     label: "Appearance",
-    hint: "Theme and navigation for this device",
+    // Theme used to be here too. It's the picker in the header now, so this section is
+    // down to where the links sit — worth a rename if anything else ever joins it.
+    hint: "Where the navigation sits, on this device",
   },
   {
     href: "/settings/price-sources",

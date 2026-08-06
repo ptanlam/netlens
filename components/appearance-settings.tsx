@@ -1,18 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useTheme } from "next-themes";
-import { Check, Monitor, Moon, PanelLeft, PanelTop, Sun, type LucideIcon } from "lucide-react";
+import { Check, PanelLeft, PanelTop, type LucideIcon } from "lucide-react";
 import { NAV_LAYOUTS, setNavLayout, useNavLayout, type NavLayout } from "@/lib/nav-layout";
 import { cn } from "@/lib/utils";
-
-const THEMES = [
-  { value: "system", label: "Match system", hint: "Follows your OS setting", icon: Monitor },
-  { value: "light", label: "Daylight", hint: "Light", icon: Sun },
-  { value: "dark", label: "Midnight", hint: "Dark", icon: Moon },
-] as const;
-
-type Choice = (typeof THEMES)[number]["value"];
 
 const NAV_ICONS: Record<NavLayout, LucideIcon> = { top: PanelTop, side: PanelLeft };
 
@@ -74,20 +65,17 @@ function ChoiceGrid({
 }
 
 export function AppearanceSettings() {
-  const { theme, setTheme } = useTheme();
   const navLayout = useNavLayout();
 
-  // `theme` is only known client-side. Render the same markup on both passes and let the
-  // selection light up after mount, rather than guessing and flipping it after hydration.
-  // useSyncExternalStore gives server=false / client=true without the set-state-in-effect
-  // the React Compiler lint forbids.
+  // The layout is only known client-side (it's a localStorage preference). Render the same
+  // markup on both passes and let the selection light up after mount, rather than guessing
+  // and flipping it after hydration. useSyncExternalStore gives server=false / client=true
+  // without the set-state-in-effect the React Compiler lint forbids.
   const mounted = React.useSyncExternalStore(
     emptySubscribe,
     () => true,
     () => false,
   );
-  const current = (THEMES.some((t) => t.value === theme) ? theme : "system") as Choice;
-
   const navOptions = React.useMemo(
     () => NAV_LAYOUTS.map((l) => ({ ...l, icon: NAV_ICONS[l.value] })),
     [],
@@ -95,15 +83,8 @@ export function AppearanceSettings() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="card-surface panel-body">
-        <div className="text-[16px] font-bold tracking-[-0.01em]">Appearance</div>
-        <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
-          The theme this browser uses. Stored on this device, not in your data.
-        </div>
-
-        <ChoiceGrid label="Theme" options={THEMES} value={current} onChange={setTheme} ready={mounted} />
-      </div>
-
+      {/* Theme used to be the card above this one. It's the picker in the header now —
+          one click from anywhere, instead of two navigations to change how the app looks. */}
       <div className="card-surface panel-body">
         <div className="text-[16px] font-bold tracking-[-0.01em]">Navigation</div>
         <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
