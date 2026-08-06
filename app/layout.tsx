@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { Nav } from '@/components/nav';
+import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ThemeProvider } from '@/components/theme-provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SafeAreaDebug } from '@/components/safe-area-debug';
@@ -66,6 +67,9 @@ export default function RootLayout({
           <TooltipProvider delay={200} closeDelay={0}>
             {process.env.NODE_ENV !== 'production' && <SafeAreaDebug />}
             <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
+            {/* Mounted here rather than in the nav: the gesture belongs to the page, and
+                this is the one place every route passes through. */}
+            <PullToRefresh />
             {/* The design runs the page on the bare field — no artwork behind it. Depth is
                 the surface step from field to panel, so anything laid between the two would
                 only flatten it. */}

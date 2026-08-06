@@ -128,9 +128,17 @@ function setBusy(v: boolean) {
   for (const cb of busyListeners) cb();
 }
 
-/** Shared refresh logic. `silent` suppresses the success toast so a live refresh every
- *  minute doesn't spam — failures still surface. */
-function useRefreshPrices() {
+/**
+ * Shared refresh logic, behind one in-flight guard so the header button, the live tick and
+ * a pull-to-refresh can't stack requests on each other.
+ *
+ * `silent` suppresses the success toast so a refresh every few seconds doesn't spam —
+ * failures still surface. `force` re-renders the server tree even on the dashboard, which
+ * normally opts out because it updates its own price figures from `?today=1`; a refresh the
+ * reader *asked* for should also pick up deposits, debts and goal contributions, which that
+ * channel doesn't carry.
+ */
+export function useRefreshPrices() {
   const [, startTransition] = React.useTransition();
   // The dashboard re-reads its own price-derived figures from `?today=1` (see
   // `DashboardCharts`), so re-rendering the server tree for it is pure waste — that render
@@ -149,7 +157,7 @@ function useRefreshPrices() {
   const router = useRouter();
 
   const run = React.useCallback(
-    async (silent = false) => {
+    async ({ silent = false, force = false }: { silent?: boolean; force?: boolean } = {}) => {
       if (inFlight.current) return; // never stack requests
       inFlight.current = true;
       setBusy(true);
@@ -170,7 +178,7 @@ function useRefreshPrices() {
         // prices we just wrote. The action's revalidatePath alone leaves the client
         // sitting on the tree it already has. This one *is* a transition: it's a
         // background update, and it must never block what the reader is doing.
-        if (!selfUpdating)
+        if (force || !selfUpdating)
           startTransition(() => {
             router.refresh();
           });
@@ -260,7 +268,7 @@ export function LivePrices() {
     // pull on every single visit, exactly what this check exists to prevent.
     const armed = readInterval();
     if (armed && !overdue(armed)) return;
-    void run(true);
+    void run({ silent: true });
   }, [priced, run]);
 
   // While live is armed, silently re-pull on the chosen interval. The first delay is
@@ -274,7 +282,7 @@ export function LivePrices() {
       // up on return. `priced` is read through a ref rather than closed over so a route
       // change doesn't restart the timer — navigating often would otherwise keep pushing
       // the next tick out and starve the refresh entirely.
-      if (!document.hidden && pricedRef.current) void run(true);
+      if (!document.hidden && pricedRef.current) void run({ silent: true });
       id = setTimeout(tick, intervalMs);
     };
     id = setTimeout(tick, Math.max(0, intervalMs - (Date.now() - readLastRun())));
@@ -286,7 +294,7 @@ export function LivePrices() {
     if (!intervalMs) return;
     const onVisible = () => {
       if (document.hidden) return;
-      if (overdue(intervalMs)) void run(true);
+      if (overdue(intervalMs)) void run({ silent: true });
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
@@ -297,12 +305,12 @@ export function LivePrices() {
   // full interval looking at figures the gate above deliberately let go stale.
   React.useEffect(() => {
     if (!intervalMs || !priced) return;
-    if (overdue(intervalMs)) void run(true);
+    if (overdue(intervalMs)) void run({ silent: true });
   }, [intervalMs, priced, run]);
 
   const onIntervalChange = (ms: number) => {
     writeInterval(ms);
-    if (ms) void run(true); // refresh straight away so the choice visibly does something
+    if (ms) void run({ silent: true }); // refresh straight away so the choice visibly does something
   };
 
   const p2 = (n: number) => String(n).padStart(2, "0");

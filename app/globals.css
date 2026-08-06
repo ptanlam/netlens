@@ -296,6 +296,10 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Keeps Chrome's own pull-to-refresh out of the way of ours (see PullToRefresh) — with
+       both armed, one drag fires the browser's reload and the app's refresh together. It
+       also stops an overscroll at the end of a list chaining out to the page behind it. */
+    overscroll-behavior-y: contain;
     /* The design runs at 13.5px/1.45 — denser than a browser default, which is what lets a
        table row and a stat tile sit in the same column without either looking loose. */
     font-size: 13.5px;
