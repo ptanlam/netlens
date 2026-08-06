@@ -237,8 +237,23 @@ export async function deleteSaving(id: number) {
 
 // ---------- debts (loans) ----------
 
-export async function listDebts(): Promise<Debt[]> {
-  return q("SELECT * FROM debts ORDER BY start_date DESC, id DESC").all<Debt>();
+/**
+ * Debts you still owe. Settled ones are excluded unless you ask for them, exactly as
+ * `listGoals` treats archived goals.
+ *
+ * The default is the important half. A settled debt owes nothing, so net worth, the goal
+ * projections and the search index are all right without knowing the column exists — and
+ * a `fixed` loan, whose balance keeps accruing toward maturity however much you've repaid,
+ * can't quietly climb back out of zero once you've closed it. The Debts page is the one
+ * caller that passes `true`, because it has a place to show them.
+ */
+export async function listDebts(includeArchived = false): Promise<Debt[]> {
+  const where = includeArchived ? "" : "WHERE archived = 0";
+  return q(`SELECT * FROM debts ${where} ORDER BY start_date DESC, id DESC`).all<Debt>();
+}
+
+export async function setDebtArchived(id: number, archived: boolean) {
+  await q("UPDATE debts SET archived=? WHERE id=?").run(archived ? 1 : 0, id);
 }
 
 export async function getDebt(id: number): Promise<Debt | undefined> {
@@ -355,6 +370,27 @@ export function holdingValue(row: Instrument): number {
   if (row.quantity != null && row.last_price != null)
     return Math.round(row.quantity * row.last_price);
   return row.manual_value ?? 0;
+}
+
+/**
+ * A holding no price could move — sold out, or put away and already worth nothing.
+ *
+ * Nothing on any screen changes when this one is repriced: the dashboard skips a
+ * zero-value row outright (`livePayload`), and `buildDaily` stops emitting it the day
+ * after the sale. Yet every five-minute tick still fetched a quote for it and the backfill
+ * still pulled its whole daily series, for as long as the row existed.
+ *
+ * `quantity === 0` is the load-bearing test, and it is exact: value is `quantity ×
+ * last_price`, so no price makes zero units worth anything. `quantity == null` is a
+ * different thing entirely — units *unknown*, which is a fund awaiting confirmation or a
+ * manually-valued holding — and must keep being priced.
+ *
+ * Archived alone is deliberately not enough. Archiving is a UI gesture ("hide this"), and
+ * a holding you still own must keep its price up to date wherever you filed it, or net
+ * worth drifts against a frozen `last_price` with nothing on screen to say so.
+ */
+export function isDormant(row: Instrument): boolean {
+  return row.quantity === 0 || (row.archived === 1 && holdingValue(row) === 0);
 }
 
 /** True if any transaction or recurring rule references this holding. */

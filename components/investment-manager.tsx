@@ -86,6 +86,32 @@ function ArchiveHoldingButton({ name, archived }: { name: string; archived: bool
   );
 }
 
+/** Shown on a holding you've sold out of but not yet filed away. Archiving is what stops
+ *  it being quoted on every tick and backfilled every twelve hours (`isDormant` in
+ *  lib/db.ts) — zero units already keep it off the dashboard, so nothing else says so. */
+function SoldOutPrompt({ name }: { name: string }) {
+  const [pending, startTransition] = React.useTransition();
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-pane-sunk px-3 py-2 text-[12.5px] text-muted-foreground">
+      <span>Sold out — no units left. Its transactions and P&amp;L history are kept either way.</span>
+      <button
+        type="button"
+        className="font-medium text-accent-brand hover:underline disabled:opacity-60"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            const res = await setHoldingArchived(name, true);
+            if (res.ok) toast.success(res.message);
+            else toast.error(res.message);
+          })
+        }
+      >
+        {pending ? "Archiving…" : "Archive it"}
+      </button>
+    </div>
+  );
+}
+
 function TxRow({ tx, option }: { tx: Tx; option: InstrumentOption }) {
   return (
     <div className="flex items-center gap-3 border-b border-divider-soft py-2 text-sm last:border-0">
@@ -160,6 +186,9 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
   // nonsense — show just the absolute realised P&L there.
   const pnlPct = cost > 0 ? (pnl / cost) * 100 : null;
   const usesFallback = inst.price_source !== "manual" && !live;
+  // Exactly zero units — sold out. Null is a different thing (units unknown: a fund
+  // awaiting confirmation, or a manually-valued holding), and must not be flagged.
+  const soldOut = inst.quantity === 0 && inst.archived !== 1;
 
   return (
     <div className="border-t border-divider-soft first:border-t-0">
@@ -177,7 +206,8 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
               <EntityAvatar name={inst.name} color={typeColor(inst.asset_type)} />
               <span className="truncate text-[14px] font-semibold">{inst.name}</span>
               <Badge variant="tag">{inst.asset_type}</Badge>
-              {live && <Badge variant="accent">live</Badge>}
+              {live && !soldOut && <Badge variant="accent">live</Badge>}
+              {soldOut && <Badge variant="secondary">sold out</Badge>}
               {usesFallback && (
                 <Badge variant="warning" title={`No live price from ${inst.price_source} — showing the fallback value.`}>
                   fallback
@@ -203,6 +233,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
 
       {open && (
         <div className="border-t border-divider-soft bg-pane-sunk px-[18px] py-4 pl-[41px]">
+          {soldOut && <SoldOutPrompt name={inst.name} />}
           <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-muted-foreground">
             <span>Source: {inst.price_source}</span>
             {inst.symbol && <span>Symbol: {inst.symbol}</span>}

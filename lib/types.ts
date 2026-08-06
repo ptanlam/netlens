@@ -111,6 +111,9 @@ export interface Debt {
   interest_type: InterestType;
   kind: DebtKind;
   monthly_payment: number | null;
+  /** Settled — paid off and put away. Not just a display flag: an archived debt owes
+   *  nothing from here on, which is what `listDebts()` hiding them by default encodes. */
+  archived: number;
   note: string | null;
   created_at: string;
 }

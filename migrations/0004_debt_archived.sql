@@ -1,0 +1,19 @@
+-- A debt you've finished paying had nowhere to go.
+--
+-- `debtOwed` floors at zero, so a cleared loan showed ₫0 — but it stayed in the table in
+-- red, kept a flat line on the chart, and if it was a credit card it kept triggering the
+-- "payment due this month" warning, because that check only asked whether you'd paid this
+-- month, never whether anything was still owed. Deleting it was the only way out, and that
+-- takes the repayment history with it.
+--
+-- Worse for a `fixed` loan: its balance is the interest accrued on the original principal
+-- to date, less what you've paid, and that accrual keeps growing until maturity. Pay one to
+-- exactly ₫0 and the next day it owes money again. That is the documented rule for the kind
+-- (early payment doesn't save you the scheduled interest), but with no way to say "this is
+-- finished" it just looked broken.
+--
+-- So debts get the same `archived` flag instruments and goals already have. Unlike those
+-- two it isn't only presentation: an archived debt is *settled*, and owes nothing from here
+-- on — which is why `listDebts()` now hides them by default, and net worth and the goal
+-- projections stop counting them without either having to know this column exists.
+ALTER TABLE debts ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;

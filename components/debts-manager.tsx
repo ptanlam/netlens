@@ -2,16 +2,20 @@
 
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Pencil, Plus, TriangleAlert, Trash2, Wallet } from "lucide-react";
+import { CheckCheck, Pencil, Plus, RotateCcw, TriangleAlert, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import {
   DEBT_KINDS, INTEREST_TYPES, type Debt, type DebtKind, type DebtPayment,
 } from "@/lib/types";
 import {
-  addDebt, addDebtPayment, deleteDebt, deleteDebtPayment, updateDebt, updateDebtPayment,
+  addDebt, addDebtPayment, archiveDebt, deleteDebt, deleteDebtPayment, updateDebt,
+  updateDebtPayment,
 } from "@/app/actions";
+import { cn } from "@/lib/utils";
 import { fmtVND } from "@/lib/format";
-import { debtOwed, isMatured, isRevolving, maturityDate, paidThisMonth } from "@/lib/savings";
+import {
+  debtOwed, isMatured, isRevolving, maturityDate, maturityValue, paidThisMonth,
+} from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,10 +45,14 @@ const KIND_LABEL: Record<DebtKind, string> = {
 interface DebtRow {
   debt: Debt;
   payments: DebtPayment[];
+  /** What's still outstanding — always 0 once settled. `debtOwed` on a `fixed` loan keeps
+   *  accruing toward maturity however much you've repaid, so without this a debt you'd
+   *  closed would climb back out of zero the next day. Settling it is what says stop. */
   owed: number;
   paid: number;
   maturityMs: number;
   isCredit: boolean;
+  settled: boolean;
   paidThisMonth: boolean;
 }
 
@@ -277,13 +285,36 @@ function PaymentRow({ payment }: { payment: DebtPayment }) {
   );
 }
 
-function PaymentDialog({ debt, payments }: { debt: Debt; payments: DebtPayment[] }) {
+function PaymentDialog({
+  debt,
+  payments,
+  owed,
+}: {
+  debt: Debt;
+  payments: DebtPayment[];
+  /** Outstanding balance, computed once by the page against its fixed clock. Recomputing
+   *  it here from `new Date()` would read a hair further into the interest than the row
+   *  beside it — and "pay it all off" has to mean the figure you were shown. */
+  owed: number;
+}) {
   const [pending, startTransition] = React.useTransition();
   const formRef = React.useRef<HTMLFormElement>(null);
   const today = new Date().toLocaleDateString("sv-SE");
+  // Filling the amount field means replacing state that `CurrencyInput` owns, and it has
+  // no controlled mode — so the fill is a remount with a new starting value. `seq` is why
+  // a second click works: keyed on the amount alone, clicking "pay it all off", typing
+  // something else and clicking again would leave what you typed sitting there.
+  const [fill, setFill] = React.useState<{ seq: number; amount: number } | null>(null);
 
-  const currentlyOwed = debtOwed(debt, payments);
   const totalPaid = payments.reduce((a, p) => a + p.amount, 0);
+  // What it takes to be *free* of the debt — which for a `fixed` loan is not the balance
+  // on screen. Its interest accrues on the original principal all the way to maturity no
+  // matter when you pay, so clearing today's figure leaves the rest of the term's interest
+  // still to come, and the balance climbs again tomorrow. The payoff is the full term
+  // value less what you've already handed over. Flexible and credit balances are already
+  // the real thing: pay them and they stay at zero.
+  const payoffTotal = debt.kind === "fixed" ? maturityValue(debt) : owed;
+  const payoff = Math.max(0, Math.round(debt.kind === "fixed" ? payoffTotal - totalPaid : payoffTotal));
   const history = [...payments].sort((a, b) => (a.date < b.date ? 1 : -1));
 
   const run = (fn: () => Promise<ActionResult>, after?: () => void) =>
@@ -306,7 +337,7 @@ function PaymentDialog({ debt, payments }: { debt: Debt; payments: DebtPayment[]
         <DialogHeader>
           <DialogTitle>Payments — {debt.lender ?? "Loan"}</DialogTitle>
           <DialogDescription>
-            Currently owed {fmtVND(currentlyOwed)} · paid so far {fmtVND(totalPaid)}
+            Currently owed {fmtVND(owed)} · paid so far {fmtVND(totalPaid)}
             {debt.kind === "credit" && debt.monthly_payment
               ? ` · monthly ${fmtVND(debt.monthly_payment)}`
               : ""}
@@ -315,7 +346,12 @@ function PaymentDialog({ debt, payments }: { debt: Debt; payments: DebtPayment[]
 
         <form
           ref={formRef}
-          action={(fd) => run(() => addDebtPayment(debt.id, fd), () => formRef.current?.reset())}
+          action={(fd) =>
+            run(() => addDebtPayment(debt.id, fd), () => {
+              setFill(null); // otherwise the next payment opens pre-filled with the old payoff
+              formRef.current?.reset();
+            })
+          }
           className="grid gap-3 sm:grid-cols-2"
         >
           <div className="grid gap-2">
@@ -325,12 +361,32 @@ function PaymentDialog({ debt, payments }: { debt: Debt; payments: DebtPayment[]
           <div className="grid gap-2">
             <Label htmlFor={`p-amount-${debt.id}`}>Amount paid (VND)</Label>
             <CurrencyInput
+              key={fill?.seq ?? "typed"}
               id={`p-amount-${debt.id}`}
               name="amount"
-              defaultValue={debt.kind === "credit" ? debt.monthly_payment ?? undefined : undefined}
+              defaultValue={
+                fill?.amount ??
+                (debt.kind === "credit" ? debt.monthly_payment ?? undefined : undefined)
+              }
               placeholder="5.000.000"
               required
             />
+            {/* Under the field, not beside the label — sharing that row wrapped "Amount
+                paid (VND)" onto two lines at every width the dialog is ever shown at. */}
+            {payoff > 0 && (
+              <button
+                type="button"
+                className="justify-self-start text-[12px] font-medium text-accent-brand hover:underline"
+                title={
+                  debt.kind === "fixed"
+                    ? "The full term's value, less what you've paid. A fixed loan charges its interest to maturity whether you clear it early or not, so paying only the balance shown leaves the rest still to come."
+                    : "Clears the outstanding balance in full."
+                }
+                onClick={() => setFill((f) => ({ seq: (f?.seq ?? 0) + 1, amount: payoff }))}
+              >
+                Pay it all off — {fmtVND(payoff)}
+              </button>
+            )}
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label htmlFor={`p-note-${debt.id}`}>Note (optional)</Label>
@@ -383,10 +439,38 @@ function DeleteDebtButton({ debt }: { debt: Debt }) {
 }
 
 function typeBadge(d: Debt) {
-  // Kind is a tag; "Due" is a state the loan has reached, so it keeps the pill.
+  // Kind is a tag; "Settled" and "Due" are states the loan has reached, so they take the pill.
+  if (d.archived === 1) return <Badge variant="accent">Settled</Badge>;
   if (isMatured(d)) return <Badge variant="secondary">Due</Badge>;
   if (d.kind === "credit") return <Badge variant="tag">Credit</Badge>;
   return <Badge variant="tag">{d.kind === "flexible" ? "Flexible" : "Fixed"}</Badge>;
+}
+
+/** Close a paid-off debt, or reopen one. Prominent the moment there's nothing left to pay:
+ *  that's when you want it, and it's the only thing that stops a `fixed` loan quietly
+ *  accruing its way back out of zero. */
+function SettleDebtButton({ debt, cleared }: { debt: Debt; cleared: boolean }) {
+  const [pending, startTransition] = React.useTransition();
+  const settled = debt.archived === 1;
+  return (
+    <IconTooltip label={settled ? "Reopen debt" : cleared ? "Mark settled — nothing left to pay" : "Mark settled"}>
+      <Button
+        variant={cleared && !settled ? "outline" : "ghost"}
+        size="icon-sm"
+        aria-label={settled ? "Reopen debt" : "Mark settled"}
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            const res = await archiveDebt(debt.id, !settled);
+            if (res.ok) toast.success(res.message);
+            else toast.error(res.message);
+          })
+        }
+      >
+        {settled ? <RotateCcw className="size-3.5" /> : <CheckCheck className={cn("size-3.5", cleared && "text-accent-brand")} />}
+      </Button>
+    </IconTooltip>
+  );
 }
 
 const columns: ColumnDef<DebtRow>[] = [
@@ -394,7 +478,7 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "debt",
     header: "Debt",
     enableSorting: false,
-    size: 200,
+    size: 180,
     cell: ({ row }) => {
       const d = row.original.debt;
       return (
@@ -441,7 +525,11 @@ const columns: ColumnDef<DebtRow>[] = [
     size: 150,
     meta: { align: "right" },
     cell: ({ row }) => (
-      <span className="font-mono font-medium tabular-nums text-(--chart-negative)">
+      // Nothing outstanding isn't a liability, so it loses the red.
+      <span className={cn(
+        "font-mono font-medium tabular-nums",
+        row.original.owed > 0 ? "text-(--chart-negative)" : "text-muted-foreground",
+      )}>
         {fmtVND(row.original.owed)}
       </span>
     ),
@@ -450,7 +538,7 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "paid",
     header: "Paid",
     accessorFn: (r) => r.paid,
-    size: 140,
+    size: 120,
     meta: { align: "right" },
     cell: ({ row }) => (
       <span className="font-mono tabular-nums text-muted-foreground">
@@ -462,7 +550,7 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "note",
     header: "Note",
     enableSorting: false,
-    size: 200,
+    size: 160,
     cell: ({ row }) => (
       <span className="block max-w-40 truncate text-sm text-muted-foreground">
         {row.original.debt.note}
@@ -473,10 +561,18 @@ const columns: ColumnDef<DebtRow>[] = [
     id: "actions",
     header: "",
     enableSorting: false,
-    size: 130,
+    size: 150,
     cell: ({ row }) => (
       <div className="flex justify-end gap-1">
-        <PaymentDialog debt={row.original.debt} payments={row.original.payments} />
+        <PaymentDialog
+          debt={row.original.debt}
+          payments={row.original.payments}
+          owed={row.original.owed}
+        />
+        <SettleDebtButton
+          debt={row.original.debt}
+          cleared={row.original.owed === 0 && row.original.paid > 0}
+        />
         <EditDebtDialog debt={row.original.debt} />
         <DeleteDebtButton debt={row.original.debt} />
       </div>
@@ -512,33 +608,46 @@ export function DebtsManager({
     () =>
       debts.map((debt) => {
         const pmts = byDebt.get(debt.id) ?? [];
+        const settled = debt.archived === 1;
         return {
           debt,
           payments: pmts,
-          owed: debtOwed(debt, pmts, now),
+          owed: settled ? 0 : debtOwed(debt, pmts, now),
           paid: pmts.reduce((a, p) => a + p.amount, 0),
           maturityMs: isRevolving(debt)
             ? Number.POSITIVE_INFINITY
             : Date.parse(maturityDate(debt) + "T00:00:00Z"),
           isCredit: debt.kind === "credit",
+          settled,
           paidThisMonth: paidThisMonth(pmts, now),
         };
       }),
     [debts, byDebt, now],
   );
 
+  const active = rows.filter((r) => !r.settled);
+  const settled = rows.filter((r) => r.settled);
+
+  // Totals stay over every debt, settled included. A settled one owes 0, so it can't move
+  // "Currently owed" — but its repayments are still money you paid, and the interest it
+  // cost you (`paid − principal`, what the third tile sums) is the whole point of keeping it.
   const owedSum = rows.reduce((a, r) => a + r.owed, 0);
   const paidSum = rows.reduce((a, r) => a + r.paid, 0);
   const principalSum = debts.reduce((a, d) => a + d.principal, 0);
   const interest = owedSum + paidSum - principalSum;
-  const dueThisMonth = rows.filter((r) => r.isCredit && !r.paidThisMonth);
+  // `owed > 0` is the fix for a nag that never stopped: the check only ever asked whether
+  // you'd paid *this month*, so a card you cleared last year was flagged every month after.
+  const dueThisMonth = active.filter((r) => r.isCredit && r.owed > 0 && !r.paidThisMonth);
 
   // Baseline is the interest-free balance — what you borrowed, less what you've repaid by
   // that date — so the band above it is the interest still sitting in the balance. Lifetime
   // interest (`owed + paid - principal`, the figure the summary tile quotes) is higher once
   // repayments have carried some of it back out, so it is tracked separately.
+  // Active debts only. A settled one's line would keep being drawn from `debtOwed`, which
+  // for a `fixed` loan means it rises again after the day you closed it — a debt you don't
+  // owe, climbing. Better to drop it from the chart than to draw a balance that isn't real.
   const series = buildDailySeries(
-    debts,
+    active.map((r) => r.debt),
     (debt, at) => debtOwed(debt, byDebt.get(debt.id) ?? [], at),
     (debt, at) => {
       const pmts = byDebt.get(debt.id) ?? [];
@@ -614,12 +723,34 @@ export function DebtsManager({
       <div className="overflow-hidden card-surface panel-body">
         <DataTable
           columns={columns}
-          data={rows}
+          data={active}
           initialSorting={[{ id: "rate", desc: true }]}
-          emptyMessage="No debts yet."
+          emptyMessage={settled.length > 0 ? "Nothing outstanding — every debt is settled." : "No debts yet."}
           storageKey="debts"
         />
       </div>
+
+      {/* Settled debts keep their repayment history, which is the reason to close one
+          rather than delete it. Sorted by what you paid, and folded away by default. */}
+      {settled.length > 0 && (
+        <details className="overflow-hidden card-surface">
+          <summary className="cursor-pointer list-none px-[18px] py-3.5 text-[13px] font-semibold">
+            Settled · {settled.length} debt{settled.length > 1 ? "s" : ""} ·{" "}
+            <span className="font-normal text-muted-foreground">
+              {fmtVND(settled.reduce((a, r) => a + r.paid, 0))} repaid
+            </span>
+          </summary>
+          <div className="border-t border-divider-soft panel-body">
+            <DataTable
+              columns={columns}
+              data={settled}
+              initialSorting={[{ id: "paid", desc: true }]}
+              emptyMessage=""
+              storageKey="debts-settled"
+            />
+          </div>
+        </details>
+      )}
     </div>
   );
 }

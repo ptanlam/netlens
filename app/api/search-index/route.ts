@@ -23,7 +23,7 @@ export async function GET() {
   const [instruments, savings, debts, goals] = await Promise.all([
     db.listInstruments(),
     db.listSavings(),
-    db.listDebts(),
+    db.listDebts(true), // settled ones stay findable — you may still want the history
     db.listGoals(),
   ]);
 

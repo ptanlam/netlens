@@ -9,7 +9,8 @@
  * Failures are collected, never thrown, so one bad ticker can't break a refresh.
  */
 import {
-  listInstruments, listPriceSources, updatePrice, upsertPriceHistory, metaGet, metaSet, todayIso,
+  isDormant, listInstruments, listPriceSources, updatePrice, upsertPriceHistory,
+  metaGet, metaSet, todayIso,
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
 import { MANUAL_SOURCE } from "./types";
@@ -148,8 +149,11 @@ function extractSingle(src: PriceSource, data: unknown): number | null {
 /** Fetch live prices for every auto-priced instrument. Returns [updated, errors]. */
 export async function refreshAll(): Promise<[number, string[]]> {
   const [instruments, sources] = await Promise.all([listInstruments(), priceSourceMap()]);
+  // `isDormant` is what stops a sold-out holding being quoted forever. It used to be
+  // fetched on every five-minute tick — an upstream request and a D1 write apiece — to
+  // reprice zero units, which no screen shows and no total can feel.
   const priced = instruments.filter(
-    (r) => r.price_source && r.price_source !== MANUAL_SOURCE,
+    (r) => r.price_source && r.price_source !== MANUAL_SOURCE && !isDormant(r),
   );
   let updated = 0;
   const errors: string[] = [];
@@ -457,6 +461,10 @@ async function fetchHistoryInto(lookbackDays: number | null): Promise<[number, s
   const [instruments, sources] = await Promise.all([listInstruments(), priceSourceMap()]);
   for (const row of instruments) {
     if (!row.price_source || row.price_source === MANUAL_SOURCE) continue;
+    // Sold out: the closes already stored keep the chart's history intact, and no day from
+    // here on can be worth anything, so there is nothing left to fetch. This is the
+    // expensive one — a full backfill pulls years of daily bars per holding.
+    if (isDormant(row)) continue;
     const src = sources.get(row.price_source);
     const strat = src?.history_strategy ?? "none";
     if (strat === "none") continue;

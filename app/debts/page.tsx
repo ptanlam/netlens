@@ -4,7 +4,9 @@ import { DebtsManager } from "@/components/debts-manager";
 
 export default async function DebtsPage() {
   await connection();
-  const [debts, payments] = await Promise.all([db.listDebts(), db.listDebtPayments()]);
+  // Settled debts included — this is the one page with somewhere to put them. Everywhere
+  // else takes the default and simply never sees a debt you've finished paying.
+  const [debts, payments] = await Promise.all([db.listDebts(true), db.listDebtPayments()]);
 
   // The heading lives in <DebtsManager>: the design seats a page's primary action beside
   // its title, and "Add debt" is a client dialog, so the two have to share a component.

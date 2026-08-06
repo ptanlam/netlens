@@ -217,6 +217,14 @@ export async function updateDebt(id: number, fd: FormData) {
   return { ok: true, message: "Debt updated." };
 }
 
+/** Close a paid-off debt, or reopen one. Keeps every repayment — unlike deleting it. */
+export async function archiveDebt(id: number, archived: boolean) {
+  if (!await db.getDebt(id)) return { ok: false, message: "Not found." };
+  await db.setDebtArchived(id, archived);
+  revalidateAll();
+  return { ok: true, message: archived ? "Debt settled." : "Debt reopened." };
+}
+
 export async function deleteDebt(id: number) {
   await db.deleteDebt(id);
   revalidateAll();
