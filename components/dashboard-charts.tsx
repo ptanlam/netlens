@@ -51,6 +51,26 @@ function fmtSigned(v: number): string {
   return `${v < 0 ? "−" : "+"}₫${Math.abs(Math.round(v)).toLocaleString("de-DE")}`;
 }
 
+/**
+ * The series, kept across remounts of this component.
+ *
+ * `/api/pnl-history` is the most expensive read in the app — it reconstructs every day
+ * since your first transaction — and navigating away from the dashboard and back used to
+ * pay for it again in full. `router.refresh()` doesn't remount, so this is exactly the
+ * navigation case.
+ *
+ * Keyed on `historyStamp`, which the server bumps whenever a settled day moves (a
+ * backfill, the recent-days sweep, any transaction edit) and which carries the current
+ * date, so a tab left open overnight rebuilds. Today's own point is *not* part of the key:
+ * it moves on every price tick, and a cache hit tops it up through `?today=1` — the cheap
+ * query — rather than refetching hundreds of settled days to learn one new number.
+ *
+ * Module-level, so it lives as long as the tab and dies with a hard reload. Nothing here
+ * is user-specific: this is a single-tenant app, and it is the same data the page it sits
+ * on was rendered from.
+ */
+let historyCache: { stamp: string; series: PnlPoint[]; holdings: HoldingPnlPoint[] } | null = null;
+
 /** A price refresh can only move *today* — every earlier day is settled history. So the
  *  latest point is spliced onto the series we already have rather than refetched. */
 function withLatest<T extends { date: string }>(prev: T[], tail: T[]): T[] {
@@ -71,6 +91,7 @@ export function DashboardCharts({
   pending,
   goalRows,
   world,
+  historyStamp,
 }: {
   payload: Payload;
   savings: number;
@@ -79,6 +100,8 @@ export function DashboardCharts({
   pending: number;
   goalRows: Goal[];
   world: GoalWorld;
+  /** Changes when a settled day moves, or when the day does — see `historyCache`. */
+  historyStamp: string;
 }) {
   // `Response.json()` resolves to `unknown` under the Workers type definitions (the DOM
   // lib types it as `any`), so the shape is asserted here rather than in each callback.
@@ -108,19 +131,46 @@ export function DashboardCharts({
     [goalRows, world, live],
   );
 
+  // Today's point, spliced onto whatever series is already on screen. Both the tick and a
+  // cache hit want exactly this, and neither wants the days behind it refetched.
+  const spliceLatest = React.useCallback((d: PnlHistory) => {
+    setSeries((s) => (s ? withLatest(s, d.series) : s));
+    setHoldingSeries((h) => (h ? withLatest(h, d.holdings) : h));
+    if (d.live) setLive(d.live);
+  }, []);
+
   React.useEffect(() => {
     let alive = true;
-    fetch("/api/pnl-history")
+    // Read before the effect below can write, which is why that one is declared after this.
+    const hit = historyCache?.stamp === historyStamp ? historyCache : null;
+    // A hit still asks for today: the cached copy carries whatever price it was fetched at,
+    // and only this day can have moved since. The cached days are then applied *with* that
+    // answer rather than ahead of it — one render, and never a frame showing a stale price.
+    // (The server renders with no cache, so this cannot run before hydration either way.)
+    fetch(hit ? "/api/pnl-history?today=1" : "/api/pnl-history")
       .then((r) => (r.ok ? (r.json() as Promise<PnlHistory>) : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d) => {
         if (!alive) return;
-        setSeries(d.series);
-        setHoldingSeries(d.holdings);
+        setSeries(hit ? withLatest(hit.series, d.series) : d.series);
+        setHoldingSeries(hit ? withLatest(hit.holdings, d.holdings) : d.holdings);
+        if (d.live) setLive(d.live);
         setSeriesError(null); // a good re-pull clears a stale error from an earlier attempt
       })
-      .catch((e: Error) => alive && setSeriesError(e.message));
+      .catch((e: Error) => {
+        if (!alive) return;
+        // Only today's top-up failed — the settled days in hand are still every bit as good.
+        if (hit) { setSeries(hit.series); setHoldingSeries(hit.holdings); setSeriesError(null); }
+        else setSeriesError(e.message);
+      });
     return () => { alive = false; };
-  }, []);
+  }, [historyStamp]);
+
+  // Keep the cache level with what's on screen, so coming back to the dashboard restores
+  // the series *including* the ticks spliced onto it since — not the state it was fetched
+  // in. Declared after the effect above so a stamp change is a miss there, not a hit.
+  React.useEffect(() => {
+    if (series && holdingSeries) historyCache = { stamp: historyStamp, series, holdings: holdingSeries };
+  }, [series, holdingSeries, historyStamp]);
 
   // Prices moved, so today's P&L moved with them — re-pull just that day and splice it
   // in. Waits on `loaded` so the refresh fired on app open still lands (it usually
@@ -130,15 +180,10 @@ export function DashboardCharts({
     let alive = true;
     fetch("/api/pnl-history?today=1")
       .then((r) => (r.ok ? (r.json() as Promise<PnlHistory>) : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d) => {
-        if (!alive) return;
-        setSeries((s) => (s ? withLatest(s, d.series) : s));
-        setHoldingSeries((h) => (h ? withLatest(h, d.holdings) : h));
-        if (d.live) setLive(d.live);
-      })
+      .then((d) => alive && spliceLatest(d))
       .catch(() => {}); // a failed top-up just leaves the last good figures on screen
     return () => { alive = false; };
-  }, [refreshCount, loaded]);
+  }, [refreshCount, loaded, spliceLatest]);
 
   // Today's move + this-month total, derived from the cumulative P&L series.
   const { todayDelta, todayFrom, monthPnl, monthLabel } = React.useMemo(() => {

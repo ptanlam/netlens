@@ -161,6 +161,7 @@ export async function addTransaction(
   ).run(date, assetType, instrument.trim(), Math.round(amount), quantity, note);
   await ensureInstrument(instrument.trim(), assetType);
   if (quantity != null) await adjustHoldingQuantity(instrument, quantity);
+  await bumpHistory(); // `invested` shifts on every past day from this date on
 }
 
 export async function updateTransaction(
@@ -183,12 +184,14 @@ export async function updateTransaction(
       if (quantity != null) await adjustHoldingQuantity(instrument, quantity);
     }
   }
+  await bumpHistory();
 }
 
 export async function deleteTransaction(id: number) {
   const tx = await getTransaction(id);
   await q("DELETE FROM transactions WHERE id=?").run(id);
   if (tx?.quantity != null) await adjustHoldingQuantity(tx.instrument, -tx.quantity);
+  await bumpHistory();
 }
 
 export async function getTransaction(id: number): Promise<Tx | undefined> {
@@ -504,6 +507,9 @@ export async function setTransactionQuantity(
       await q(`UPDATE instruments SET quantity = ROUND(quantity + ?, ${UNIT_DP}), updated_at=? WHERE name=?`)
         .run(quantity, nowIso(), tx.instrument);
   }
+  // Units, not amount — but `buildDaily` prices a holding by its units, so every day from
+  // this transaction on is repriced.
+  await bumpHistory();
   return true;
 }
 
@@ -568,6 +574,11 @@ export async function upsertPriceHistory(instrument: string, map: Record<string,
       rows.slice(i, i + CHUNK).map(([date, price]) => stmt.bound(instrument, date, price)),
     );
   }
+  // Only a *settled* day matters to the cached series. The five-minute price refresh stamps
+  // today and nothing else, and the dashboard already keeps today fresh through `?today=1` —
+  // bumping for that would expire the cache on every tick and buy nothing. The backfill and
+  // the recent-days sweep both reach further back, and those do bump.
+  if (rows.some(([date]) => date < todayIso())) await bumpHistory();
 }
 
 /** The transaction columns `lib/pnl.ts` reconstructs the daily series from. Exists because
@@ -580,9 +591,44 @@ export async function pnlTransactions(): Promise<
     .all<{ date: string; instrument: string; amount: number; quantity: number | null }>();
 }
 
+/**
+ * Daily closes for `buildDaily`, trimmed to the span it can actually reach.
+ *
+ * A feed hands us its whole history — years of it for a fund — but the series starts at
+ * your first transaction in that instrument, and `buildDaily` only ever prices a day where
+ * `ds >= tr.first`. Every close before then is read, parsed and thrown away. On this
+ * database that was **4,625 of 5,534 rows**, and the full-history endpoint was the single
+ * largest consumer of D1 reads in the app.
+ *
+ * So each instrument starts at its *anchor*: the newest close on or before its first
+ * transaction. Not the first transaction itself — `priceAt` resolves a date to the last
+ * close at or before it, so on the opening day that anchor is the price, and dropping it
+ * would silently reprice the first day (and the units bought on it) from a later close.
+ * One row of slack, and the reconstruction is bit-for-bit what it was.
+ *
+ * `''` when an instrument has no close that old: history starting after the first
+ * transaction keeps every row, matching `priceLookup`'s fall back to the earliest point.
+ * Instruments with no transactions drop out entirely — `buildDaily` skips them anyway.
+ *
+ * Both halves are index seeks on the (instrument, date) primary key, not scans; check
+ * `EXPLAIN QUERY PLAN` before changing the shape of this.
+ */
 export async function priceHistoryByInstrument(): Promise<Record<string, [string, number][]>> {
-  const rows = await q("SELECT instrument, date, price FROM price_history ORDER BY instrument, date")
-    .all<{ instrument: string; date: string; price: number }>();
+  const rows = await q(
+    `WITH firsts AS (
+       SELECT instrument, MIN(date) AS first_date FROM transactions GROUP BY instrument
+     ), anchors AS (
+       SELECT f.instrument,
+              COALESCE((SELECT MAX(p.date) FROM price_history p
+                         WHERE p.instrument = f.instrument AND p.date <= f.first_date), '') AS from_date
+         FROM firsts f
+     )
+     SELECT ph.instrument, ph.date, ph.price
+       FROM price_history ph
+       JOIN anchors a ON a.instrument = ph.instrument
+      WHERE ph.date >= a.from_date
+      ORDER BY ph.instrument, ph.date`,
+  ).all<{ instrument: string; date: string; price: number }>();
   const out: Record<string, [string, number][]> = {};
   for (const r of rows) (out[r.instrument] ??= []).push([r.date, r.price]);
   return out;
@@ -715,6 +761,38 @@ export async function metaGet(key: string): Promise<string | null> {
 
 export async function metaSet(key: string, value: string) {
   await q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").run(key, value);
+}
+
+// ---------- the history stamp (see `DashboardCharts`) ----------
+//
+// The dashboard's full P&L series is the most expensive read in the app, and it is fetched
+// again every time you navigate back to `/`. It only *changes*, though, when something
+// underneath it changes — so the client keeps the series it already has and re-fetches only
+// when this stamp moves.
+//
+// It is a change marker, not a sequence: any write that could move a settled day writes the
+// current instant here, and the client compares two of them for equality. That is why it is
+// a plain timestamp rather than a counter — a counter would need a read before every write.
+//
+// Everything that can move a settled day must bump it. Today's own point is deliberately
+// *not* covered: it moves on every price tick, and the client keeps it fresh through
+// `?today=1` instead, which is the cheap query. Missing a writer therefore costs staleness,
+// not wrongness, and is bounded — `sweepRecentHistory` rewrites the last few days every
+// thirty minutes, and that bumps.
+
+/** Record that the settled history moved. Called from the write paths below, never from a
+ *  page: a read must not bump the stamp it is about to hand out. */
+async function bumpHistory() {
+  await metaSet("history_changed_at", nowIso());
+}
+
+/** What the dashboard's cached series is keyed on.
+ *
+ *  The day is part of it because midnight adds a point to the series without any write
+ *  happening at all — a tab left open overnight must not keep yesterday's chart. Reading
+ *  the day here, on the server, is also what keeps it out of the client's clock. */
+export async function historyStamp(): Promise<string> {
+  return `${todayIso()}:${(await metaGet("history_changed_at")) ?? ""}`;
 }
 
 // ---------- goals ----------

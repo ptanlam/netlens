@@ -1,6 +1,19 @@
 # Spec: make a price tick cost 4 queries instead of 19
 
-> **Status: §1 and §2 are done.** §3 is still open and still wants a measurement first.
+> **Status: §1, §2 and §3 are done.**
+>
+> §3 landed as both of its bullets, and the second turned out to be the bigger one by far.
+> **4,625 of 5,534 price rows predated the first transaction in their instrument** — read,
+> parsed and thrown away on every call, because `buildDaily` never prices a day before
+> `tr.first`. Trimming each instrument to its anchor close cut the full-history read to
+> **910 rows, an 84% saving on every call, warm or cold**, and the reconstructed series is
+> byte-identical. That alone takes this endpoint from 58% of all rows read to roughly 9%.
+>
+> The cache went in on top: a `historyStamp` the server bumps whenever a settled day moves,
+> and a module-level cache in `DashboardCharts` keyed on it. Measured with StrictMode off
+> (its dev-only double-invocation doubles every count, which is what made the first reading
+> confusing): navigating away and back issues **0** full pulls while the stamp holds and
+> exactly **1** the moment it moves.
 >
 > Verified on a real dashboard with Live at 5s: **0 RSC refreshes** on `/` over 16s (was one
 > per tick), while `/investments` still takes its 3 — the gate discriminates correctly. The
@@ -137,6 +150,50 @@ the correction note in `pnl-history-memory-growth.md`. Better options, cheapest 
 
 Do this only if rows-read is actually near a ceiling. At 1.37M/day it is not urgent —
 measure before building.
+
+### What was actually built
+
+**Narrowing came first, and it was the larger half.** Not by sending fewer days to the
+client — by stopping the server reading days it can never use. `buildDaily` prices a
+holding only where `ds >= tr.first`, so every close before an instrument's first
+transaction is read and discarded:
+
+```
+total rows in price_history          5,534
+  before the instrument's first tx   4,625   (84%)
+  actually reachable                   910
+```
+
+`priceHistoryByInstrument` now starts each instrument at its **anchor** — the newest close
+on or before its first transaction, one row of slack, because `priceAt` resolves a date to
+the last close at or before it and the opening day needs that row to price correctly.
+Instruments with no transactions drop out; an instrument whose history begins *after* its
+first transaction keeps everything, matching `priceLookup`'s fall back to its earliest
+point. Both halves are index seeks on the `(instrument, date)` primary key — check
+`EXPLAIN QUERY PLAN` before reshaping it.
+
+Parity was checked black-box: the same 524-day series and per-holding breakdown, compared
+as JSON against the pre-change build. Byte-identical.
+
+**Then the cache**, for the CPU and the latency rather than the rows. `db.historyStamp()`
+returns `<today>:<history_changed_at>`; `bumpHistory()` writes that meta key from every
+path that can move a settled day — the four transaction writers, and `upsertPriceHistory`
+when it touches any date before today. Today is deliberately excluded: it moves on every
+price tick, and the dashboard already keeps it fresh through `?today=1`, so bumping for it
+would expire the cache every five seconds and buy nothing.
+
+`DashboardCharts` holds the series in a module-level variable keyed on that stamp. A hit
+skips the full pull and asks only for today; a miss re-pulls everything. The cache is
+written from an effect that follows the state, so returning to the dashboard restores the
+series *including* the ticks spliced onto it since — not the state it was first fetched in.
+
+Two things worth knowing if you touch this:
+
+- **Measure with `reactStrictMode: false`.** Its dev-only double-invocation of effects
+  doubles every request count, and the first reading of this looked like a bug because of
+  it. Production and `pnpm preview` do not double.
+- **The failure mode of a missed bump is staleness, not wrongness**, and it is bounded:
+  `sweepRecentHistory` rewrites the last few days every thirty minutes and that bumps.
 
 ## Explicitly rejected
 

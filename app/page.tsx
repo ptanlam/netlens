@@ -11,7 +11,7 @@ export default async function Dashboard() {
   // Everything below is independent, so it goes out as one fan-out rather than eight
   // sequential round trips. On better-sqlite3 that ordering was free; on D1 each call is
   // a network hop, and in series they were the slowest thing on the page.
-  const [payload, pending, savings, debtPayments, debts, fundsCash, goalRows] =
+  const [payload, pending, savings, debtPayments, debts, fundsCash, goalRows, historyStamp] =
     await Promise.all([
       db.buildPayload(),
       db.pendingFundUnits(),
@@ -20,6 +20,7 @@ export default async function Dashboard() {
       db.listDebts(),
       db.fundsCashTotal(),
       db.listGoals(),
+      db.historyStamp(),
     ]);
 
   const savingsValue = summarize(savings).currentValue;
@@ -51,6 +52,7 @@ export default async function Dashboard() {
       pending={pending.length}
       goalRows={goalRows}
       world={world}
+      historyStamp={historyStamp}
     />
   );
 }
