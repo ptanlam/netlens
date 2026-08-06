@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { refreshPrices } from "@/app/actions";
@@ -49,6 +49,19 @@ const INTERVALS = [
 ] as const;
 
 const VALID_MS = new Set<number>(INTERVALS.map((i) => i.ms));
+
+/** Routes that actually render something a price refresh can move: the dashboard, the
+ *  holdings themselves, and goals (whose progress is read off the investments total).
+ *  Savings, debts and transactions display none of it — `/transactions` only redirects.
+ *
+ *  This component lives in the nav, so it is mounted everywhere. Without this gate a tick
+ *  on `/savings` still fetched every upstream feed and re-rendered a page with no price on
+ *  it, which on the dashboard is ~19 D1 queries' worth of work for nothing. */
+const PRICED_ROUTES = ["/", "/investments", "/goals"];
+
+function showsPrices(pathname: string): boolean {
+  return PRICED_ROUTES.some((r) => (r === "/" ? pathname === "/" : pathname.startsWith(r)));
+}
 
 /** A tiny localStorage-backed store, so the live setting survives a reload and every
  *  mount agrees on it. `useSyncExternalStore` is what keeps the SSR snapshot (0 / off)
@@ -201,6 +214,17 @@ export function LivePrices() {
   const intervalMs = React.useSyncExternalStore(subscribeInterval, readInterval, () => 0);
   const live = intervalMs > 0;
 
+  // Whether the page under the nav shows anything a refresh can move. The ref is what the
+  // free-running tick timer reads (see below); the value itself drives the catch-up.
+  const pathname = usePathname();
+  const priced = showsPrices(pathname);
+  const pricedRef = React.useRef(priced);
+  // Synced in an effect, not during render: `react-hooks/refs` forbids the latter, and a
+  // timer reading it after commit is exactly the case the rule permits.
+  React.useEffect(() => {
+    pricedRef.current = priced;
+  }, [priced]);
+
   const [now, setNow] = React.useState<Date | null>(null);
   React.useEffect(() => {
     const tick = () => setNow(new Date());
@@ -215,8 +239,12 @@ export function LivePrices() {
   // Fresh prices when the app opens — but with live refresh armed they're already being
   // kept current, so a reload, a second tab, or dipping back into the PWA shouldn't spend
   // an API call on prices pulled seconds ago. Only the interval's own overdue rule decides.
+  //
+  // Deliberately not consumed while off a priced route: opening straight onto /savings
+  // should not spend a pull, but walking from there to the dashboard still should — so the
+  // flag is set the first time prices are actually on screen, not the first time we mount.
   React.useEffect(() => {
-    if (refreshedOnOpen) return;
+    if (refreshedOnOpen || !priced) return;
     refreshedOnOpen = true;
     // Read the armed interval from storage rather than taking `intervalMs` from the
     // render: this effect fires after the *hydration* pass, where useSyncExternalStore
@@ -225,7 +253,7 @@ export function LivePrices() {
     const armed = readInterval();
     if (armed && !overdue(armed)) return;
     void run(true);
-  }, [run]);
+  }, [priced, run]);
 
   // While live is armed, silently re-pull on the chosen interval. The first delay is
   // whatever is *left* of the current period rather than a full one — otherwise skipping
@@ -234,8 +262,11 @@ export function LivePrices() {
     if (!intervalMs) return;
     let id: ReturnType<typeof setTimeout>;
     const tick = () => {
-      // Don't poll a background tab; the visibility handler below catches up on return.
-      if (!document.hidden) void run(true);
+      // Don't poll a background tab, or a page showing no prices; the handlers below catch
+      // up on return. `priced` is read through a ref rather than closed over so a route
+      // change doesn't restart the timer — navigating often would otherwise keep pushing
+      // the next tick out and starve the refresh entirely.
+      if (!document.hidden && pricedRef.current) void run(true);
       id = setTimeout(tick, intervalMs);
     };
     id = setTimeout(tick, Math.max(0, intervalMs - (Date.now() - readLastRun())));
@@ -252,6 +283,14 @@ export function LivePrices() {
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [intervalMs, run]);
+
+  // The same catch-up for the other reason ticks get skipped: landing back on a page that
+  // shows prices after time spent on one that doesn't. Without it you'd wait out up to a
+  // full interval looking at figures the gate above deliberately let go stale.
+  React.useEffect(() => {
+    if (!intervalMs || !priced) return;
+    if (overdue(intervalMs)) void run(true);
+  }, [intervalMs, priced, run]);
 
   const onIntervalChange = (ms: number) => {
     writeInterval(ms);
