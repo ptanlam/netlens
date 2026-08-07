@@ -45,6 +45,14 @@
   renders the header so the two can live in one component.
 - **One filled button per view.** `variant="default"` is brand blue with the theme's only
   glow under it; everything else is `outline` (on `bg-pane`) or `ghost`.
+- **Row marks are `<EntityAvatar name color logo>`** (`components/entity-avatar.tsx`).
+  With a `logo` it's the real brand mark on a white chip; without one it falls back to
+  the tinted first letter. Holdings resolve theirs through `holdingLogo(name, symbol)`
+  (`lib/logos.ts`) — a lookup over PNGs bundled in `public/logos/`, deliberately not
+  hotlinked (the issuers' own files are 100 KB–3 MB press assets). To add one: crop the
+  issuer's logo down to its *symbol* — a wordmark is an unreadable smudge at 24px —
+  trim the margin, letterbox it into a 96px transparent square, and add the line to
+  `LOGOS`. An unknown holding keeps the letter, so a missing logo is never a bug.
 - Every "over time" panel takes its window from `<DateRange from to min max onChange>`
   (`components/date-range.tsx`) — 1M/3M/YTD/All plus the two dates spelled out. `max` is the
   anchor the presets count back from, so pass the newest point you actually hold, not today.

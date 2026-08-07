@@ -12,6 +12,7 @@ import type { InstrumentOption } from "@/components/tx-form";
 import { PanelHead } from "@/components/panel-head";
 import { ChartTip } from "@/components/chart-tip";
 import { EntityAvatar } from "@/components/entity-avatar";
+import { holdingLogo } from "@/lib/logos";
 import { DateRange } from "@/components/date-range";
 import { cn } from "@/lib/utils";
 
@@ -121,7 +122,11 @@ export function InvestmentActivity({
         size: 250,
         cell: ({ row }) => (
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <EntityAvatar name={row.original.instrument} color={typeColor(row.original.asset_type)} />
+            <EntityAvatar
+              name={row.original.instrument}
+              color={typeColor(row.original.asset_type)}
+              logo={holdingLogo(row.original.instrument)}
+            />
             <span className="truncate text-[13px] font-semibold">{row.original.instrument}</span>
           </div>
         ),

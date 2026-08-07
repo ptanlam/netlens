@@ -7,6 +7,7 @@ import type { Goal, HoldingPnlPoint, LivePayload, Payload, PnlPoint } from "@/li
 import { fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel, sparkPaths } from "@/components/net-worth";
 import { EntityAvatar } from "@/components/entity-avatar";
+import { holdingLogo } from "@/lib/logos";
 import { GoalStrip } from "@/components/goal-strip";
 import { SummaryCards, type Stat } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
@@ -488,7 +489,7 @@ function HoldingsListCard({
           const paths = sparkPaths(sparks.get(h.name) ?? []);
           return (
             <div key={h.name} className="flex items-center gap-3 border-t border-divider py-3 first:border-t-0">
-              <EntityAvatar name={h.name} color={typeColor(h.type)} size="lg" />
+              <EntityAvatar name={h.name} color={typeColor(h.type)} logo={holdingLogo(h.name)} size="lg" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold" title={h.name}>{h.name}</div>
                 <div className="truncate text-[11px] text-faint">{h.type}</div>
