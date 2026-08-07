@@ -252,8 +252,14 @@ export async function listDebts(includeArchived = false): Promise<Debt[]> {
   return q(`SELECT * FROM debts ${where} ORDER BY start_date DESC, id DESC`).all<Debt>();
 }
 
+/**
+ * Settle a debt, or reopen it. The date is stamped alongside the flag because the chart
+ * needs to know where a settled debt's line ends — see `migrations/0005_*`. Reopening
+ * clears it: the debt is live again and has no end.
+ */
 export async function setDebtArchived(id: number, archived: boolean) {
-  await q("UPDATE debts SET archived=? WHERE id=?").run(archived ? 1 : 0, id);
+  await q("UPDATE debts SET archived=?, settled_date=? WHERE id=?")
+    .run(archived ? 1 : 0, archived ? todayIso() : null, id);
 }
 
 export async function getDebt(id: number): Promise<Debt | undefined> {

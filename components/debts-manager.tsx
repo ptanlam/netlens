@@ -643,13 +643,30 @@ export function DebtsManager({
   // that date — so the band above it is the interest still sitting in the balance. Lifetime
   // interest (`owed + paid - principal`, the figure the summary tile quotes) is higher once
   // repayments have carried some of it back out, so it is tracked separately.
-  // Active debts only. A settled one's line would keep being drawn from `debtOwed`, which
-  // for a `fixed` loan means it rises again after the day you closed it — a debt you don't
-  // owe, climbing. Better to drop it from the chart than to draw a balance that isn't real.
+  //
+  // A settled debt keeps its history and ends on the day you settled it. It can't simply be
+  // handed to `debtOwed` like a live one: on a `fixed` loan the balance accrues toward
+  // maturity however much you've repaid, so a closed loan left to its own maths climbs back
+  // out of zero for the rest of the chart. Past its end date it is worth nothing — which is
+  // both true and what makes the years before it safe to draw. A debt settled before
+  // `settled_date` existed, with no repayment to date it from, has no known end and is left
+  // out, exactly as every settled debt used to be.
+  const charted = rows
+    .map((r) => ({
+      debt: r.debt,
+      endMs: !r.settled
+        ? Number.POSITIVE_INFINITY
+        : Date.parse((r.debt.settled_date ?? r.payments.at(-1)?.date ?? "") + "T00:00:00Z"),
+    }))
+    .filter((c) => !Number.isNaN(c.endMs));
+  const endOf = new Map(charted.map((c) => [c.debt.id, c.endMs]));
+  const isOver = (debt: Debt, at: Date) => at.getTime() > (endOf.get(debt.id) ?? Number.POSITIVE_INFINITY);
+
   const series = buildDailySeries(
-    active.map((r) => r.debt),
-    (debt, at) => debtOwed(debt, byDebt.get(debt.id) ?? [], at),
+    charted.map((c) => c.debt),
+    (debt, at) => (isOver(debt, at) ? 0 : debtOwed(debt, byDebt.get(debt.id) ?? [], at)),
     (debt, at) => {
+      if (isOver(debt, at)) return { base: 0, interest: 0 };
       const pmts = byDebt.get(debt.id) ?? [];
       const paid = pmts
         .filter((p) => Date.parse(p.date + "T00:00:00Z") <= at.getTime())

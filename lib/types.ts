@@ -114,6 +114,11 @@ export interface Debt {
   /** Settled — paid off and put away. Not just a display flag: an archived debt owes
    *  nothing from here on, which is what `listDebts()` hiding them by default encodes. */
   archived: number;
+  /** The day it was settled (`YYYY-MM-DD`), or null while it's still open. This is what
+   *  lets the chart keep a settled debt's history: it's drawn up to this date and worth
+   *  nothing after. Null on an archived debt (closed before the column existed, and with
+   *  no repayment to backfill from) means "we don't know" — the chart leaves it out. */
+  settled_date: string | null;
   note: string | null;
   created_at: string;
 }
