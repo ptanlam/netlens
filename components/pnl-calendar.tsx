@@ -44,37 +44,6 @@ function StatusLegend() {
   );
 }
 
-/**
- * Four discrete steps instead of a continuous alpha. At year-view cell size a smooth ramp
- * is unreadable — neighbouring days differ by a couple of percent of opacity — and stepping
- * it is also what makes a legend possible: four swatches you can actually match a cell to.
- */
-const LEVEL_ALPHA = [0.2, 0.42, 0.66, 0.92];
-const intensityLevel = (ratio: number) =>
-  ratio <= 0.25 ? 0 : ratio <= 0.5 ? 1 : ratio <= 0.75 ? 2 : 3;
-
-/**
- * The year grid's colour key. A heatmap whose shades aren't quantified is decoration, and
- * the year view is the one place a cell carries no number of its own — so the ramp has to
- * be spelled out: loss deepening leftward, gain deepening rightward, off a neutral middle.
- */
-function RampLegend() {
-  const swatch = "size-[11px] rounded-[3px]";
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-3.5 font-mono text-[10px] text-muted-foreground">
-      <span>More loss</span>
-      {[...LEVEL_ALPHA].reverse().map((a) => (
-        <span key={`l${a}`} className={swatch} style={{ background: `rgb(var(--negative-rgb) / ${a})` }} />
-      ))}
-      <span className={swatch} style={{ background: "var(--divider)" }} title="No change" />
-      {LEVEL_ALPHA.map((a) => (
-        <span key={`g${a}`} className={swatch} style={{ background: `rgb(var(--positive-rgb) / ${a})` }} />
-      ))}
-      <span>More gain</span>
-    </div>
-  );
-}
-
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const MONTH_NAMES = [
@@ -99,19 +68,20 @@ function fmtSigned(v: number): string {
 /**
  * Per-holding breakdown: one diverging bar per holding, growing out from a shared centre
  * axis — losses left, gains right. The sign is then legible from the shape alone, before
- * you read a single digit, and the holding that actually moved the day is the longest bar
- * rather than just another row in a list.
+ * you read a single digit, and the holding that actually moved the period is the longest
+ * bar rather than just another row in a list. The period is a day in month view and a whole
+ * month in year view; the rows are summed accordingly before they get here.
  *
- * Bars are scaled against the largest absolute move on the day, so each side uses its full
- * half-width; the two halves are deliberately *not* on a shared scale, since the question
- * is "what dominated the gains / the losses", not "did gains outweigh losses" (the day
+ * Bars are scaled against the largest absolute move in the period, so each side uses its
+ * full half-width; the two halves are deliberately *not* on a shared scale, since the
+ * question is "what dominated the gains / the losses", not "did gains outweigh losses" (the
  * total above already answers that).
  *
  * Every holding that moved is listed — a portfolio has few enough positions that the whole
- * day fits, and a bar chart you have to page through can't be compared at a glance.
- * Mount with a `key` on the selected date so the bars re-draw when you pick another day.
+ * period fits, and a bar chart you have to page through can't be compared at a glance.
+ * Mount with a `key` on the selection so the bars re-draw when you pick another.
  */
-function ContribList({ rows }: { rows: HoldingPnlPoint["holdings"] }) {
+function ContribList({ rows }: { rows: { name: string; pnl: number }[] }) {
   const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
 
   return (
@@ -172,6 +142,19 @@ interface DayCell {
   day: number;
   delta: number;
   point: PnlPoint;
+  tracked: boolean;
+}
+
+/**
+ * A month of the year view. `date` is a `YYYY-MM` and deliberately fills the same slot
+ * `DayCell.date` does: selection, the period total and the colour ramp all work off that
+ * one field, so neither has to know which view is on screen.
+ */
+interface MonthCell {
+  date: string;
+  label: string;
+  delta: number;
+  status?: PnlDayStatus;
   tracked: boolean;
 }
 
@@ -255,30 +238,44 @@ export function PnlCalendar({
   );
   const cells = React.useMemo(() => months.flatMap((m) => m.cells), [months]);
 
-  /** Every day of the active year, Jan 1 → Dec 31, padded so week 1 starts on a Monday. */
-  const yearCells = React.useMemo(() => {
-    if (!active) return [] as (DayCell | null)[];
-    const out: (DayCell | null)[] = Array(mondayIndex(new Date(year, 0, 1))).fill(null);
-    for (let m = 1; m <= 12; m++) {
-      const days = new Date(year, m, 0).getDate();
-      for (let day = 1; day <= days; day++) {
-        const date = `${year}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        const hit = byDate.get(date);
-        out.push({
-          date,
-          day,
-          delta: hit?.delta ?? 0,
-          point: hit?.point ?? { date, invested: 0, value: 0, pnl: 0 },
-          tracked: byDate.has(date) && (hit?.delta ?? 0) !== 0,
-        });
-      }
+  /**
+   * The active year as twelve buckets, each summing its days.
+   *
+   * It used to be a day-per-cell contribution heatmap, 53 weeks across. A year of days is
+   * too many marks to compare: at that size a cell fits no number, so the colour was the
+   * only datum and reading "how did March go" meant squinting at a column. A month is the
+   * unit you actually think in, and twelve cells are big enough to print the figure.
+   *
+   * A month counts as tracked if any day in it moved, so one that nets to zero is still
+   * a month with data you can select — not an empty slot.
+   */
+  const monthCells = React.useMemo<MonthCell[]>(() => {
+    if (!active) return [];
+    const out: MonthCell[] = MONTHS.map((label, i) => ({
+      date: `${year}-${String(i + 1).padStart(2, "0")}`,
+      label,
+      delta: 0,
+      tracked: false,
+    }));
+    for (const [date, hit] of byDate) {
+      if (Number(date.slice(0, 4)) !== year) continue;
+      const b = out[Number(date.slice(5, 7)) - 1];
+      if (!b || hit.delta === 0) continue;
+      b.delta += hit.delta;
+      b.tracked = true;
+      // The month wears the least-settled status any of its days has: a month holding
+      // today's in-progress figure is itself still moving. A month of settled days reads
+      // "complete", so the legend under the grid describes both views.
+      if (hit.point.status === "live") b.status = "live";
+      else if (hit.point.status === "partial" && b.status !== "live") b.status = "partial";
+      else if (hit.point.status === "complete" && !b.status) b.status = "complete";
     }
-    while (out.length % 7 !== 0) out.push(null);
     return out;
   }, [active, year, byDate]);
 
-  // The two views share everything downstream — only the set of cells differs.
-  const shown = view === "year" ? yearCells : cells;
+  // The two views share everything downstream — only the set of cells differs, and both
+  // kinds carry the `date`/`delta`/`tracked` the rest of this component reads.
+  const shown: (DayCell | MonthCell | null)[] = view === "year" ? monthCells : cells;
 
   const maxAbs = React.useMemo(() => {
     let m = 0;
@@ -291,31 +288,43 @@ export function PnlCalendar({
     [shown],
   );
 
-  /** The week column each month starts in — drives the labels above the year grid. */
-  const monthStarts = React.useMemo(() => {
-    if (view !== "year") return [];
-    return MONTHS.map((label, i) => {
-      const idx = yearCells.findIndex((c) => c && c.date.slice(5, 7) === String(i + 1).padStart(2, "0"));
-      return { label, week: idx < 0 ? 0 : Math.floor(idx / 7) };
-    });
-  }, [view, yearCells]);
-
-  // Default selection: the latest tracked day in whatever period is on screen.
+  // Default selection: the latest tracked cell in whatever period is on screen — the most
+  // recent day in month view, the most recent month in year view.
   const latestTracked = React.useMemo(() => {
     for (let i = shown.length - 1; i >= 0; i--) if (shown[i]?.tracked) return shown[i]!.date;
     return null;
   }, [shown]);
-  const selDate = (selected && shown.some((c) => c?.date === selected) ? selected : null) ?? latestTracked;
-  const selHit = selDate ? byDate.get(selDate) : null;
-  const selHas = !!selHit && selHit.delta !== 0;
+  const selKey = (selected && shown.some((c) => c?.date === selected) ? selected : null) ?? latestTracked;
+  const selCell = selKey ? shown.find((c) => c?.date === selKey) ?? null : null;
+  const selHas = !!selCell?.tracked;
 
+  /**
+   * The breakdown under the grid follows the grid's unit: one day's per-holding move in
+   * month view, the same holdings summed across the month in year view. A holding that
+   * gained and gave it all back nets to zero and drops out — the bars are there to name
+   * what moved the period, and that one didn't.
+   */
   const detailRows = React.useMemo(() => {
-    if (!selDate) return [];
-    return (holdingsByDate.get(selDate) ?? [])
+    if (!selKey) return [];
+    if (view === "year") {
+      const sums = new Map<string, number>();
+      for (const h of holdings ?? []) {
+        if (!h.date.startsWith(selKey)) continue;
+        for (const r of h.holdings) sums.set(r.name, (sums.get(r.name) ?? 0) + r.pnl);
+      }
+      return [...sums]
+        .filter(([, pnl]) => pnl !== 0)
+        .map(([name, pnl]) => ({ name, pnl }))
+        .sort((a, b) => b.pnl - a.pnl);
+    }
+    return (holdingsByDate.get(selKey) ?? [])
       .filter((h) => h.pnl !== 0)
       .slice()
       .sort((a, b) => b.pnl - a.pnl);
-  }, [selDate, holdingsByDate]);
+  }, [selKey, view, holdings, holdingsByDate]);
+
+  /** What a cell is, for every bit of copy under the grid. */
+  const unit = view === "year" ? "month" : "day";
 
   /** Step the period: a month in month view, a whole year in year view. */
   function shift(delta: number) {
@@ -334,39 +343,16 @@ export function PnlCalendar({
     ? year < Number(bounds.max.slice(0, 4))
     : active < bounds.max);
 
-  function cellStyle(c: DayCell): React.CSSProperties {
-    const border = `1px solid ${c.date === selDate ? "var(--foreground)" : "var(--divider)"}`;
+  /** Shared by both grids: the fill is the move, scaled against the biggest one on screen.
+   *  In year view that is the biggest *month*, so a year of ordinary months uses the whole
+   *  ramp instead of cowering under one outlier day. */
+  function cellStyle(c: DayCell | MonthCell): React.CSSProperties {
+    const border = `1px solid ${c.date === selKey ? "var(--foreground)" : "var(--divider)"}`;
     if (!c.tracked) return { background: "var(--muted)", border };
     const inten = Math.min(1, Math.abs(c.delta) / maxAbs);
     const alpha = (0.09 + 0.36 * inten).toFixed(2);
     const hue = c.delta >= 0 ? "var(--positive-rgb)" : "var(--negative-rgb)";
     return { background: `rgb(${hue} / ${alpha})`, border };
-  }
-
-  /**
-   * Year-view colour scale, anchored to the 90th percentile of the year's absolute moves
-   * rather than its maximum. Over 365 days one crash or one spike is usually several times
-   * the typical day, and dividing by that outlier pins every ordinary day to the bottom of
-   * the ramp — which is exactly why the year read as one flat wash. Anything at or past the
-   * p90 clamps to full strength; losing the top-end gradation costs nothing, because those
-   * days are already the darkest thing on screen.
-   */
-  const yearScale = React.useMemo(() => {
-    const mags = yearCells
-      .filter((c): c is DayCell => !!c?.tracked)
-      .map((c) => Math.abs(c.delta))
-      .sort((a, b) => a - b);
-    if (!mags.length) return 1;
-    return mags[Math.min(mags.length - 1, Math.floor(mags.length * 0.9))] || 1;
-  }, [yearCells]);
-
-  function yearCellStyle(c: DayCell): React.CSSProperties {
-    // Untracked days recede rather than reading as empty boxes: at this size a 1px border
-    // on a faint fill is most of the cell, so the whole year looked like graph paper.
-    if (!c.tracked) return { background: "var(--divider)" };
-    const level = intensityLevel(Math.abs(c.delta) / yearScale);
-    const hue = c.delta >= 0 ? "var(--positive-rgb)" : "var(--negative-rgb)";
-    return { background: `rgb(${hue} / ${LEVEL_ALPHA[level]})` };
   }
 
   return (
@@ -375,7 +361,7 @@ export function PnlCalendar({
         <div className="flex flex-wrap items-center gap-5">
           <PanelHead
             title="P&amp;L calendar"
-            info="Daily change in unrealized P&L. Select a day for the per-holding breakdown."
+            info="Change in unrealized P&L — by day in month view, by month in year view. Select a cell for the per-holding breakdown."
           />
           {active && (
             <div className="flex items-center gap-3">
@@ -462,81 +448,44 @@ export function PnlCalendar({
         <div>
           <div className="flex flex-col">
           {view === "year" ? (
-            // A year is 53 weeks: too many for a 7-wide grid, so weeks run as columns and
-            // weekdays as rows. Cells carry no text at this size — the colour is the datum
-            // and the title gives the number.
-            //
-            // Columns are fractional rather than a fixed 14px, so the grid grows into the
-            // card instead of stranding a small block against a wide empty right-hand side.
-            // The cap stops a 1600px viewport from inflating the cells into chunky tiles,
-            // and the floor makes it scroll on a phone rather than shrink to specks.
-            <div className="overflow-x-auto">
-              <div className="mx-auto min-w-[720px] max-w-[1120px]">
-                {/* Offset by the weekday gutter (w-7) plus its gap (gap-2), so a month label
-                    sits over the week column its month actually starts in. */}
+            // Twelve buckets, three across on a phone and six on anything wider — never
+            // twelve in a row, which at this card's width would leave each month too narrow
+            // for the figure it exists to show. The cells are taller than the month view's
+            // days because each carries two lines and there are only twelve of them.
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
+              {monthCells.map((c) => (
                 <div
-                  className="mb-1.5 ml-9 grid gap-[3px]"
-                  style={{ gridTemplateColumns: `repeat(${yearCells.length / 7}, minmax(0,1fr))` }}
+                  key={c.date}
+                  onClick={c.tracked ? () => setSelected(c.date) : undefined}
+                  style={cellStyle(c)}
+                  title={`${c.label} ${year} · ${c.tracked ? fmtSigned(c.delta) : "no change"}${
+                    c.status === "live" ? " · in-progress" : c.status === "partial" ? " · partial" : ""
+                  }`}
+                  className={cn(
+                    "relative flex min-h-[62px] flex-col justify-between rounded-md px-2.5 py-2",
+                    c.tracked && "cursor-pointer",
+                  )}
                 >
-                  {monthStarts.map((m) => (
-                    <span
-                      key={m.label}
-                      className="font-mono text-[9.5px] leading-none whitespace-nowrap text-faint"
-                      style={{ gridColumnStart: m.week + 1, gridColumnEnd: "span 4" }}
-                    >
-                      {m.label}
-                    </span>
-                  ))}
-                </div>
-                {/* The weekday gutter and the grid are siblings in this row and nothing
-                    else, so the gutter stretches to exactly the grid's height and its seven
-                    equal rows line up with the seven rows of cells. */}
-                <div className="flex gap-2">
-                  <div className="grid w-7 shrink-0 grid-rows-7 gap-[3px]">
-                    {WEEKDAYS.map((w, i) => (
-                      <div key={w} className="flex items-center font-mono text-[9px] leading-none text-faint">
-                        {i % 2 === 0 ? w : ""}
-                      </div>
-                    ))}
+                  <StatusDot status={c.status} tracked={c.tracked} />
+                  <div className={cn("text-[11.5px] font-semibold", c.tracked ? "text-muted-foreground" : "text-faint")}>
+                    {c.label}
                   </div>
+                  {/* An untracked month says so rather than sitting blank — twelve cells
+                      have the room, and a year with a gap in it should look deliberate. */}
                   <div
-                    className="grid min-w-0 flex-1 grid-flow-col grid-rows-7 gap-[3px]"
-                    style={{ gridAutoColumns: "minmax(0,1fr)" }}
-                  >
-                    {yearCells.map((c, i) =>
-                      !c ? (
-                        <div key={i} className="aspect-square" />
-                      ) : (
-                        <div
-                          key={i}
-                          onClick={c.tracked ? () => setSelected(c.date) : undefined}
-                          style={yearCellStyle(c)}
-                          title={`${c.date} · ${c.tracked ? fmtSigned(c.delta) : "no change"}${
-                            c.point.status === "live" ? " · in-progress" : c.point.status === "partial" ? " · partial" : ""
-                          }`}
-                          className={cn(
-                            "aspect-square rounded-[3px]",
-                            c.tracked && "cursor-pointer",
-                            // The selected day has to win over the status rings below it.
-                            c.date === selDate
-                              ? "ring-2 ring-foreground"
-                              : c.point.status === "live"
-                                ? "animate-pulse ring-1 ring-accent-brand"
-                                : c.point.status === "partial" && "ring-1 ring-warning/60",
-                          )}
-                        />
-                      ),
+                    className={cn(
+                      "text-right font-mono text-[11.5px] tabular-nums",
+                      !c.tracked ? "text-faint" : c.delta >= 0 ? "text-positive-strong" : "text-negative-strong",
                     )}
+                  >
+                    {c.tracked ? fmtCompact(c.delta) : "—"}
                   </div>
                 </div>
-                <div className="ml-9">
-                  <RampLegend />
-                </div>
-              </div>
+              ))}
             </div>
           ) : (
             <div className="grid gap-x-8 gap-y-6">
-              {months.map(({ ym, cells: monthCells }) => (
+              {months.map(({ ym, cells: dayCells }) => (
                 <div key={ym}>
                   {/* No month caption: the grid is one month and the picker in the header
                       already names it. */}
@@ -546,7 +495,7 @@ export function PnlCalendar({
                     ))}
                   </div>
                   <div className="grid grid-cols-7 gap-1.5">
-                    {monthCells.map((c, i) =>
+                    {dayCells.map((c, i) =>
                       !c ? (
                         <div key={i} className="min-h-[50px]" />
                       ) : (
@@ -581,32 +530,36 @@ export function PnlCalendar({
             <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="text-[12.5px] text-muted-foreground">
-                  Selected day · per holding
+                  Selected {unit} · per holding
                 </div>
                 <div className="mt-1.5 text-[18px] font-bold">
-                  {selHas && selDate
-                    ? `${MONTHS[Number(selDate.slice(5, 7)) - 1]} ${Number(selDate.slice(8, 10))}, ${selDate.slice(0, 4)}`
-                    : "No day selected"}
+                  {selHas && selKey
+                    ? view === "year"
+                      ? `${MONTH_NAMES[Number(selKey.slice(5, 7)) - 1]} ${selKey.slice(0, 4)}`
+                      : `${MONTHS[Number(selKey.slice(5, 7)) - 1]} ${Number(selKey.slice(8, 10))}, ${selKey.slice(0, 4)}`
+                    : `No ${unit} selected`}
                 </div>
               </div>
               {selHas && (
-                <div className={cn("font-mono text-[21px] tracking-[-0.01em] tabular-nums", selHit!.delta < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
-                  {fmtSigned(selHit!.delta)}
+                <div className={cn("font-mono text-[21px] tracking-[-0.01em] tabular-nums", selCell!.delta < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
+                  {fmtSigned(selCell!.delta)}
                 </div>
               )}
             </div>
             {!selHas ? (
               <p className="py-2 text-[13px] text-faint">
-                Select a day with activity to see the per-holding breakdown.
+                Select a {unit} with activity to see the per-holding breakdown.
               </p>
             ) : detailRows.length === 0 ? (
-              <p className="py-2 text-[13px] text-faint">No per-holding breakdown for this day.</p>
+              <p className="py-2 text-[13px] text-faint">No per-holding breakdown for this {unit}.</p>
             ) : (
-              <ContribList key={selDate} rows={detailRows} />
+              <ContribList key={selKey} rows={detailRows} />
             )}
+            {/* One expression rather than prose around `{unit}`: interpolating mid-sentence
+                splits this into two JSX text nodes, and the split eats the space that opens
+                the second one — "any dayin the calendar". */}
             <div className="mt-4 text-[11.5px] text-faint">
-              Click any day in the calendar to inspect that day&apos;s per-holding P&amp;L · gains
-              right, losses left
+              {`Click any ${unit} in the calendar to inspect its per-holding P&L · gains right, losses left`}
             </div>
           </div>
         </div>
