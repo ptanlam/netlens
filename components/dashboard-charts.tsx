@@ -276,8 +276,8 @@ export function DashboardCharts({
             spark={series?.map((p) => p.value) ?? null}
           />
           <PortfolioChart series={series} error={seriesError} />
-          <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
           <GoalStrip goals={goals} />
+          <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
         </div>
 
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 sm:gap-4">
