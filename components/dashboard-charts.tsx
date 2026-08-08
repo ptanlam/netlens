@@ -263,10 +263,25 @@ export function DashboardCharts({
       )}
 
       {/* The design's dashboard body: a wide analysis column and a narrow rail of small
-          cards, as a wrapping flex rather than a grid, so the rail drops under the charts
-          on its own once neither basis fits. */}
-      <div className="flex flex-wrap items-start gap-3 sm:gap-4">
+          cards, as a wrapping flex rather than a grid, so the rail drops out beside the
+          charts on its own once neither basis fits. It has to be content-driven and not a
+          breakpoint: the nav is a top bar, a side rail, or a collapsed rail, and each
+          leaves the content a different width, so any viewport media query would pick the
+          wrong moment in two of the three.
+          `flex-wrap-reverse` is what puts the rail *above* the charts once stacked rather
+          than below: the two columns still lay out in source order, but the second line is
+          drawn first. Net worth leads the rail and so leads the page on a phone, where
+          there is no "right" to put it. The flip has one catch — reversing the wrap swaps
+          cross-start for cross-end, so `items-end` is what now aligns the two columns to
+          their tops. */}
+      <div className="flex flex-wrap-reverse items-end gap-3 sm:gap-4">
         <div className="flex min-w-0 flex-[1_1_560px] flex-col gap-3 sm:gap-4">
+          <PortfolioChart series={series} error={seriesError} />
+          <GoalStrip goals={goals} />
+          <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
+        </div>
+
+        <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 sm:gap-4">
           <NetWorthPanel
             investments={figures.portfolioTotal}
             savings={savings}
@@ -276,12 +291,6 @@ export function DashboardCharts({
             todayFrom={todayFrom}
             spark={series?.map((p) => p.value) ?? null}
           />
-          <PortfolioChart series={series} error={seriesError} />
-          <GoalStrip goals={goals} />
-          <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
-        </div>
-
-        <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 sm:gap-4">
           <QuickActions />
           {/* One column at every width: this strip is in the rail now, and `auto-fit` would
               otherwise pack three tiles across the moment the rail wraps to full measure. */}

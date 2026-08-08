@@ -121,9 +121,9 @@ export function NetWorthPanel({
               key={flash?.n ?? "static"}
               onAnimationEnd={() => setFlash(null)}
               className={cn(
-                // Sized by the card's own width, not the window's: this panel leads the
-                // dashboard's wide column but is also narrow enough to drop into a rail,
-                // and the figure has to stay on one line in both.
+                // Sized by the card's own width, not the window's: this panel sits in the
+                // dashboard's narrow rail but goes full measure once the rail wraps, and
+                // the figure has to stay on one line in both.
                 "font-mono text-[26px] leading-none font-semibold tracking-[-0.02em] whitespace-nowrap tabular-nums will-change-transform @xl:text-[38px] @3xl:text-[46px]",
                 flash?.dir === "up" && "animate-nw-flash-up",
                 flash?.dir === "down" && "animate-nw-flash-down",
