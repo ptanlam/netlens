@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronDown, Download, Search, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Search, TriangleAlert } from "lucide-react";
 import type { Goal, HoldingPnlPoint, LivePayload, Payload, PnlPoint } from "@/lib/types";
 import { fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel, sparkPaths } from "@/components/net-worth";
@@ -38,8 +38,13 @@ const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
 /** Sentinel for the Holdings filter's "no filter" option — Base UI's Select needs a real
  *  value, and "" is indistinguishable from a cleared selection. */
 const ALL_TYPES = "__all__";
-/** Rows the Holdings panel shows before you ask for the rest. */
-const COLLAPSED_ROWS = 4;
+/** Rows per page in the Holdings panel. */
+const HOLDINGS_PAGE_SIZE = 4;
+
+/** Roughly one holdings row, in px — 24px of vertical padding around a 28px mark. Used only
+ *  as a `min-height` for the list, so the panel keeps its size on a part-full last page or
+ *  an empty search. Being a little off costs a few px of slack, never a clipped row. */
+const HOLDINGS_ROW_PX = 57;
 
 /** Short VND for bars/legends: ₫1.2bil, ₫372mil, ₫22mil. */
 function fmtMilVND(v: number): string {
@@ -277,7 +282,20 @@ export function DashboardCharts({
       <div className="flex flex-wrap-reverse items-end gap-3 sm:gap-4">
         <div className="flex min-w-0 flex-[1_1_560px] flex-col gap-3 sm:gap-4">
           <PortfolioChart series={series} error={seriesError} />
-          <GoalStrip goals={goals} />
+          {/* Side by side rather than stacked, and wrapping on content for the same reason
+              the outer row does. The allocation donut is a fixed 172px: given the whole
+              width of the analysis column it would sit in the middle of an otherwise empty
+              card, while Holdings is the panel that actually wants the extra measure — it
+              was truncating names at rail width. `items-stretch` (the default) plus the
+              `h-full` on Allocation keeps the pair level while their contents differ. */}
+          <div className="flex flex-wrap gap-3 sm:gap-4">
+            <div className="flex min-w-0 flex-[1_1_260px] flex-col">
+              <AllocationCard payload={figures} />
+            </div>
+            <div className="flex min-w-0 flex-[2_1_320px] flex-col">
+              <HoldingsListCard payload={figures} holdingSeries={holdingSeries} />
+            </div>
+          </div>
           <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
         </div>
 
@@ -295,8 +313,7 @@ export function DashboardCharts({
           {/* One column at every width: this strip is in the rail now, and `auto-fit` would
               otherwise pack three tiles across the moment the rail wraps to full measure. */}
           <SummaryCards stats={kpis} className="grid-cols-1 lg:grid-cols-1" />
-          <AllocationCard payload={figures} />
-          <HoldingsListCard payload={figures} holdingSeries={holdingSeries} />
+          <GoalStrip goals={goals} />
         </div>
       </div>
     </div>
@@ -367,6 +384,32 @@ function AllocationCard({ payload }: { payload: LivePayload }) {
   );
 }
 
+/** A pager arrow, shaped like the rail's collapse button: a bordered square that goes quiet
+ *  rather than disappearing when there's nowhere to go. */
+function PagerButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="grid size-6 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:border-input hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
+    >
+      {children}
+    </button>
+  );
+}
+
 /**
  * The design's Holdings panel: one row per position — the type-tinted mark, the name over
  * its asset type, a small value spark, and the money on the right.
@@ -385,7 +428,7 @@ function HoldingsListCard({
 }) {
   const [query, setQuery] = React.useState("");
   const [type, setType] = React.useState<string>(ALL_TYPES);
-  const [expanded, setExpanded] = React.useState(false);
+  const [page, setPage] = React.useState(0);
 
   const held = React.useMemo(
     () =>
@@ -412,13 +455,18 @@ function HoldingsListCard({
     );
   }, [held, query, type]);
 
-  // Four rows by default. The panel sits in the rail beside a full-height chart column, and
-  // ten holdings there turn it into the tallest thing on the page — but searching or
-  // filtering is an explicit ask for a specific row, so the cap lifts for those.
-  const searching = query.trim() !== "" || type !== ALL_TYPES;
-  const capped = !expanded && !searching;
-  const visible = capped ? rows.slice(0, COLLAPSED_ROWS) : rows;
-  const hiddenCount = rows.length - visible.length;
+  // Paged, at a fixed four rows. This was a "Show all 10" toggle, which grew the panel by
+  // six rows in place — and since it shares a row with Allocation and sits above the P&L
+  // calendar, everything below it jumped. Paging keeps the panel one size whatever you're
+  // looking at.
+  //
+  // The page is *clamped* rather than reset in an effect: filtering down to two holdings
+  // while parked on page 3 has to land somewhere valid, and the React Compiler's
+  // `set-state-in-effect` rule rightly refuses the useEffect version. The handlers below
+  // still send you back to page 1 on a new search, which is the intent — this is the guard.
+  const pageCount = Math.max(1, Math.ceil(rows.length / HOLDINGS_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const visible = rows.slice(safePage * HOLDINGS_PAGE_SIZE, (safePage + 1) * HOLDINGS_PAGE_SIZE);
 
   // Per-holding value history, keyed by name, for the row sparks. Built once for all rows
   // rather than re-scanned per row — the series is one pass over every day either way.
@@ -437,7 +485,9 @@ function HoldingsListCard({
 
   if (held.length === 0) {
     return (
-      <div className="card-surface panel-body">
+      // `h-full` so it sits level with Allocation beside it — that card stretches, and a
+      // pair of panels sharing a row with mismatched bottoms reads as a mistake.
+      <div className="h-full card-surface panel-body">
         <PanelHead title="Holdings" />
         <p className="py-8 text-center text-sm text-muted-foreground">
           No holdings with a value yet — set live quantities or holding values to see them here.
@@ -447,7 +497,10 @@ function HoldingsListCard({
   }
 
   return (
-    <div className="card-surface panel-body">
+    // `flex flex-col` + `h-full`: the card takes the row's height (so it and Allocation are
+    // always the same height), and the pager below is pushed to its bottom edge with
+    // `mt-auto` rather than floating under a short page.
+    <div className="flex h-full flex-col card-surface panel-body">
       <PanelHead
         title="Holdings"
         info="Every position with a value or a realised move, largest first. The spark is that holding's own value history; the second figure is its total gain or loss against cost."
@@ -462,13 +515,13 @@ function HoldingsListCard({
           <Search className="size-3.5 shrink-0 text-faint" />
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setPage(0); }}
             placeholder="Search"
             aria-label="Search holdings"
             className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint"
           />
         </label>
-        <Select value={type} onValueChange={(v) => v != null && setType(v)}>
+        <Select value={type} onValueChange={(v) => { if (v != null) { setType(v); setPage(0); } }}>
           <SelectTrigger
             size="sm"
             aria-label="Filter by asset type"
@@ -485,7 +538,12 @@ function HoldingsListCard({
         </Select>
       </div>
 
-      <div className="flex flex-col">
+      {/* Reserved to a full page's worth of rows, so a last page of one — or a search that
+          matches nothing — doesn't pull the panel's bottom up and shift the calendar below. */}
+      <div
+        className="flex flex-col"
+        style={{ minHeight: HOLDINGS_PAGE_SIZE * HOLDINGS_ROW_PX }}
+      >
         {visible.length === 0 && (
           <p className="py-6 text-center text-[12.5px] text-muted-foreground">
             No holding matches that.
@@ -527,18 +585,33 @@ function HoldingsListCard({
         })}
       </div>
 
-      {/* Only when the cap is actually hiding something, or has been lifted. Searching
-          already shows every match, so no control is offered there. */}
-      {!searching && (hiddenCount > 0 || expanded) && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-1 flex w-full items-center justify-center gap-1.5 border-t border-divider pt-3 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {expanded ? "Show less" : `Show all ${rows.length}`}
-          <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
-        </button>
-      )}
+      {/* Always drawn, even on a single page — a control that comes and goes as you type
+          would resize the panel, which is the thing paging is here to stop. The arrows just
+          go dead instead. */}
+      <div className="mt-auto flex items-center justify-between gap-3 border-t border-divider pt-3">
+        <span className="font-mono text-[11px] text-faint tabular-nums">
+          {rows.length} holding{rows.length === 1 ? "" : "s"}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <PagerButton
+            label="Previous holdings"
+            disabled={safePage === 0}
+            onClick={() => setPage(safePage - 1)}
+          >
+            <ChevronLeft className="size-3.5" />
+          </PagerButton>
+          <span className="min-w-[38px] text-center font-mono text-[11.5px] text-muted-foreground tabular-nums">
+            {safePage + 1} / {pageCount}
+          </span>
+          <PagerButton
+            label="More holdings"
+            disabled={safePage >= pageCount - 1}
+            onClick={() => setPage(safePage + 1)}
+          >
+            <ChevronRight className="size-3.5" />
+          </PagerButton>
+        </div>
+      </div>
     </div>
   );
 }

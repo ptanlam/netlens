@@ -89,9 +89,10 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
   if (goals.length === 0) return null;
 
   return (
-    // A container query, not a viewport one: the strip used to span the page and now sits
-    // in the dashboard's analysis column, so what decides whether a goal fits on one line is
-    // this panel's own width — not the window's.
+    // A container query, not a viewport one: what decides whether a goal fits on one line is
+    // this panel's own width, not the window's. That is what lets the strip be moved between
+    // the dashboard's analysis column and its rail — it has lived in both — and reflow to a
+    // row per line in the narrow one without a prop or a breakpoint.
     <div className="@container card-surface">
       <div className="flex items-center justify-between px-5 pt-4 pb-3">
         <span className="text-[16px] font-bold tracking-[-0.01em]">Goals</span>
