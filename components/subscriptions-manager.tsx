@@ -376,10 +376,35 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
   ];
 }
 
-const chartConfig: ChartConfig = {
-  total: { label: "Billed", color: "var(--chart-2)" },
-};
+/** The five hues the theme defines, as chart series slots. */
+const SERIES_HUES = [
+  "var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)",
+];
 
+/**
+ * A plan's slot in the stack: a hue, plus the strength it's painted at.
+ *
+ * Both halves come from the row's own id, never from its position in the list — so a plan
+ * keeps its colour when one above it is added, cancelled or deleted. Colour follows the
+ * entity, never its rank.
+ *
+ * Every second trip round the five hues comes back at half strength, which is what turns
+ * five theme colours into ten telling-apart-able series: two plans now collide only if
+ * their ids are ten apart, not five. Opacity rather than a `color-mix` lightening step
+ * because it reads as the same hue, weaker, in both themes — mixing toward the card would
+ * lighten it in Daylight and darken it in Midnight.
+ */
+function seriesStyle(sub: Subscription): { fill: string; opacity: number } {
+  return {
+    fill: SERIES_HUES[sub.id % SERIES_HUES.length],
+    opacity: Math.floor(sub.id / SERIES_HUES.length) % 2 === 0 ? 1 : 0.55,
+  };
+}
+
+/** One month's column. The `s<id>` keys are the per-plan segments — flat, because that is
+ *  what Recharts stacks on. `null` rather than 0 for a month a plan doesn't bill: Recharts'
+ *  tooltip drops null entries, so hovering December lists only what December actually
+ *  charges instead of every plan you own with a row of zeros. */
 interface ForecastBar {
   month: string;
   total: number;
@@ -387,24 +412,52 @@ interface ForecastBar {
   label: string;
   /** Tooltip heading — "Aug 2027", since the window crosses a year boundary. */
   full: string;
+  [segment: `s${number}`]: number | string | null;
 }
 
 /**
- * What the next twelve months bill, month by month.
+ * What the next twelve months bill, one segment per subscription.
  *
  * The point of the panel is the lumps. A ₫/month figure spreads an annual renewal evenly
  * across the year, which is exactly the month you'd want warning about — here it stands up
- * as a bar three times its neighbours'.
+ * as a column three times its neighbours', and the stack says which plan did it.
  */
-function ForecastPanel({ bars }: { bars: ForecastBar[] }) {
+function ForecastPanel({
+  bars,
+  billed,
+  config,
+}: {
+  bars: ForecastBar[];
+  /** The plans that bill at least once in the window, in stacking order (biggest first, so
+   *  the heaviest commitment is the base of every column), each with its series style. */
+  billed: { sub: Subscription; style: { fill: string; opacity: number } }[];
+  config: ChartConfig;
+}) {
+  // The tooltip's swatch has to match the segment it points at, and Recharts only hands the
+  // formatter the Bar's flat `fill` — the opacity half of the slot would be lost.
+  const styleOf = new Map(billed.map((b) => [`s${b.sub.id}`, b.style]));
   return (
     <div className="card-surface panel-body">
       <PanelHead
         title="Committed spend, next 12 months"
-        info="Every charge falling in each calendar month, including the current month in full — charges it has already taken as well as the ones still ahead. Cancelled plans bill nothing."
+        info="Every charge falling in each calendar month, split by subscription and including the current month in full — charges it has already taken as well as the ones still ahead. Cancelled plans bill nothing."
       />
+      {/* The legend is what makes the colours mean anything without hovering. It lists only
+          plans that bill inside the window, so a cancelled one doesn't sit here claiming a
+          colour it never paints. */}
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-2 text-[11.5px] text-muted-foreground">
+        {billed.map(({ sub, style }) => (
+          <span key={sub.id} className="flex items-center gap-1.5">
+            <span
+              className="h-2.5 w-2.5 rounded-[3px]"
+              style={{ background: style.fill, opacity: style.opacity }}
+            />
+            {sub.name}
+          </span>
+        ))}
+      </div>
       <div className="mt-5">
-        <ChartContainer config={chartConfig} className="aspect-[3/1] min-h-48 w-full">
+        <ChartContainer config={config} className="aspect-[3/1] min-h-48 w-full">
           <BarChart data={bars} accessibilityLayer>
             <CartesianGrid vertical={false} strokeWidth={1} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
@@ -412,24 +465,45 @@ function ForecastPanel({ bars }: { bars: ForecastBar[] }) {
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  labelFormatter={(_v, p) => (p?.[0]?.payload as ForecastBar | undefined)?.full ?? ""}
-                  formatter={(v) => (
-                    <div className="flex w-full items-center gap-2">
-                      <span className="text-muted-foreground">Billed</span>
-                      <span className="ml-auto font-mono font-medium tabular-nums text-(--chart-negative)">
-                        {fmtVND(Number(v))}
-                      </span>
-                    </div>
-                  )}
+                  // The month's total belongs in the heading: it's the figure the column
+                  // height means, and the rows beneath it are what add up to it.
+                  labelFormatter={(_v, p) => {
+                    const row = p?.[0]?.payload as ForecastBar | undefined;
+                    return row ? `${row.full} · ${fmtVND(row.total)}` : "";
+                  }}
+                  formatter={(v, name, item) => {
+                    const style = styleOf.get(String(item.dataKey));
+                    return (
+                      <div className="flex w-full items-center gap-2">
+                        <span
+                          className="size-2.5 shrink-0 rounded-[2px]"
+                          style={{ background: style?.fill ?? item.color, opacity: style?.opacity }}
+                        />
+                        <span className="truncate text-muted-foreground">{name}</span>
+                        <span className="ml-auto font-mono font-medium tabular-nums text-foreground">
+                          {fmtVND(Number(v))}
+                        </span>
+                      </div>
+                    );
+                  }}
                 />
               }
             />
-            <Bar
-              dataKey="total"
-              fill="var(--color-total)"
-              radius={[6, 6, 0, 0]}
-              isAnimationActive={false}
-            />
+            {billed.map(({ sub, style }) => (
+              <Bar
+                key={sub.id}
+                dataKey={`s${sub.id}`}
+                name={sub.name}
+                stackId="month"
+                fill={style.fill}
+                fillOpacity={style.opacity}
+                // A hairline in the panel's own colour, so two plans that share a hue still
+                // read as two segments where they meet.
+                stroke="var(--card)"
+                strokeWidth={1}
+                isAnimationActive={false}
+              />
+            ))}
           </BarChart>
         </ChartContainer>
       </div>
@@ -476,13 +550,41 @@ export function SubscriptionsManager({
     .sort((a, b) => a.days - b.days);
   const soonTotal = soon.reduce((a, r) => a + r.sub.amount, 0);
 
-  const bars = React.useMemo<ForecastBar[]>(
+  // Stacked biggest-first, matching the table's default sort, so a column and the list
+  // below it rank the same plans the same way.
+  const forecast = React.useMemo(() => {
+    const ordered = [...subscriptions].sort((a, b) => monthlyCost(b) - monthlyCost(a));
+    const months = monthlyForecast(ordered, today, FORECAST_MONTHS);
+    // Only plans that actually charge inside the window get a segment. A plan cancelled
+    // last month bills nothing from here on, and an empty series would still claim a
+    // colour and a legend entry.
+    const billedIdx = ordered
+      .map((_, i) => i)
+      .filter((i) => months.some((m) => m.parts[i] > 0));
+    const billed = billedIdx.map((i) => ({ sub: ordered[i], style: seriesStyle(ordered[i]) }));
+
+    const bars = months.map((m) => {
+      const [y, mo] = m.month.split("-").map(Number);
+      const row: ForecastBar = {
+        month: m.month,
+        total: m.total,
+        label: MONTHS[mo - 1],
+        full: `${MONTHS[mo - 1]} ${y}`,
+      };
+      for (const i of billedIdx) row[`s${ordered[i].id}`] = m.parts[i] || null;
+      return row;
+    });
+    return { bars, billed };
+  }, [subscriptions, today]);
+
+  // Names the tooltip and legend read through — `getPayloadConfigFromPayload` looks a
+  // series up by key, and without an entry the swatch colour falls back to the raw fill.
+  const chartConfig = React.useMemo<ChartConfig>(
     () =>
-      monthlyForecast(subscriptions, today, FORECAST_MONTHS).map((f) => {
-        const [y, m] = f.month.split("-").map(Number);
-        return { ...f, label: MONTHS[m - 1], full: `${MONTHS[m - 1]} ${y}` };
-      }),
-    [subscriptions, today],
+      Object.fromEntries(
+        forecast.billed.map(({ sub, style }) => [`s${sub.id}`, { label: sub.name, color: style.fill }]),
+      ),
+    [forecast.billed],
   );
 
   const nextUp = active.reduce<SubRow | null>(
@@ -538,7 +640,9 @@ export function SubscriptionsManager({
         ]}
       />
 
-      {subscriptions.length > 0 && <ForecastPanel bars={bars} />}
+      {forecast.billed.length > 0 && (
+        <ForecastPanel bars={forecast.bars} billed={forecast.billed} config={chartConfig} />
+      )}
 
       <p className="text-[12.5px] text-muted-foreground">
         Sorted by what each costs a month — the top of this list is where cancelling one

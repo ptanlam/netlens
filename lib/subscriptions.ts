@@ -155,6 +155,10 @@ export interface ForecastMonth {
   /** `YYYY-MM`. */
   month: string;
   total: number;
+  /** What each plan bills that month, **aligned by index with the `subs` you passed in**.
+   *  Positional rather than keyed by id because `Billable` has no id — the shape is the
+   *  billing schedule, and the caller is the one that knows what it's projecting. */
+  parts: number[];
 }
 
 /**
@@ -173,9 +177,11 @@ export function monthlyForecast(subs: Billable[], today: string, months = 12): F
   for (let i = 0; i < months; i += 1) {
     const from = addMonths(first, i);
     const to = addDays(addMonths(first, i + 1), -1);
+    const parts = subs.map((s) => chargesBetween(s, from, to).length * s.amount);
     out.push({
       month: from.slice(0, 7),
-      total: subs.reduce((a, s) => a + chargesBetween(s, from, to).length * s.amount, 0),
+      total: parts.reduce((a, p) => a + p, 0),
+      parts,
     });
   }
   return out;
