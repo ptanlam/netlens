@@ -152,9 +152,10 @@ export const BILLING_CYCLE_UNITS: Record<BillingCycle, string> = {
 
 /** A fixed list, not free text: the category picks the row's colour, and a colour has to
  *  come from a slot the theme defines. "Other" is the neutral tile — see `CATEGORY_COLORS`
- *  in `components/subscriptions-manager.tsx`. */
+ *  in `components/subscriptions-manager.tsx`. Health and Education sit next to each other
+ *  because they share a hue there. */
 export const SUBSCRIPTION_CATEGORIES = [
-  "Entertainment", "Software", "Utilities", "Health", "Finance", "Other",
+  "Entertainment", "Software", "Utilities", "Health", "Education", "Finance", "Other",
 ] as const;
 export type SubscriptionCategory = (typeof SUBSCRIPTION_CATEGORIES)[number];
 

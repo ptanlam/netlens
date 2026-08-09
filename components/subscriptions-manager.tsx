@@ -50,12 +50,18 @@ const FORECAST_MONTHS = 12;
 
 /** A fixed slot per category, like `TYPE_COLORS` for asset types: colour follows the kind
  *  of thing, never its rank in the list, so a plan keeps its colour as costs change.
- *  "Other" is deliberately absent — it takes `EntityAvatar`'s neutral tile. */
+ *  "Other" is deliberately absent — it takes `EntityAvatar`'s neutral tile.
+ *
+ *  Six named categories, five hues: Health and Education share green, and they're adjacent
+ *  in the list so it reads as a pair rather than a collision — both are money spent on
+ *  yourself. Same trade the nav makes for its sixth section. Leaving Education uncoloured
+ *  was the alternative, and it would have been indistinguishable from "Other". */
 const CATEGORY_COLORS: Record<string, string> = {
   Entertainment: "var(--chart-5)",
   Software: "var(--chart-1)",
   Utilities: "var(--chart-3)",
   Health: "var(--chart-4)",
+  Education: "var(--chart-4)",
   Finance: "var(--chart-2)",
 };
 
