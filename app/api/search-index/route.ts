@@ -20,10 +20,11 @@ export interface SearchItem {
  * of the search box, and cached in the client for the life of the page.
  */
 export async function GET() {
-  const [instruments, savings, debts, goals] = await Promise.all([
+  const [instruments, savings, debts, subscriptions, goals] = await Promise.all([
     db.listInstruments(),
     db.listSavings(),
     db.listDebts(true), // settled ones stay findable — you may still want the history
+    db.listSubscriptions(true), // as do cancelled subscriptions, for what they cost you
     db.listGoals(),
   ]);
 
@@ -32,6 +33,7 @@ export async function GET() {
     { label: "Investments", kind: "Page", href: "/investments" },
     { label: "Savings", kind: "Page", href: "/savings" },
     { label: "Debts", kind: "Page", href: "/debts" },
+    { label: "Subscriptions", kind: "Page", href: "/subscriptions" },
     { label: "Goals", kind: "Page", href: "/goals" },
     { label: "Transactions", kind: "Page", href: "/transactions" },
     { label: "Settings", kind: "Page", href: "/settings" },
@@ -45,6 +47,11 @@ export async function GET() {
       label: d.lender ?? (d.kind === "credit" ? "Credit card" : "Loan"),
       kind: "Debt",
       href: "/debts",
+    })),
+    ...subscriptions.map((s) => ({
+      label: s.name,
+      kind: "Subscription",
+      href: "/subscriptions",
     })),
     ...goals.map((g) => ({ label: g.name, kind: "Goal", href: "/goals" })),
   ];

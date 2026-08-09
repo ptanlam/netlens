@@ -21,7 +21,7 @@ components/*-manager.tsx ("use client")     ▼
 
 Pure, dependency-free logic (safe to import from client components) lives in
 `lib/` files that do **not** touch the database: `types.ts`, `format.ts`,
-`savings.ts`, `utils.ts`. Anything touching D1 (i.e. `lib/db.ts`,
+`savings.ts`, `subscriptions.ts`, `utils.ts`. Anything touching D1 (i.e. `lib/db.ts`,
 `lib/prices.ts`, `lib/pnl.ts`) is server-only.
 
 ## Directory map
@@ -31,16 +31,17 @@ Pure, dependency-free logic (safe to import from client components) lives in
 | `lib/db.ts` | All SQL, every function `async`. Schema lives in `migrations/`. Money stored as integer VND. |
 | `lib/types.ts` | Shared interfaces + `as const` arrays (`ASSET_TYPES`, `INTEREST_TYPES`, `PRICE_SOURCES`). Client-safe. |
 | `lib/savings.ts` | Interest maths over the `Accruing` shape — used by BOTH savings and debts. |
+| `lib/subscriptions.ts` | Billing-cycle maths over the `Billable` shape — renewal dates, ₫/month, the 12-month forecast. |
 | `lib/goals.ts` | Goal progress + the forward projection. Pure; reads a `GoalWorld` gathered by `db.buildGoalWorld()`. |
 | `lib/settings.ts` | `SETTINGS_SECTIONS` — the settings rail, shared server/client. |
 | `lib/pnl.ts` | Reconstructs the daily P&L series from transactions + `price_history`. |
 | `lib/prices.ts` | Live/historical price fetching (CoinGecko, Yahoo, fmarket, VCBF). Never throws; collects errors. |
 | `lib/format.ts` | `fmtVND` (₫ with `.` thousands), `fmtMil` (axis short form: `40mil`), `MONTHS`. |
 | `lib/auth.ts` | Token helper for the optional password gate. |
-| `app/actions.ts` | Every mutation (transactions, holdings, recurring, savings, debts, auth). |
+| `app/actions.ts` | Every mutation (transactions, holdings, recurring, savings, debts, subscriptions, goals, auth). |
 | `app/**/page.tsx` | One server component per route. |
 | `components/ui/*` | Base UI primitives wrapped shadcn-style. Don't reinvent — reuse these. |
-| `components/*-manager.tsx` | Client CRUD UIs (recurring, savings, debts). |
+| `components/*-manager.tsx` | Client CRUD UIs (recurring, savings, debts, subscriptions, goals). |
 | `components/dashboard-charts.tsx` | The dashboard's date-range picker + all charts. |
 | `components/net-worth.tsx` | Net worth = investments + savings − debts panel. |
 | `components/nav.tsx` | `LINKS` array → desktop nav + mobile side-drawer. |
@@ -48,7 +49,8 @@ Pure, dependency-free logic (safe to import from client components) lives in
 
 ## Routes
 
-Pages: `/` (dashboard), `/transactions`, `/holdings`, `/savings`, `/debts`, `/goals`,
+Pages: `/` (dashboard), `/transactions`, `/holdings`, `/savings`, `/debts`,
+`/subscriptions`, `/goals`,
 `/recurring`, `/settings/appearance`, `/settings/price-sources`, `/login`.
 Route handlers: `GET /export.csv`, `GET /api/pnl-history`, `GET /healthz`.
 (There is **no** `/add` page — adding a transaction is a `<Dialog>` on `/transactions`.)
@@ -76,7 +78,8 @@ redirect at `/settings`, so it can't live in either). `/sources` 308s to
 ## Data model (tables in `migrations/0001_init.sql`)
 
 `transactions`, `instruments`, `recurring_rules`, `price_history`, `meta`,
-`savings`, `debts`, `debt_payments`, `goals`. All use `CREATE TABLE IF NOT EXISTS`, so **adding a
+`savings`, `debts`, `debt_payments`, `goals`, plus `subscriptions` (`0006_*`).
+All use `CREATE TABLE IF NOT EXISTS`, so **adding a
 new table is the entire migration** — no migration framework. Altering an existing
 table's columns would need an explicit `ALTER TABLE` (there is no migration runner), so
 prefer additive changes or sentinel values (e.g. debts use `term_months <= 0` to mean
@@ -97,6 +100,28 @@ prefer additive changes or sentinel values (e.g. debts use `term_months <= 0` to
   both use `owed(...)`, not `currentValue`, so payments reduce what's owed everywhere.
 Savings estimates ignore intermediate withdrawals; debt estimates DO account for
 recorded repayments but not for fees/minimum-payment rules.
+
+## Subscriptions (`lib/subscriptions.ts`)
+
+A subscription is a **rate of spend**, not a balance, so it is the one tracked entity that
+never touches net worth. `amount` is what a single charge costs *in that plan's own period*
+(a yearly plan stores the year's price); `monthlyCost` / `yearlyCost` put a weekly plan and
+an annual one on the same ruler.
+
+Nothing about a future charge is stored. Every renewal is derived from `start_date` by
+counting forward — `chargeAt(s, k)`, never chaining off the previous charge, which is what
+keeps a plan that bills on the 31st billing on the 31st after a short February. `addMonths`
+clamps, so the arithmetic guess in `periodsBefore` can land a day either side of the real
+charge and every caller walks the last step or two onto the schedule.
+
+`cancelled_date` is the entire cancellation state — NULL means still billing. Deliberately
+one column, unlike `debts` (`archived` + `settled_date`), which can disagree. A cancelled
+plan bills nothing from that date, keeps what it cost you (`spentToDate`), and drops out of
+`listSubscriptions()` unless you pass `true`.
+
+`monthlyForecast` is what the page's bar chart draws: twelve whole calendar months from the
+current one, counting every charge that falls in each. A ₫/month figure spreads an annual
+renewal evenly across the year — the chart is what shows you the month it actually lands in.
 
 ## Goals (`lib/goals.ts`)
 

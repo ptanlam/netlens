@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
   Menu, LogOut, Settings, ChevronsLeft,
-  LayoutDashboard, TrendingUp, PiggyBank, CreditCard, Target,
+  LayoutDashboard, TrendingUp, PiggyBank, CreditCard, CalendarSync, Target,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,11 +25,16 @@ import { cn } from '@/lib/utils';
 // the icon, never the label or the row: "here" is still marked by the surface step, so the
 // colour is identity — which section you're looking at — rather than a second, competing
 // signal for which one is current.
+//
+// Six sections, five hues: Debts and Subscriptions share amber, and they sit next to each
+// other so it reads as a pair rather than a collision. That is the honest grouping — both
+// are money leaving, and neither is a thing you own.
 const LINKS: { href: string; label: string; icon: LucideIcon; tint: string }[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, tint: 'text-hue-blue' },
   { href: '/investments', label: 'Investments', icon: TrendingUp, tint: 'text-hue-cyan' },
   { href: '/savings', label: 'Savings', icon: PiggyBank, tint: 'text-hue-green' },
   { href: '/debts', label: 'Debts', icon: CreditCard, tint: 'text-hue-amber' },
+  { href: '/subscriptions', label: 'Subscriptions', icon: CalendarSync, tint: 'text-hue-amber' },
   { href: '/goals', label: 'Goals', icon: Target, tint: 'text-hue-violet' },
 ];
 
@@ -192,7 +197,7 @@ function DesktopNav({ pathname }: { pathname: string }) {
     <nav ref={navRef} data-desktop-nav className='relative hidden items-center gap-0.5 lg:flex'>
       {/* Animates `left`/`width`, not `transform`: a transformed layer whose width changes
           doesn't reliably re-rasterize, so the pill paints at its stale width. The nav is
-          five items — laying them out is cheap, and it always paints what it measured. */}
+          six items — laying them out is cheap, and it always paints what it measured. */}
       <span
         ref={sliderRef}
         aria-hidden

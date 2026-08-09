@@ -9,7 +9,10 @@ import {
 } from "@/lib/prices";
 import { authToken, COOKIE_NAME } from "@/lib/auth";
 import { fmtVND } from "@/lib/format";
-import { GOAL_METRICS, type GoalMetric } from "@/lib/types";
+import {
+  BILLING_CYCLES, GOAL_METRICS, SUBSCRIPTION_CATEGORIES,
+  type BillingCycle, type GoalMetric, type SubscriptionCategory,
+} from "@/lib/types";
 
 function num(v: FormDataEntryValue | null): number | null {
   if (v == null || v === "") return null;
@@ -22,7 +25,7 @@ function str(v: FormDataEntryValue | null): string {
 }
 
 function revalidateAll() {
-  for (const p of ["/", "/investments", "/savings", "/debts", "/goals", "/settings/price-sources"])
+  for (const p of ["/", "/investments", "/savings", "/debts", "/subscriptions", "/goals", "/settings/price-sources"])
     revalidatePath(p);
 }
 
@@ -254,6 +257,79 @@ export async function deleteDebtPayment(id: number) {
   await db.deleteDebtPayment(id);
   revalidateAll();
   return { ok: true, message: "Payment deleted." };
+}
+
+// ---------- subscriptions (recurring charges) ----------
+
+type ParsedSubscription = {
+  name: string;
+  amount: number;
+  cycle: BillingCycle;
+  start_date: string;
+  category: SubscriptionCategory;
+  payment_method: string | null;
+  note: string | null;
+};
+
+function parseSubscription(
+  fd: FormData,
+): { ok: true; value: ParsedSubscription } | { ok: false; message: string } {
+  const name = str(fd.get("name"));
+  const amount = num(fd.get("amount"));
+  const cycleRaw = str(fd.get("cycle")) as BillingCycle;
+  const categoryRaw = str(fd.get("category")) as SubscriptionCategory;
+  if (!name) return { ok: false, message: "A subscription name is required." };
+  if (amount == null || amount <= 0)
+    return { ok: false, message: "A positive amount is required." };
+  return {
+    ok: true,
+    value: {
+      name,
+      amount,
+      // The amount means nothing without its period, so an unrecognised cycle can't be
+      // waved through the way a missing note can — but the select only ever posts one of
+      // the four, so this is a guard, not a branch the UI can reach.
+      cycle: BILLING_CYCLES.includes(cycleRaw) ? cycleRaw : "monthly",
+      start_date: str(fd.get("start_date")) || db.todayIso(),
+      category: SUBSCRIPTION_CATEGORIES.includes(categoryRaw) ? categoryRaw : "Other",
+      payment_method: str(fd.get("payment_method")) || null,
+      note: str(fd.get("note")) || null,
+    },
+  };
+}
+
+export async function addSubscription(fd: FormData) {
+  const p = parseSubscription(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  const s = p.value;
+  await db.addSubscription(s.name, s.amount, s.cycle, s.start_date, s.category, s.payment_method, s.note);
+  revalidateAll();
+  return { ok: true, message: "Subscription saved." };
+}
+
+export async function updateSubscription(id: number, fd: FormData) {
+  if (!await db.getSubscription(id)) return { ok: false, message: "Not found." };
+  const p = parseSubscription(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  const s = p.value;
+  await db.updateSubscription(id, s.name, s.amount, s.cycle, s.start_date, s.category, s.payment_method, s.note);
+  revalidateAll();
+  return { ok: true, message: "Subscription updated." };
+}
+
+/** Stop a plan billing, or put it back on its schedule. Keeps what it has cost you —
+ *  unlike deleting it, which is for a row you added by mistake. */
+export async function cancelSubscription(id: number, cancelled: boolean) {
+  if (!await db.getSubscription(id)) return { ok: false, message: "Not found." };
+  await db.setSubscriptionCancelled(id, cancelled);
+  revalidateAll();
+  return { ok: true, message: cancelled ? "Subscription cancelled." : "Subscription resumed." };
+}
+
+export async function deleteSubscription(id: number) {
+  await db.deleteSubscription(id);
+  revalidateAll();
+  return { ok: true, message: "Subscription deleted." };
 }
 
 // ---------- goals ----------

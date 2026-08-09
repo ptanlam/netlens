@@ -18,12 +18,12 @@
  * The schema lives in `migrations/`, not in a string here — see `migrations/0001_init.sql`.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
+import type { Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, RecurringRule, Saving, Subscription, Tx } from "./types";
 import { fundCashAt, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
 
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
-export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, RecurringRule, Saving, Tx } from "./types";
+export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, RecurringRule, Saving, Subscription, Tx } from "./types";
 
 /** Set by `bindD1`, for callers that have no Cloudflare context to read. */
 let boundDb: D1Database | null = null;
@@ -317,6 +317,55 @@ export async function updateDebtPayment(
 
 export async function deleteDebtPayment(id: number) {
   await q("DELETE FROM debt_payments WHERE id=?").run(id);
+}
+
+// ---------- subscriptions (recurring charges) ----------
+
+/**
+ * Everything you're subscribed to. Cancelled plans are excluded unless you ask for them —
+ * the same default `listDebts` and `listGoals` take.
+ *
+ * The default is what keeps a cancelled plan out of the ₫/month figure without every caller
+ * remembering to filter. The Subscriptions page passes `true`, because it's the one place
+ * with somewhere to show them: a cancelled plan still holds what it cost you while it ran.
+ */
+export async function listSubscriptions(includeCancelled = false): Promise<Subscription[]> {
+  const where = includeCancelled ? "" : "WHERE cancelled_date IS NULL";
+  return q(`SELECT * FROM subscriptions ${where} ORDER BY name`).all<Subscription>();
+}
+
+export async function getSubscription(id: number): Promise<Subscription | undefined> {
+  return q("SELECT * FROM subscriptions WHERE id=?").get<Subscription>(id);
+}
+
+export async function addSubscription(
+  name: string, amount: number, cycle: string, startDate: string,
+  category: string, paymentMethod: string | null, note: string | null = null,
+) {
+  await q(
+    "INSERT INTO subscriptions(name, amount, cycle, start_date, category, payment_method, note) VALUES (?,?,?,?,?,?,?)",
+  ).run(name.trim(), Math.round(amount), cycle, startDate, category, paymentMethod, note);
+}
+
+export async function updateSubscription(
+  id: number, name: string, amount: number, cycle: string, startDate: string,
+  category: string, paymentMethod: string | null, note: string | null,
+) {
+  await q(
+    "UPDATE subscriptions SET name=?, amount=?, cycle=?, start_date=?, category=?, payment_method=?, note=? WHERE id=?",
+  ).run(name.trim(), Math.round(amount), cycle, startDate, category, paymentMethod, note, id);
+}
+
+/** Stop a plan billing as of today, or start it again. The date is the whole state: clearing
+ *  it puts the plan straight back on its original schedule, which is what reviving a
+ *  subscription you re-subscribed to actually means. */
+export async function setSubscriptionCancelled(id: number, cancelled: boolean) {
+  await q("UPDATE subscriptions SET cancelled_date=? WHERE id=?")
+    .run(cancelled ? todayIso() : null, id);
+}
+
+export async function deleteSubscription(id: number) {
+  await q("DELETE FROM subscriptions WHERE id=?").run(id);
 }
 
 // ---------- instruments ----------

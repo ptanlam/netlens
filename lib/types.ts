@@ -132,6 +132,57 @@ export interface DebtPayment {
   created_at: string;
 }
 
+export const BILLING_CYCLES = ["weekly", "monthly", "quarterly", "yearly"] as const;
+export type BillingCycle = (typeof BILLING_CYCLES)[number];
+
+export const BILLING_CYCLE_LABELS: Record<BillingCycle, string> = {
+  weekly: "Weekly",
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+  yearly: "Yearly",
+};
+
+/** The period a single charge covers — "₫260.000 / month". */
+export const BILLING_CYCLE_UNITS: Record<BillingCycle, string> = {
+  weekly: "week",
+  monthly: "month",
+  quarterly: "quarter",
+  yearly: "year",
+};
+
+/** A fixed list, not free text: the category picks the row's colour, and a colour has to
+ *  come from a slot the theme defines. "Other" is the neutral tile — see `CATEGORY_COLORS`
+ *  in `components/subscriptions-manager.tsx`. */
+export const SUBSCRIPTION_CATEGORIES = [
+  "Entertainment", "Software", "Utilities", "Health", "Finance", "Other",
+] as const;
+export type SubscriptionCategory = (typeof SUBSCRIPTION_CATEGORIES)[number];
+
+/**
+ * A recurring charge you've committed to. Not an asset and not a debt — a subscription is
+ * a *rate of spend*, so it stays out of net worth entirely and is measured in ₫/month.
+ *
+ * `amount` is what one charge costs, in that plan's own period: a yearly plan stores the
+ * year's price. Everything comparable (monthly equivalent, annual commitment, the next
+ * renewal date, what it has cost you so far) is derived in `lib/subscriptions.ts` from
+ * `start_date` — nothing about a future charge is stored, so nothing can go stale.
+ */
+export interface Subscription {
+  id: number;
+  name: string;
+  amount: number;
+  cycle: BillingCycle;
+  start_date: string;
+  category: string;
+  payment_method: string | null;
+  /** The day it stopped billing (`YYYY-MM-DD`), or null while it's live. This one column
+   *  is the entire cancellation state — there's no separate flag to fall out of step with
+   *  it, and it's what stops a cancelled plan projecting charges into next year. */
+  cancelled_date: string | null;
+  note: string | null;
+  created_at: string;
+}
+
 /**
  * What a goal tracks. Four of these are figures the dashboard already computes, so the
  * goal reads them live. `fund` is the odd one out: a sinking fund (a car, a wedding) is

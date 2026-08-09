@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Agent guide
 
-Personal net-worth tracker: **investments, savings (term deposits), debts (loans + credit cards)**, with a dashboard. Read this first, then the deep docs in [`docs/`](docs/).
+Personal net-worth tracker: **investments, savings (term deposits), debts (loans + credit cards), subscriptions (recurring charges)**, with a dashboard. Read this first, then the deep docs in [`docs/`](docs/).
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the app is wired (data → actions → pages).
 - [`docs/ADDING_A_FEATURE.md`](docs/ADDING_A_FEATURE.md) — copy-paste recipe for a new tracked entity (savings/debts are the templates).
@@ -31,14 +31,14 @@ Next.js 16 (App Router, Server Actions, Turbopack) · React 19 · **@base-ui/rea
 
 - **`lib/db.ts`** — D1, the single source of truth. **Every function is async.** Schema lives in `migrations/`, not here. Positional `?` params only, `batch()` instead of transactions, and no query inside a loop — each one is a network round trip.
 - **`lib/types.ts`** — shared types/consts, safe to import from client components (no Node deps).
-- **`lib/*.ts`** — pure logic: `savings.ts` (interest maths for savings AND debts), `pnl.ts`, `prices.ts`, `format.ts`.
+- **`lib/*.ts`** — pure logic: `savings.ts` (interest maths for savings AND debts), `subscriptions.ts` (billing cycles), `pnl.ts`, `prices.ts`, `format.ts`.
 - **`app/actions.ts`** — all `"use server"` mutations; each calls `revalidateAll()` after writing.
 - **`app/**/page.tsx`** — server components: read from `lib/db`, render a `<Card>` + a client manager component.
 - **`components/*-manager.tsx`, `*-form.tsx`** — `"use client"`; call server actions, toast, and use `<Dialog>` for add/edit.
 
 ## The feature pattern (memorize this)
 
-Every tracked entity (transactions, holdings, recurring, **savings**, **debts**) is the same shape:
+Every tracked entity (transactions, holdings, recurring, **savings**, **debts**, **subscriptions**) is the same shape:
 
 > table in a new `migrations/NNNN_*.sql` → async CRUD in `lib/db.ts` → type in `lib/types.ts` → actions in `app/actions.ts` (+ add route to `revalidateAll`) → `components/<x>-manager.tsx` → `app/<x>/page.tsx` → link in `components/nav.tsx` `LINKS` (drives desktop nav AND the mobile drawer).
 
@@ -57,6 +57,18 @@ Apply the migration with `pnpm db:migrate` (local) and `pnpm db:migrate:remote`.
 ## Money & interest
 
 `lib/savings.ts` holds the shared interest maths over an `Accruing` shape (`{principal, rate, start_date, term_months, interest_type}`). Savings deposits and debts both use `currentValue` / `maturityValue` / `summarize` / `isMatured`. A debt with `term_months <= 0` is **revolving** (credit card): open-ended, never matures. The dashboard **Net worth = investments + savings + fund cash − debts** (`components/net-worth.tsx`).
+
+## Subscriptions
+
+A subscription is a **rate of spend**, and the only tracked entity that deliberately stays
+out of net worth — it is neither a thing you own nor a debt you owe. `amount` is one
+charge in that plan's own period (a yearly plan stores the year's price); `lib/subscriptions.ts`
+derives ₫/month, the next renewal, what it has cost you, and the 12-month forecast, all by
+counting forward from `start_date`. Nothing about a future charge is stored.
+
+`cancelled_date` is the whole cancellation state (NULL = still billing) — one column, not a
+flag plus a date. Cancelling keeps the row and its history; deleting is for a row you added
+by mistake.
 
 ## Goals & sinking funds
 
