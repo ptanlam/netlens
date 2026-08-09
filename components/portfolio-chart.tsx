@@ -4,7 +4,7 @@ import * as React from "react";
 import type { PnlPoint } from "@/lib/types";
 import { fmtMil, fmtVND } from "@/lib/format";
 import { bucketOf, type Bucket } from "@/components/pnl-chart";
-import { DateRange } from "@/components/date-range";
+import { DateRange, defaultWindow } from "@/components/date-range";
 import { PanelHead } from "@/components/panel-head";
 import { ChartTip } from "@/components/chart-tip";
 import { cn } from "@/lib/utils";
@@ -59,12 +59,12 @@ export function PortfolioChart({
 
   const minDate = series?.length ? series[0].date : "";
   const maxDate = series?.length ? series[series.length - 1].date : "";
-  // Year to date, matching the preset of that name so its pill reads as active on arrival.
-  // Clamped to the first point: on a series younger than this year the window is the whole
-  // of it, and "All" is then the honest label for what you're looking at.
-  const ytd = maxDate ? `${maxDate.slice(0, 4)}-01-01` : "";
-  const from = range?.from ?? (ytd > minDate ? ytd : minDate);
-  const to = range?.to ?? maxDate;
+  // The last year, matching the preset of that name so its pill reads as active on arrival.
+  // Clamped to the first point: on a series younger than a year the window is the whole of
+  // it, and "All" is then the honest label for what you're looking at.
+  const fallback = defaultWindow(minDate, maxDate);
+  const from = range?.from ?? fallback.from;
+  const to = range?.to ?? fallback.to;
 
   // Last point of each bucket, projected onto the chosen metric.
   const pts = React.useMemo<Point[]>(() => {

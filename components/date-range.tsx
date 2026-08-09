@@ -18,8 +18,30 @@ export function shiftMonths(iso: string, delta: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
+/** How far back every panel opens on. A year is the shortest window that shows a full
+ *  seasonal cycle — an annual subscription renewal, a maturing deposit, a January dip —
+ *  while still being short enough that this month is legible inside it. */
+export const DEFAULT_RANGE_MONTHS = 12;
+
 /**
- * The date-window control every "over time" panel wears: four presets, then the two dates
+ * The window a panel opens on: the last year, or all of it when there's less than a year of
+ * data. Shared rather than seeded per panel — the three callers each had their own idea of
+ * the default and had already drifted apart (two on YTD, one on All).
+ *
+ * The clamp is what makes the pills honest: on a series younger than a year `from` lands on
+ * `min`, so the pill that reads as active is "All", which is what you're actually looking
+ * at. Empty in, empty out — the dashboard's series is fetched after mount, and there is no
+ * window to compute before it arrives.
+ */
+export function defaultWindow(min: string, max: string): { from: string; to: string } {
+  const anchor = max || min;
+  if (!anchor) return { from: min, to: max };
+  const year = shiftMonths(anchor, -DEFAULT_RANGE_MONTHS);
+  return { from: year > min ? year : min, to: max };
+}
+
+/**
+ * The date-window control every "over time" panel wears: five presets, then the two dates
  * spelled out so a window that isn't one of them can still be dialled in.
  *
  * One component rather than a copy per panel — it was hand-rolled three times over and the
@@ -52,7 +74,10 @@ export function DateRange({
     () => [
       { label: "1M", from: shiftMonths(anchor, -1) },
       { label: "3M", from: shiftMonths(anchor, -3) },
+      // YTD sits before 1Y despite reaching back further in December: the row is ordered
+      // the way every finance chart orders it, not by the span each happens to cover today.
       { label: "YTD", from: `${anchor.slice(0, 4)}-01-01` },
+      { label: "1Y", from: shiftMonths(anchor, -DEFAULT_RANGE_MONTHS) },
       { label: "All", from: min },
     ],
     [anchor, min],

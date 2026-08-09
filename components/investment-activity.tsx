@@ -13,7 +13,7 @@ import { PanelHead } from "@/components/panel-head";
 import { ChartTip } from "@/components/chart-tip";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { holdingLogo } from "@/lib/logos";
-import { DateRange } from "@/components/date-range";
+import { DateRange, defaultWindow } from "@/components/date-range";
 import { cn } from "@/lib/utils";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -49,8 +49,11 @@ export function InvestmentActivity({
   const year = today.slice(0, 4);
   const minDate = txs.length ? txs.reduce((m, t) => (t.date < m ? t.date : m), txs[0].date) : `${year}-01-01`;
 
-  const [from, setFrom] = React.useState(`${year}-01-01`);
-  const [to, setTo] = React.useState(today);
+  // Opens on the last year of activity — or on everything, when there's less than a year of
+  // it. Seeded once: `today` and `minDate` don't move within a mount.
+  const initial = defaultWindow(minDate, today);
+  const [from, setFrom] = React.useState(initial.from);
+  const [to, setTo] = React.useState(initial.to);
   const [filterHolding, setFilterHolding] = React.useState("All");
   const [filterType, setFilterType] = React.useState("All");
 
@@ -226,7 +229,7 @@ export function InvestmentActivity({
       </div>
 
       {/* Summary tiles. Monthly average and Best month are scoped to the selected range
-          like everything else here, so they move with the 1M/3M/YTD/All picker. */}
+          like everything else here, so they move with the 1M/3M/YTD/1Y/All picker. */}
       <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-divider bg-divider lg:grid-cols-3">
         <SummaryTile label="Transactions" value={String(filtered.length)} />
         <SummaryTile label="Invested" value={fmtVND(invested)} />

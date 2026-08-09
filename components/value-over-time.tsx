@@ -5,7 +5,7 @@ import { fmtMil, fmtVND } from "@/lib/format";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { PanelHead } from "@/components/panel-head";
 import { ChartTip } from "@/components/chart-tip";
-import { DateRange } from "@/components/date-range";
+import { DateRange, defaultWindow } from "@/components/date-range";
 import { cn } from "@/lib/utils";
 
 export interface SeriesPoint {
@@ -142,8 +142,11 @@ export function ValueOverTime({
   const minDate = series.length ? series[0].date : "";
   const maxDate = series.length ? series[series.length - 1].date : "";
 
-  const [from, setFrom] = React.useState(minDate);
-  const [to, setTo] = React.useState(maxDate);
+  // The last year rather than the whole history: a deposit ladder or a debt run going back
+  // years compresses this year — the part you can still act on — into the right-hand inch.
+  const initial = defaultWindow(minDate, maxDate);
+  const [from, setFrom] = React.useState(initial.from);
+  const [to, setTo] = React.useState(initial.to);
   const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
   const [metric, setMetric] = React.useState<"total" | "interest">("total");
 
