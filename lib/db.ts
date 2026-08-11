@@ -400,6 +400,15 @@ export async function instrumentNames(): Promise<string[]> {
   return rows.map((r) => r.name);
 }
 
+/** Bumps the history stamp, because editing a holding moves days that are already settled.
+ *  `quantity` is the reason: `buildDaily` anchors units to it through
+ *  `offset = qtyNow - totalUnits`, so changing it re-prices *every* past day, not just
+ *  today's. `manual_value` does the same for an untracked holding, and `asset_type` relabels
+ *  its rows in the per-holding breakdown. Editing a share count by hand is how a stock
+ *  dividend gets recorded (nothing models corporate actions), so this path runs whenever the
+ *  chart most needs to be redrawn — and without the bump a dashboard already open keeps
+ *  serving its cached series until `sweepRecentHistory` happens to bump within the half hour.
+ *  Lives here rather than in the actions so `saveHoldings`' bulk edit is covered too. */
 export async function updateInstrumentFields(
   name: string, assetType: string, priceSource: string,
   symbol: string | null, quantity: number | null, manualValue: number | null,
@@ -407,6 +416,7 @@ export async function updateInstrumentFields(
   await q(
     "UPDATE instruments SET asset_type=?, price_source=?, symbol=?, quantity=?, manual_value=?, updated_at=? WHERE name=?",
   ).run(assetType, priceSource, symbol || null, roundUnits(quantity), manualValue, nowIso(), name);
+  await bumpHistory();
 }
 
 /** Hide a fully-sold holding from the active list without losing its transaction or
