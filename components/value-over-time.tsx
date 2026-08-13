@@ -1,10 +1,15 @@
 "use client";
 
 import * as React from "react";
+import { areaY, defineChart, lineY, ruleY } from "@tanstack/charts";
+import { crosshair } from "@tanstack/charts/crosshair";
+import { Chart } from "@tanstack/charts/react";
+import { scaleLinear } from "@tanstack/charts/scales/linear";
+import { tooltip } from "@tanstack/charts/tooltip";
+import { scaleUtc } from "d3-scale";
 import { fmtMil, fmtVND } from "@/lib/format";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import { PanelHead } from "@/components/panel-head";
-import { ChartTip } from "@/components/chart-tip";
+import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
 import { DateRange, defaultWindow } from "@/components/date-range";
 import { cn } from "@/lib/utils";
 
@@ -96,19 +101,6 @@ function axisFmt(max: number): (v: number) => string {
 }
 
 /**
- * Round up to a "nice" axis maximum. The steps are fine-grained on purpose: coarse ones
- * put a 105mil series on a 200mil axis, and the headroom squashes the interest band that
- * is already the thinnest thing on the chart.
- */
-const NICE_STEPS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
-function niceMax(v: number): number {
-  if (v <= 0) return 1e6;
-  const p = Math.pow(10, Math.floor(Math.log10(v)));
-  const n = v / p;
-  return (NICE_STEPS.find((s) => n <= s) ?? 10) * p;
-}
-
-/**
  * A headline "over time" line chart driven by a date-range picker. `series` is the
  * full daily (ascending) series; the picker slices it. Shared by Savings and Debts.
  */
@@ -147,7 +139,6 @@ export function ValueOverTime({
   const initial = defaultWindow(minDate, maxDate);
   const [from, setFrom] = React.useState(initial.from);
   const [to, setTo] = React.useState(initial.to);
-  const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
   const [metric, setMetric] = React.useState<"total" | "interest">("total");
 
   // Interest is often a fraction of a percent of the total, so it is invisible on an axis
@@ -178,7 +169,7 @@ export function ValueOverTime({
                     key={m}
                     type="button"
                     className={pill(metric === m)}
-                    onClick={() => { setMetric(m); setHoverIdx(null); }}
+                    onClick={() => setMetric(m)}
                   >
                     {m === "total" ? tipLabel : bandLabel}
                   </button>
@@ -205,7 +196,7 @@ export function ValueOverTime({
             to={to}
             min={minDate}
             max={maxDate}
-            onChange={(f, t) => { setFrom(f); setTo(t); setHoverIdx(null); }}
+            onChange={(f, t) => { setFrom(f); setTo(t); }}
           />
         )}
       </div>
@@ -223,13 +214,16 @@ export function ValueOverTime({
             tipLabel={metric === "interest" ? bandLabel : tipLabel}
             baseLabel={baseLabel}
             bandLabel={bandLabel}
-            hoverIdx={hoverIdx}
-            setHoverIdx={setHoverIdx}
           />
         )}
       </div>
     </div>
   );
+}
+
+/** The instant a sampled day sits at — a temporal x scale needs a Date, not a string. */
+interface Plotted extends SeriesPoint {
+  at: Date;
 }
 
 function ChartSvg({
@@ -240,8 +234,6 @@ function ChartSvg({
   tipLabel,
   baseLabel,
   bandLabel,
-  hoverIdx,
-  setHoverIdx,
 }: {
   pts: SeriesPoint[];
   stroke: string;
@@ -250,23 +242,90 @@ function ChartSvg({
   tipLabel: string;
   baseLabel: string;
   bandLabel: string;
-  hoverIdx: number | null;
-  setHoverIdx: (i: number | null) => void;
 }) {
-  const n = pts.length;
-  const W = 1000;
-  const H = 220;
+  const rows: Plotted[] = React.useMemo(
+    () => pts.map((p) => ({ ...p, at: new Date(`${p.date}T00:00:00Z`) })),
+    [pts],
+  );
 
-  // Full ISO dates are ~62px wide; a phone plot is only ~240px, so ~9 of them collide.
-  // Thin the axis to ~4 labels on mobile and drop the year to keep them legible.
-  const isMobile = useMediaQuery("(max-width: 640px)");
+  // Whether this series carries a principal/interest split, and so whether the chart is two
+  // curves with a band between them or a single filled line.
+  const split = rows.some((p) => p.base !== undefined);
+  const baseOf = (p: SeriesPoint) => p.base ?? 0;
 
-  const { yMax, ticks, fmtTick } = React.useMemo(() => {
-    const max = niceMax(Math.max(1, ...pts.map((p) => p.v)));
-    return { yMax: max, ticks: [0, 0.25, 0.5, 0.75, 1].map((f) => f * max), fmtTick: axisFmt(max) };
-  }, [pts]);
+  // `fmtMil` rounds to whole millions, which collapses an interest-only axis (tens of
+  // thousands) to a column of "0mil" — so the unit follows the size of the series.
+  const fmtTick = React.useMemo(() => axisFmt(Math.max(1, ...rows.map((p) => p.v))), [rows]);
 
-  if (n < 2) {
+  const definition = React.useMemo(
+    () =>
+      defineChart({
+        marks: [
+          crosshair({
+            x: { stroke: "var(--foreground)", strokeWidth: 1, strokeDasharray: "3 3", strokeOpacity: 0.4 },
+            y: false,
+            marker: { radius: 4.5, fill: "var(--card)", stroke, strokeWidth: 2 },
+          }),
+          // Without a split, one wash under the value line. With one, the wash stops at the
+          // principal and the band above it — between the two curves — is the interest
+          // sitting inside the balance.
+          areaY(rows, { x: "at", y1: 0, y2: split ? baseOf : "v", fill: areaFill, fillOpacity: 1 }),
+          ...(split
+            ? [
+                areaY(rows, {
+                  x: "at",
+                  y1: baseOf,
+                  y2: "v",
+                  fill: bandFill ?? areaFill,
+                  fillOpacity: 1,
+                }),
+                lineY(rows, {
+                  x: "at",
+                  y: baseOf,
+                  stroke,
+                  strokeWidth: 1.25,
+                  strokeDasharray: "4 3",
+                  strokeOpacity: 0.55,
+                }),
+              ]
+            : []),
+          ruleY([0], { stroke: "var(--grid-strong)", strokeWidth: 1 }),
+          lineY(rows, { x: "at", y: "v", stroke, strokeWidth: 2 }),
+        ],
+        // A real time scale, so the ticks land on months and years the reader recognises
+        // instead of on every Nth sample — which is what an index-shaped axis gives you
+        // when the sampling step is 3 days.
+        x: { scale: scaleUtc, axis: bareAxis<Date>() },
+        y: { scale: scaleLinear, nice: true, grid: true, axis: bareAxis<number>({ format: fmtTick }) },
+        theme: CHART_THEME,
+        // The date is what you point at; how near the cursor is to the curve vertically
+        // says nothing, and an unbounded radius means no dead zones between samples.
+        focus: "nearest-x",
+        maxFocusDistance: Number.POSITIVE_INFINITY,
+        tooltip: {
+          use: tooltip,
+          content: (points) => {
+            const p = points[0]?.datum;
+            if (!p) return { rows: [] };
+            return {
+              title: p.date,
+              rows: [
+                { label: tipLabel, value: fmtVND(p.v), color: stroke },
+                ...(split
+                  ? [
+                      { label: baseLabel, value: fmtVND(baseOf(p)) },
+                      { label: bandLabel, value: `+${fmtVND(p.v - baseOf(p))}`, color: bandFill ?? areaFill },
+                    ]
+                  : []),
+              ],
+            };
+          },
+        },
+      }),
+    [rows, split, stroke, areaFill, bandFill, tipLabel, baseLabel, bandLabel, fmtTick],
+  );
+
+  if (rows.length < 2) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         Not enough data in this range — widen the dates.
@@ -274,113 +333,14 @@ function ChartSvg({
     );
   }
 
-  const X = (i: number) => (i / (n - 1)) * W;
-  const Y = (v: number) => H - (v / yMax) * H;
-
-  const trace = (get: (p: SeriesPoint) => number) =>
-    pts.map((p, i) => (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(get(p)).toFixed(1) + " ").join("");
-
-  const line = trace((p) => p.v);
-  const split = pts.some((p) => p.base !== undefined);
-  const baseOf = (p: SeriesPoint) => p.base ?? 0;
-  const baseLine = split ? trace(baseOf) : "";
-
-  // Without a split, one area under the value line. With one, the fill under the
-  // baseline is principal and the band between the two curves is accrued interest.
-  const area = (split ? baseLine : line) + "L" + W + " " + H + " L 0 " + H + " Z";
-  const band = split
-    ? line +
-      pts
-        .map((p, i) => "L" + X(pts.length - 1 - i).toFixed(1) + " " + Y(baseOf(pts[pts.length - 1 - i])).toFixed(1) + " ")
-        .join("") +
-      "Z"
-    : "";
-
-  const step = Math.max(1, Math.ceil(n / (isMobile ? 4 : 9)));
-  const xLabels: React.ReactNode[] = [];
-  for (let i = 0; i < n; i += step) {
-    xLabels.push(
-      <div key={i} className="absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap text-faint" style={{ left: `${(X(i) / W) * 100}%` }}>
-        {isMobile ? pts[i].date.slice(5) : pts[i].date}
-      </div>,
-    );
-  }
-
-  const hi = hoverIdx != null && pts[hoverIdx] ? hoverIdx : null;
-  const tipLeft = hi != null ? Math.max(6, Math.min(94, (X(hi) / W) * 100)) : 0;
-
   return (
-    <div className="relative">
-      <div className="relative ml-[46px] h-[220px]">
-        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 block h-full w-full">
-          {ticks.map((t, i) => (
-            <line key={"g" + i} x1={0} x2={W} y1={Y(t)} y2={Y(t)} stroke={t === 0 ? "var(--grid-strong)" : "var(--grid)"} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          ))}
-          <path className="animate-fade-in" d={area} fill={areaFill} />
-          {split && <path className="animate-fade-in" d={band} fill={bandFill ?? areaFill} />}
-          {split && (
-            <path
-              className="animate-draw-line"
-              pathLength={1}
-              d={baseLine}
-              fill="none"
-              stroke={stroke}
-              strokeWidth={1.25}
-              strokeDasharray="4 3"
-              opacity={0.55}
-              vectorEffect="non-scaling-stroke"
-              strokeLinejoin="round"
-            />
-          )}
-          <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke={stroke} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-          {hi != null && (
-            <line x1={X(hi)} x2={X(hi)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" opacity={0.4} />
-          )}
-          <rect
-            x={0}
-            y={0}
-            width={W}
-            height={H}
-            fill="transparent"
-            style={{ cursor: "crosshair" }}
-            onMouseMove={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              let idx = Math.round(((e.clientX - r.left) / r.width) * (n - 1));
-              idx = Math.max(0, Math.min(n - 1, idx));
-              if (idx !== hoverIdx) setHoverIdx(idx);
-            }}
-            onMouseLeave={() => setHoverIdx(null)}
-          />
-        </svg>
-        {hi != null && (
-          <div
-            className="pointer-events-none absolute z-10 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
-            style={{ left: `${(X(hi) / W) * 100}%`, top: `${(Y(pts[hi].v) / H) * 100}%`, borderColor: stroke, background: "var(--card)" }}
-          />
-        )}
-        {hi != null && (
-          <ChartTip leftPct={tipLeft} topFrac={Y(pts[hi].v) / H}>
-            <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].date}</div>
-            <div className="font-mono text-[12.5px] tabular-nums text-background">
-              {tipLabel} {fmtVND(pts[hi].v)}
-            </div>
-            {split && (
-              <div className="mt-1 space-y-0.5 border-t border-background/20 pt-1 font-mono text-[10.5px] tabular-nums text-background/70">
-                <div>{baseLabel} {fmtVND(baseOf(pts[hi]))}</div>
-                <div>{bandLabel} +{fmtVND(pts[hi].v - baseOf(pts[hi]))}</div>
-              </div>
-            )}
-          </ChartTip>
-        )}
-      </div>
-      <div className="absolute top-0 left-0 h-[220px] w-[46px]">
-        {ticks.map((t, i) => (
-          <div key={"y" + i} className="absolute left-0 -translate-y-1/2 font-mono text-[10.5px] text-faint" style={{ top: `${(Y(t) / H) * 100}%` }}>
-            {fmtTick(t)}
-          </div>
-        ))}
-      </div>
-      <div className="relative mt-2 ml-[46px] h-[18px]">{xLabels}</div>
-    </div>
+    <Chart
+      definition={definition}
+      height={220}
+      initialWidth={1000}
+      className="w-full"
+      style={CHART_HOST_STYLE}
+      ariaLabel={`${tipLabel} over time`}
+    />
   );
 }

@@ -3,7 +3,16 @@
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Ban, CalendarClock, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { defineChart, rect } from "@tanstack/charts";
+import { crosshair } from "@tanstack/charts/crosshair";
+import { controlledSignal } from "@tanstack/charts/interaction/signal";
+import {
+  interactiveColorLegend, type InteractiveColorLegendChange,
+} from "@tanstack/charts/legend";
+import { Chart } from "@tanstack/charts/react";
+import { scaleBand } from "@tanstack/charts/scales/band";
+import { scaleLinear } from "@tanstack/charts/scales/linear";
+import { tooltip } from "@tanstack/charts/tooltip";
 import { toast } from "sonner";
 import {
   BILLING_CYCLES, BILLING_CYCLE_LABELS, BILLING_CYCLE_UNITS,
@@ -23,9 +32,7 @@ import { PanelHead } from "@/components/panel-head";
 import { SummaryCards } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
-} from "@/components/ui/chart";
+import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -382,37 +389,50 @@ const SERIES_HUES = [
 ];
 
 /**
- * A plan's slot in the stack: a hue, plus the strength it's painted at.
- *
- * Both halves come from the row's own id, never from its position in the list — so a plan
- * keeps its colour when one above it is added, cancelled or deleted. Colour follows the
- * entity, never its rank.
+ * A plan's slot in the stack: one paint, derived from the row's own id and never from its
+ * position in the list — so a plan keeps its colour when one above it is added, cancelled
+ * or deleted. Colour follows the entity, never its rank.
  *
  * Every second trip round the five hues comes back at half strength, which is what turns
- * five theme colours into ten telling-apart-able series: two plans now collide only if
- * their ids are ten apart, not five. Opacity rather than a `color-mix` lightening step
- * because it reads as the same hue, weaker, in both themes — mixing toward the card would
- * lighten it in Daylight and darken it in Midnight.
+ * five theme colours into ten telling-apart-able series: two plans collide only if their
+ * ids are ten apart, not five. The weaker variant mixes toward *transparent* — that is
+ * alpha, not a lightening step, so it reads as the same hue in both themes. Mixing toward
+ * the card instead would lighten it in Daylight and darken it in Midnight.
+ *
+ * One string rather than a `{ fill, opacity }` pair because a mark takes a single paint per
+ * segment: the colour scale maps a plan's id straight to what its rectangle is painted.
  */
-function seriesStyle(sub: Subscription): { fill: string; opacity: number } {
-  return {
-    fill: SERIES_HUES[sub.id % SERIES_HUES.length],
-    opacity: Math.floor(sub.id / SERIES_HUES.length) % 2 === 0 ? 1 : 0.55,
-  };
+function seriesFill(sub: Subscription): string {
+  const hue = SERIES_HUES[sub.id % SERIES_HUES.length];
+  return Math.floor(sub.id / SERIES_HUES.length) % 2 === 0
+    ? hue
+    : `color-mix(in srgb, ${hue} 55%, transparent)`;
 }
 
-/** One month's column. The `s<id>` keys are the per-plan segments — flat, because that is
- *  what Recharts stacks on. `null` rather than 0 for a month a plan doesn't bill: Recharts'
- *  tooltip drops null entries, so hovering December lists only what December actually
- *  charges instead of every plan you own with a row of zeros. */
-interface ForecastBar {
+/**
+ * One rectangle: what a single plan charges in a single month, and where that sits in the
+ * column.
+ *
+ * The chart's rows are one segment per charge, not one row per month with a column per
+ * plan. That is the shape the data actually has — a month a plan doesn't bill simply has no
+ * row, so hovering December lists what December charges instead of every plan you own with
+ * a row of zeros.
+ *
+ * `base`/`top` are the stack, computed here rather than left to the mark's own stacking:
+ * spelling the endpoints out is what lets each segment carry a hairline border (see below),
+ * and the running sum is the same one line either way.
+ */
+interface ForecastSegment {
+  sub: Subscription;
   month: string;
-  total: number;
-  /** Axis tick — "Aug". */
-  label: string;
   /** Tooltip heading — "Aug 2027", since the window crosses a year boundary. */
   full: string;
-  [segment: `s${number}`]: number | string | null;
+  /** What this plan charges in this month. */
+  amount: number;
+  /** Everything the column charges — the figure its height means. */
+  total: number;
+  base: number;
+  top: number;
 }
 
 /**
@@ -423,89 +443,166 @@ interface ForecastBar {
  * as a column three times its neighbours', and the stack says which plan did it.
  */
 function ForecastPanel({
-  bars,
+  segments,
+  months,
   billed,
-  config,
 }: {
-  bars: ForecastBar[];
+  segments: ForecastSegment[];
+  /** Every month in the window, in order — the x domain. Given explicitly because a month
+   *  that charges nothing has no segment, and an inferred domain would drop its column. */
+  months: string[];
   /** The plans that bill at least once in the window, in stacking order (biggest first, so
-   *  the heaviest commitment is the base of every column), each with its series style. */
-  billed: { sub: Subscription; style: { fill: string; opacity: number } }[];
-  config: ChartConfig;
+   *  the heaviest commitment is the base of every column), each with its paint. */
+  billed: { sub: Subscription; fill: string }[];
 }) {
-  // The tooltip's swatch has to match the segment it points at, and Recharts only hands the
-  // formatter the Bar's flat `fill` — the opacity half of the slot would be lost.
-  const styleOf = new Map(billed.map((b) => [`s${b.sub.id}`, b.style]));
+  /**
+   * The one plan the reader has singled out, if any.
+   *
+   * A stack answers "what do I owe in March"; it is bad at "what does *this* plan cost me
+   * across the year", because a segment's height is only readable against a baseline that
+   * moves under it. Isolating drops the plan to the floor in every month, which is the only
+   * way to compare its own months to each other.
+   */
+  const [only, setOnly] = React.useState<number | null>(null);
+
+  // The isolated plan starts from zero rather than keeping its place in the stack: with
+  // nothing under it, the space below a floating segment would read as another plan's.
+  const shown = React.useMemo(
+    () =>
+      only === null
+        ? segments
+        : segments
+            .filter((s) => s.sub.id === only)
+            .map((s) => ({ ...s, base: 0, top: s.amount })),
+    [segments, only],
+  );
+
+  const definition = React.useMemo(
+    () =>
+      defineChart({
+        marks: [
+          // Underlay, so the hovered month lights up behind its column rather than washing
+          // over it. `inset` is negative to widen the band back past the bar's own padding,
+          // which makes the cursor read as "this month" and not "this bar".
+          crosshair({
+            // Full strength: `--muted` is already a pale surface colour, and the guide's
+            // own 12% default would leave it invisible on the card.
+            x: { band: { fill: "var(--muted)", fillOpacity: 1, inset: -5, radius: 4 } },
+            y: false,
+          }),
+          rect(shown, {
+            x: "month",
+            y1: "base",
+            y2: "top",
+            // The plan is the series, and saying so is what makes a column's segments one
+            // thing: grouped focus collects one point per series at the hovered month, so
+            // without `z` every segment would look like the same series and the tooltip
+            // would list a single row. Colour follows `z`, which is why the scale below is
+            // keyed by plan id.
+            z: (s) => s.sub.id,
+            key: (s) => `${s.month}:${s.sub.id}`,
+            // A hairline in the panel's own colour, so two plans that share a hue still
+            // read as two segments where they meet.
+            stroke: "var(--card)",
+            strokeWidth: 1,
+            inset: 0,
+          }),
+        ],
+        x: {
+          // An instance, not a factory: the domain is ours (all twelve months), and only a
+          // configured scale keeps its own.
+          scale: scaleBand<string>().domain(months).padding(0.26),
+          axis: bareAxis<string>({ format: (m) => MONTHS[Number(m.slice(5, 7)) - 1] }),
+        },
+        y: {
+          scale: scaleLinear,
+          nice: true,
+          grid: true,
+          axis: bareAxis<number>({ format: fmtMil }),
+        },
+        color: {
+          // The full domain either way, so isolating a plan doesn't drop the others out of
+          // the legend — the legend is how you get back.
+          domain: billed.map(({ sub }) => sub.id),
+          range: billed.map(({ fill }) => fill),
+          /**
+           * The legend is the library's: pressed-state buttons, keyboard order, layout and
+           * the swatches all come with it. What stays ours is the *policy* — the change
+           * event names the plan that was clicked, and we read that as "show me only this
+           * one" rather than as "hide this one".
+           *
+           * Isolating by filtering the rows, rather than by letting the legend hide the
+           * series, is deliberate: the legend filters after the scales are resolved, so a
+           * ₫260k plan would keep being drawn against a ₫7mil axis and stay invisible.
+           * Feeding the mark only the rows we want re-scales the axis to them.
+           */
+          legend: interactiveColorLegend<number>({
+            visible: controlledSignal<readonly number[], InteractiveColorLegendChange<number>>(
+              only === null ? billed.map(({ sub }) => sub.id) : [only],
+              (_next, { reason }) => {
+                setOnly((current) => (current === reason.value ? null : reason.value));
+              },
+            ),
+            placement: "top",
+            format: (id) => billed.find(({ sub }) => sub.id === id)?.sub.name ?? String(id),
+            ariaLabel: "Show one subscription",
+            itemAriaLabel: (id, { visible }) => {
+              const name = billed.find(({ sub }) => sub.id === id)?.sub.name ?? String(id);
+              return visible && only !== null ? `Show every plan` : `Show only ${name}`;
+            },
+          }),
+        },
+        theme: CHART_THEME,
+        // Hovering anywhere in a column means the whole column: a stack is only readable if
+        // you can see every plan that adds up to the height at once.
+        focus: "group-x",
+        focusRing: false,
+        tooltip: {
+          use: tooltip,
+          anchor: "group-center",
+          placement: ["top", "right", "left", "bottom"],
+          // Rows in the colour scale's order, which is the stacking order — the tooltip
+          // lists a column's plans the same way the column stacks them.
+          sort: "color-domain",
+          // The built-in tooltip renders the surface, the heading and one swatched row per
+          // plan; all we supply is the wording.
+          content: (points) => {
+            const first = points[0]?.datum;
+            if (!first) return { rows: [] };
+            return {
+              // The month's total belongs in the heading: it's the figure the column height
+              // means, and the rows beneath it are what add up to it. Isolated, the column
+              // height *is* the row below, so the month's full commitment would be a number
+              // the chart isn't showing — the date alone is honest.
+              title:
+                only === null ? `${first.full} · ${fmtVND(first.total)}` : first.full,
+              rows: points.map((point) => ({
+                label: point.datum.sub.name,
+                value: fmtVND(point.datum.amount),
+                color: point.color,
+              })),
+            };
+          },
+        },
+      }),
+    [shown, months, billed, only],
+  );
+
   return (
     <div className="card-surface panel-body">
       <PanelHead
         title="Committed spend, next 12 months"
         info="Every charge falling in each calendar month, split by subscription and including the current month in full — charges it has already taken as well as the ones still ahead. Cancelled plans bill nothing."
       />
-      {/* The legend is what makes the colours mean anything without hovering. It lists only
-          plans that bill inside the window, so a cancelled one doesn't sit here claiming a
-          colour it never paints. */}
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-2 text-[11.5px] text-muted-foreground">
-        {billed.map(({ sub, style }) => (
-          <span key={sub.id} className="flex items-center gap-1.5">
-            <span
-              className="h-2.5 w-2.5 rounded-[3px]"
-              style={{ background: style.fill, opacity: style.opacity }}
-            />
-            {sub.name}
-          </span>
-        ))}
-      </div>
       <div className="mt-5">
-        <ChartContainer config={config} className="aspect-[3/1] min-h-48 w-full">
-          <BarChart data={bars} accessibilityLayer>
-            <CartesianGrid vertical={false} strokeWidth={1} />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
-            <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={fmtMil} />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  // The month's total belongs in the heading: it's the figure the column
-                  // height means, and the rows beneath it are what add up to it.
-                  labelFormatter={(_v, p) => {
-                    const row = p?.[0]?.payload as ForecastBar | undefined;
-                    return row ? `${row.full} · ${fmtVND(row.total)}` : "";
-                  }}
-                  formatter={(v, name, item) => {
-                    const style = styleOf.get(String(item.dataKey));
-                    return (
-                      <div className="flex w-full items-center gap-2">
-                        <span
-                          className="size-2.5 shrink-0 rounded-[2px]"
-                          style={{ background: style?.fill ?? item.color, opacity: style?.opacity }}
-                        />
-                        <span className="truncate text-muted-foreground">{name}</span>
-                        <span className="ml-auto font-mono font-medium tabular-nums text-foreground">
-                          {fmtVND(Number(v))}
-                        </span>
-                      </div>
-                    );
-                  }}
-                />
-              }
-            />
-            {billed.map(({ sub, style }) => (
-              <Bar
-                key={sub.id}
-                dataKey={`s${sub.id}`}
-                name={sub.name}
-                stackId="month"
-                fill={style.fill}
-                fillOpacity={style.opacity}
-                // A hairline in the panel's own colour, so two plans that share a hue still
-                // read as two segments where they meet.
-                stroke="var(--card)"
-                strokeWidth={1}
-                isAnimationActive={false}
-              />
-            ))}
-          </BarChart>
-        </ChartContainer>
+        <Chart
+          definition={definition}
+          aspectRatio={3}
+          initialWidth={900}
+          className="w-full"
+          style={{ ...CHART_HOST_STYLE, minHeight: "12rem" }}
+          ariaLabel="Committed spend for each of the next twelve months, split by subscription"
+        />
       </div>
     </div>
   );
@@ -561,31 +658,29 @@ export function SubscriptionsManager({
     const billedIdx = ordered
       .map((_, i) => i)
       .filter((i) => months.some((m) => m.parts[i] > 0));
-    const billed = billedIdx.map((i) => ({ sub: ordered[i], style: seriesStyle(ordered[i]) }));
+    const billed = billedIdx.map((i) => ({ sub: ordered[i], fill: seriesFill(ordered[i]) }));
 
-    const bars = months.map((m) => {
+    const segments: ForecastSegment[] = [];
+    for (const m of months) {
       const [y, mo] = m.month.split("-").map(Number);
-      const row: ForecastBar = {
-        month: m.month,
-        total: m.total,
-        label: MONTHS[mo - 1],
-        full: `${MONTHS[mo - 1]} ${y}`,
-      };
-      for (const i of billedIdx) row[`s${ordered[i].id}`] = m.parts[i] || null;
-      return row;
-    });
-    return { bars, billed };
+      let base = 0;
+      for (const i of billedIdx) {
+        const amount = m.parts[i];
+        if (!amount) continue;
+        segments.push({
+          sub: ordered[i],
+          month: m.month,
+          full: `${MONTHS[mo - 1]} ${y}`,
+          amount,
+          total: m.total,
+          base,
+          top: base + amount,
+        });
+        base += amount;
+      }
+    }
+    return { segments, billed, months: months.map((m) => m.month) };
   }, [subscriptions, today]);
-
-  // Names the tooltip and legend read through — `getPayloadConfigFromPayload` looks a
-  // series up by key, and without an entry the swatch colour falls back to the raw fill.
-  const chartConfig = React.useMemo<ChartConfig>(
-    () =>
-      Object.fromEntries(
-        forecast.billed.map(({ sub, style }) => [`s${sub.id}`, { label: sub.name, color: style.fill }]),
-      ),
-    [forecast.billed],
-  );
 
   const nextUp = active.reduce<SubRow | null>(
     (best, r) => (best === null || r.days < best.days ? r : best),
@@ -641,7 +736,11 @@ export function SubscriptionsManager({
       />
 
       {forecast.billed.length > 0 && (
-        <ForecastPanel bars={forecast.bars} billed={forecast.billed} config={chartConfig} />
+        <ForecastPanel
+          segments={forecast.segments}
+          months={forecast.months}
+          billed={forecast.billed}
+        />
       )}
 
       <p className="text-[12.5px] text-muted-foreground">

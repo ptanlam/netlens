@@ -2,15 +2,20 @@
 
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { areaY, defineChart, lineY } from "@tanstack/charts";
+import { crosshair } from "@tanstack/charts/crosshair";
+import { Chart } from "@tanstack/charts/react";
+import { scaleLinear } from "@tanstack/charts/scales/linear";
+import { tooltip } from "@tanstack/charts/tooltip";
+import { scaleUtc } from "d3-scale";
 import type { Tx } from "@/lib/types";
-import { useElementWidth } from "@/hooks/use-element-width";
 import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table";
 import { TxRowActions } from "@/components/tx-row-actions";
 import type { InstrumentOption } from "@/components/tx-form";
 import { PanelHead } from "@/components/panel-head";
-import { ChartTip } from "@/components/chart-tip";
+import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { holdingLogo } from "@/lib/logos";
 import { DateRange, defaultWindow } from "@/components/date-range";
@@ -298,94 +303,83 @@ function SummaryTile({ label, value, valueCls }: { label: string; value: string;
 }
 
 interface CumPoint {
-  x: number;
+  /** The instant this step lands on — the temporal x scale plots from this. */
+  at: Date;
   v: number;
   date: string;
   label: string;
 }
 
 function CumulativeChart({ txs, from, to }: { txs: Tx[]; from: string; to: string }) {
-  const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
-  // Drawn in real pixels rather than a fixed viewBox stretched to fit: with x and y scaled
-  // by different factors, every step in the line was smeared sideways and rendered heavier
-  // than the flat runs, which read as the flats being thinner. 1:1 units fix that — and it
-  // makes `vector-effect: non-scaling-stroke` unnecessary, since nothing is scaled.
-  const boxRef = React.useRef<HTMLDivElement>(null);
-  const W = useElementWidth(boxRef);
-  const H = 150;
-  // Half the stroke width. A 2px line centred on y=0 loses its top half to the SVG's own
-  // clip, and a cumulative line ends at its maximum — so the whole tail rendered 1px while
-  // the rest rendered 2px. Inset the plot band by half a stroke at both ends and the line
-  // is drawn whole; zero still lands flush on the axis rule at H.
-  const INSET = 1;
-  const rows = txs.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
-  const d0 = new Date(from).getTime();
-  const d1 = new Date(to).getTime();
-  const span = Math.max(1, d1 - d0);
-  let cum = 0;
-  const pts: CumPoint[] = [{ x: 0, v: 0, date: from, label: "Range start" }];
-  for (const t of rows) {
-    cum += t.amount; // signed: buys add, sells subtract
-    const x = (new Date(t.date).getTime() - d0) / span;
-    pts.push({ x: Math.max(0, Math.min(1, x)), v: cum, date: t.date, label: `${t.instrument} · ${t.amount >= 0 ? "Buy" : "Sell"}` });
-  }
-  pts.push({ x: 1, v: cum, date: to, label: "Range end" });
-  const max = Math.max(1, ...pts.map((p) => p.v));
-  const X = (f: number) => f * W;
-  const Y = (v: number) => H - INSET - (v / max) * (H - INSET * 2);
-  let line = "";
-  pts.forEach((p, i) => { line += (i ? "L" : "M") + X(p.x).toFixed(1) + " " + Y(p.v).toFixed(1) + " "; });
-  const area = line + "L" + W + " " + H + " L 0 " + H + " Z";
-
-  const hi = hoverIdx != null && pts[hoverIdx] ? hoverIdx : null;
-  const tipLeft = hi != null ? Math.max(8, Math.min(92, pts[hi].x * 100)) : 0;
-
-  function onMove(e: React.MouseEvent) {
-    const r = e.currentTarget.getBoundingClientRect();
-    const f = (e.clientX - r.left) / r.width;
-    let best = 0;
-    let bestD = Infinity;
-    for (let i = 0; i < pts.length; i++) {
-      const d = Math.abs(pts[i].x - f);
-      if (d < bestD) { bestD = d; best = i; }
+  // The running total after each transaction, bookended by the range's own edges so the
+  // line spans the full window even when the first buy is weeks into it.
+  const pts = React.useMemo(() => {
+    const rows = txs.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    const out: CumPoint[] = [{ at: new Date(from), v: 0, date: from, label: "Range start" }];
+    let cum = 0;
+    for (const t of rows) {
+      cum += t.amount; // signed: buys add, sells subtract
+      out.push({
+        at: new Date(t.date),
+        v: cum,
+        date: t.date,
+        label: `${t.instrument} · ${t.amount >= 0 ? "Buy" : "Sell"}`,
+      });
     }
-    if (best !== hoverIdx) setHoverIdx(best);
-  }
+    out.push({ at: new Date(to), v: cum, date: to, label: "Range end" });
+    return out;
+  }, [txs, from, to]);
+
+  const definition = React.useMemo(
+    () =>
+      defineChart({
+        marks: [
+          crosshair({
+            x: { stroke: "var(--foreground)", strokeWidth: 1, strokeDasharray: "3 3", strokeOpacity: 0.4 },
+            y: false,
+            marker: { radius: 4.5, fill: "var(--card)", stroke: "var(--chart-gold)", strokeWidth: 2 },
+          }),
+          areaY(pts, { x: "at", y1: 0, y2: "v", fill: "rgb(var(--gold-rgb) / 0.15)", fillOpacity: 1 }),
+          lineY(pts, { x: "at", y: "v", stroke: "var(--chart-gold)", strokeWidth: 2 }),
+        ],
+        // Fixed to the picked window, not to the transactions: an empty stretch at either
+        // end is information — it is when you weren't buying.
+        x: { scale: scaleUtc().domain([new Date(from), new Date(to)]), axis: bareAxis<Date>() },
+        // `milVND` renders zero as an em dash, which is right in a table cell reading "no
+        // spend this month" and wrong on an axis, where the baseline has to name itself.
+        y: {
+          scale: scaleLinear,
+          nice: true,
+          axis: bareAxis<number>({ format: (v) => (v === 0 ? "₫0" : milVND(v)) }),
+        },
+        theme: CHART_THEME,
+        // The date is what you point at, and the steps are irregular — an unbounded radius
+        // means a long flat run between two buys is still reachable anywhere along it.
+        focus: "nearest-x",
+        maxFocusDistance: Number.POSITIVE_INFINITY,
+        tooltip: {
+          use: tooltip,
+          content: (points) => {
+            const p = points[0]?.datum;
+            if (!p) return { rows: [] };
+            return {
+              title: `${p.date} · ${p.label}`,
+              rows: [{ label: "Deployed", value: fmtVND(p.v), color: "var(--chart-gold)" }],
+            };
+          },
+        },
+      }),
+    [pts, from, to],
+  );
 
   return (
-    <div className="relative">
-      <div ref={boxRef} className="relative ml-[52px] h-[150px]">
-        {/* Nothing to draw until the width is measured — one frame, and the line fades in
-            anyway. */}
-        <svg width={W} height={H} className="absolute inset-0 block h-full w-full">
-          <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} stroke="var(--grid)" strokeWidth={1} />
-          {W > 0 && <path className="animate-fade-in" d={area} fill="rgb(var(--gold-rgb) / 0.15)" />}
-          {W > 0 && (
-            <path className="animate-draw-line" pathLength={1} d={line} fill="none" stroke="var(--chart-gold)" strokeWidth={2} strokeLinejoin="round" />
-          )}
-          {hi != null && (
-            <line x1={X(pts[hi].x)} x2={X(pts[hi].x)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={1} strokeDasharray="3 3" opacity={0.4} />
-          )}
-          <rect x={0} y={0} width={W} height={H} fill="transparent" style={{ cursor: "crosshair" }} onMouseMove={onMove} onMouseLeave={() => setHoverIdx(null)} />
-        </svg>
-        <div className="absolute -top-1.5 -left-[52px] font-mono text-[10px] text-faint">{milVND(max)}</div>
-        <div className="absolute -bottom-0.5 -left-[52px] font-mono text-[10px] text-faint">₫0</div>
-        {hi != null && (
-          <div
-            className="pointer-events-none absolute z-10 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
-            style={{ left: `${pts[hi].x * 100}%`, top: `${(Y(pts[hi].v) / H) * 100}%`, borderColor: "var(--chart-gold)", background: "var(--card)" }}
-          />
-        )}
-        {hi != null && (
-          <ChartTip leftPct={tipLeft} topFrac={Y(pts[hi].v) / H}>
-            <div className="mb-0.5 font-mono text-[10px] text-background/60">{pts[hi].date} · {pts[hi].label}</div>
-            <div className="font-mono text-[12.5px] tabular-nums text-background">Deployed {fmtVND(pts[hi].v)}</div>
-          </ChartTip>
-        )}
-      </div>
-      <div className="mt-1.5 ml-[52px] flex justify-between font-mono text-[10px] text-faint tabular-nums">
-        <span>{from}</span><span>{to}</span>
-      </div>
-    </div>
+    <Chart
+      definition={definition}
+      height={150}
+      initialWidth={800}
+      className="w-full"
+      style={CHART_HOST_STYLE}
+      ariaLabel="Capital deployed over the selected range"
+    />
   );
 }

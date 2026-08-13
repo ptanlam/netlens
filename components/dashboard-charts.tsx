@@ -3,6 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Download, Search, TriangleAlert } from "lucide-react";
+import { defineChart } from "@tanstack/charts";
+import { pie, polar, radialArc } from "@tanstack/charts/polar";
+import { Chart } from "@tanstack/charts/react";
+import { tooltip } from "@tanstack/charts/tooltip";
+import { portal } from "@tanstack/charts/tooltip/portal";
 import type { Goal, HoldingPnlPoint, LivePayload, Payload, PnlPoint } from "@/lib/types";
 import { fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel, sparkPaths } from "@/components/net-worth";
@@ -19,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { project, type GoalView, type GoalWorld } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
+import { CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
 import { usePriceRefreshCount } from "@/components/live-prices";
 import { cn } from "@/lib/utils";
@@ -322,19 +328,20 @@ export function DashboardCharts({
 
 /** Holdings a slice's hover card names before it summarises the tail into one line. */
 const SLICE_TIP_ROWS = 6;
-/** Half the hover card's width — how far its centre is kept from either panel edge. */
-const SLICE_TIP_HALF = 108;
 
-/** Where the hover card sits, in px relative to the Allocation panel. It anchors to
- *  whichever edge is nearer the top, so it opens away from the thing you're pointing at. */
-type TipPos = { left: number; top?: number; bottom?: number };
-
+/** Thickness of the allocation ring, in the donut's own pixels. */
+const RING = 26;
+/** The donut is a fixed square — a ring reads by its shape, not by its width. */
+const SIZE = 172;
 function AllocationCard({ payload }: { payload: LivePayload }) {
   const total = payload.allocation.reduce((a, x) => a + x.value, 0) || 1;
-  const rows = payload.allocation
-    .slice()
-    .sort((a, b) => b.value - a.value)
-    .map((a) => ({ ...a, pct: (a.value / total) * 100, color: typeColor(a.type) }));
+  const rows = React.useMemo(() => {
+    const sum = payload.allocation.reduce((a, x) => a + x.value, 0) || 1;
+    return payload.allocation
+      .slice()
+      .sort((a, b) => b.value - a.value)
+      .map((a) => ({ ...a, pct: (a.value / sum) * 100, color: typeColor(a.type) }));
+  }, [payload.allocation]);
 
   // The positions inside each slice, largest first. A slice is a sum, and the question it
   // always raises — *which* holdings is that? — is one hover away rather than a trip to the
@@ -351,93 +358,115 @@ function AllocationCard({ payload }: { payload: LivePayload }) {
     return out;
   }, [payload.portfolio]);
 
+  // Which slice the centre of the donut is currently reporting on. Set by the chart's own
+  // focus when you point at an arc, and by the legend when you point at a row — one piece
+  // of state either way, so the two always agree about what is highlighted.
   const [active, setActive] = React.useState<string | null>(null);
-  const [tip, setTip] = React.useState<TipPos | null>(null);
-  const cardRef = React.useRef<HTMLDivElement>(null);
-
-  // The card is *floating*, not an expanding legend row: this panel shares a row with
-  // Holdings and sits above the P&L calendar, so anything that changes its height on hover
-  // would shove half the dashboard down as the pointer crosses the donut.
-  const anchor = React.useCallback((clientX: number, clientY: number) => {
-    const box = cardRef.current?.getBoundingClientRect();
-    if (!box) return;
-    const x = clientX - box.left;
-    const y = clientY - box.top;
-    const half = Math.min(SLICE_TIP_HALF, box.width / 2);
-    const left = Math.min(Math.max(x, half), box.width - half);
-    setTip(y < box.height / 2 ? { left, top: y + 16 } : { left, bottom: box.height - y + 16 });
-  }, []);
-
-  const show = (type: string) => (e: React.MouseEvent) => {
-    setActive(type);
-    anchor(e.clientX, e.clientY);
-  };
-  const hide = () => setActive(null);
 
   const slice = active ? rows.find((r) => r.type === active) ?? null : null;
   const held = active ? byType.get(active) ?? [] : [];
-  const rest = held.length - SLICE_TIP_ROWS;
 
-  // Donut geometry: a stroked ring with one dash-arc per slice, drawn from 12 o'clock.
-  // Prefix pcts (n ≤ 5) give each arc its start offset without mutating across the map.
-  const SIZE = 172;
-  const STROKE = 26;
-  const R = (SIZE - STROKE) / 2;
-  const C = 2 * Math.PI * R;
+  const definition = React.useMemo(() => {
+    const slices = pie(rows, { value: (r) => r.value });
+    return defineChart({
+      marks: [
+        polar({
+          marks: [
+            radialArc(slices, {
+              key: (s) => s.type,
+              // A ring, not a wheel: the hole is where the total lives.
+              innerRadius: ({ radius }) => Math.max(0, radius - RING),
+              outerRadius: ({ radius }) => radius,
+              // Dimming the rest is how one slice steps forward without moving. Mixed
+              // toward the card rather than given an opacity so the ring keeps one flat
+              // silhouette instead of showing the panel through its quiet arcs.
+              fill: (s) =>
+                active && active !== s.type
+                  ? `color-mix(in srgb, ${s.color} 25%, var(--card))`
+                  : s.color,
+            }),
+          ],
+        }),
+      ],
+      // A donut has no cartesian axes to draw and no scales to draw them from.
+      guides: false,
+      x: null,
+      y: null,
+      theme: CHART_THEME,
+      focusRing: false,
+      tooltip: {
+        use: tooltip,
+        // Escapes the chart box. Unportalled the card is confined to the scene rectangle —
+        // 172px square here — so it would be squeezed onto the ring however it were
+        // anchored. Portalled, its only boundary is the viewport.
+        portal,
+        // Pinned to the ring's edge rather than to the pointer. A holdings list is taller
+        // than the donut is wide, so a card following the cursor would sit on top of the
+        // very slice being pointed at; from the side it clears the ring entirely, and it
+        // stops sliding around while you sweep a single slice.
+        anchor: (_points, { plot }) => ({ x: plot.x + plot.width, y: plot.y + plot.height / 2 }),
+        placement: ["right", "left"],
+        offset: 14,
+        content: (points) => {
+          const s = points[0]?.datum;
+          if (!s) return { rows: [] };
+          const inside = byType.get(s.type) ?? [];
+          const extra = inside.length - SLICE_TIP_ROWS;
+          return {
+            title: `${s.type} · ${fmtMilVND(s.value)}`,
+            rows: [
+              ...inside.slice(0, SLICE_TIP_ROWS).map((h) => ({
+                label: h.name,
+                // Share of *this slice*, not of the portfolio — the parts add to 100%.
+                value: `${fmtMilVND(h.value)} · ${((h.value / (s.value || 1)) * 100).toFixed(1)}%`,
+              })),
+              ...(extra > 0
+                ? [{ label: `+${extra} smaller holding${extra === 1 ? "" : "s"}`, value: "" }]
+                : []),
+            ],
+          };
+        },
+      },
+    });
+  }, [rows, byType, active]);
 
   return (
-    <div ref={cardRef} className="relative flex h-full flex-col card-surface panel-body">
+    <div className="relative flex h-full flex-col card-surface panel-body">
       <PanelHead
         title="Allocation"
         info="Current value by asset type, across all years. Hover a slice for the holdings inside it."
         className="mb-5"
       />
-      <div className="mb-[22px] flex justify-center">
-        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="animate-fade-in">
-          <g transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}>
-            {rows.map((r, i) => {
-              const start = rows.slice(0, i).reduce((s, x) => s + x.pct, 0);
-              const len = (r.pct / 100) * C;
-              return (
-                // The gaps in the dash pattern aren't painted, so each arc is its own hit
-                // area — no wedge paths needed to make the ring hoverable.
-                <circle
-                  key={r.type}
-                  cx={SIZE / 2}
-                  cy={SIZE / 2}
-                  r={R}
-                  fill="none"
-                  stroke={r.color}
-                  strokeWidth={STROKE}
-                  strokeDasharray={`${len} ${C - len}`}
-                  strokeDashoffset={-(start / 100) * C}
-                  className={cn(
-                    "cursor-pointer transition-opacity",
-                    active && active !== r.type && "opacity-25",
-                  )}
-                  onMouseEnter={show(r.type)}
-                  onMouseMove={(e) => anchor(e.clientX, e.clientY)}
-                  onMouseLeave={hide}
-                />
-              );
-            })}
-          </g>
-          <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="var(--faint)" className="font-mono" style={{ fontSize: 9.5, letterSpacing: "0.08em" }}>
+      <div className="relative mb-[22px] flex justify-center">
+        <Chart
+          definition={definition}
+          width={SIZE}
+          height={SIZE}
+          style={CHART_HOST_STYLE}
+          ariaLabel="Portfolio allocation by asset type"
+          onFocusChange={(point) => setActive(point?.datum.type ?? null)}
+        />
+        {/* The hole's contents are ordinary text, laid over the chart rather than drawn
+            into it: it reports on whatever is active, including the legend's hover, and
+            nothing about it is chart geometry. */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+          <span className="font-mono text-[9.5px] tracking-[0.08em] text-faint">
             {(slice?.type ?? "Total").toUpperCase()}
-          </text>
-          <text x="50%" y="59%" textAnchor="middle" dominantBaseline="middle" fill="var(--foreground)" className="font-mono tabular-nums" style={{ fontSize: 15 }}>
+          </span>
+          <span className="font-mono text-[15px] tabular-nums">
             {fmtMilVND(slice ? slice.value : total)}
-          </text>
+          </span>
           {slice && (
-            <text x="50%" y="70%" textAnchor="middle" dominantBaseline="middle" fill="var(--faint)" className="font-mono tabular-nums" style={{ fontSize: 10 }}>
+            <span className="font-mono text-[10px] tabular-nums text-faint">
               {slice.pct.toFixed(1)}% · {held.length} holding{held.length === 1 ? "" : "s"}
-            </text>
+            </span>
           )}
-        </svg>
+        </div>
       </div>
       <div className="flex flex-col">
-        {/* Buttons, not rows: the legend is the keyboard and touch way into the same
-            breakdown the arcs give a mouse. */}
+        {/* Buttons, not rows: the legend is the touch way into the same highlight the arcs
+            give a mouse. The holdings breakdown itself now lives in the chart's own
+            tooltip, which its arrow-key navigation reaches too. */}
         {rows.map((r, i) => (
           <button
             key={r.type}
@@ -447,15 +476,10 @@ function AllocationCard({ payload }: { payload: LivePayload }) {
               i < rows.length - 1 && "border-b border-divider",
               active && active !== r.type && "opacity-45",
             )}
-            onMouseEnter={show(r.type)}
-            onMouseMove={(e) => anchor(e.clientX, e.clientY)}
-            onMouseLeave={hide}
-            onFocus={(e) => {
-              const box = e.currentTarget.getBoundingClientRect();
-              setActive(r.type);
-              anchor(box.left + box.width / 2, box.top + box.height / 2);
-            }}
-            onBlur={hide}
+            onMouseEnter={() => setActive(r.type)}
+            onMouseLeave={() => setActive(null)}
+            onFocus={() => setActive(r.type)}
+            onBlur={() => setActive(null)}
           >
             <span className="flex items-center gap-2.5">
               <span className="size-[9px] rounded-[2px]" style={{ background: r.color }} />
@@ -468,40 +492,6 @@ function AllocationCard({ payload }: { payload: LivePayload }) {
           </button>
         ))}
       </div>
-
-      {slice && tip && held.length > 0 && (
-        <div
-          className="pointer-events-none absolute z-20 w-[216px] -translate-x-1/2 rounded-lg floating-menu p-2.5 text-popover-foreground"
-          style={{ left: tip.left, top: tip.top, bottom: tip.bottom }}
-        >
-          <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-divider pb-1.5">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="size-[9px] shrink-0 rounded-[2px]" style={{ background: slice.color }} />
-              <span className="truncate text-[12px] font-semibold">{slice.type}</span>
-            </span>
-            <span className="shrink-0 font-mono text-[11.5px] text-muted-foreground tabular-nums">
-              {fmtMilVND(slice.value)}
-            </span>
-          </div>
-          {held.slice(0, SLICE_TIP_ROWS).map((h) => (
-            <div key={h.name} className="flex items-baseline gap-2 py-[3px]">
-              <span className="min-w-0 flex-1 truncate text-[11.5px]">{h.name}</span>
-              <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
-                {fmtMilVND(h.value)}
-              </span>
-              {/* Share of *this slice*, not of the portfolio — the parts add to 100%. */}
-              <span className="w-[38px] shrink-0 text-right font-mono text-[11px] text-faint tabular-nums">
-                {((h.value / (slice.value || 1)) * 100).toFixed(1)}%
-              </span>
-            </div>
-          ))}
-          {rest > 0 && (
-            <div className="pt-1 text-[11px] text-faint">
-              +{rest} smaller holding{rest === 1 ? "" : "s"}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
