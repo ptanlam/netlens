@@ -110,6 +110,10 @@ pnpm preview        # build + run the real Worker locally (wrangler dev)
 pnpm run deploy     # build, migrate production, then deploy
 ```
 
+A push to the production branch also ships, through Workers Builds — that pipeline is
+configured in the dashboard, not in this repo, so nothing here reveals it. Both routes
+migrate first; see below.
+
 `deploy` needs the explicit `run`: bare `pnpm deploy` is pnpm's own workspace command
 (it copies a package into a directory) and will not touch this script. The others have no
 builtin of that name, so the shorthand is fine.
@@ -137,6 +141,40 @@ drop the old one in a second deploy.
 
 The step is a no-op when nothing is pending, so it costs one API round trip on a code-only
 deploy. From a terminal, wrangler asks before applying; in CI it takes the fallback yes.
+
+### The same order in Workers Builds
+
+There are two ways this app ships — `pnpm run deploy` from a machine, and **Workers
+Builds** (the git-connected CI, configured in the dashboard under the Worker's *Settings →
+Build*). Both apply pending migrations before deploying; keep them that way, or the path
+you use less often becomes the one that breaks production.
+
+The dashboard's three command fields:
+
+| Field | Value |
+| --- | --- |
+| Build command | `pnpm run build` |
+| Deploy command | `npx wrangler d1 migrations apply netlens --remote && npx wrangler deploy` |
+| Version command | `npx wrangler versions upload` |
+
+**The migration belongs in the deploy command, and nowhere else.** The build command runs
+on *every* branch push; the deploy command runs only on the production branch, and
+non-production branches run the version command instead. A migration in the build command
+would let an unmerged branch move production's schema — which is exactly the failure this
+ordering exists to prevent.
+
+Two consequences of that split:
+
+- A preview version binds the **same production D1** (there is no second database), so a
+  branch whose code needs a pending migration cannot work as a preview until it merges.
+  Moot here — `workers_dev` and `preview_urls` are both off — but it is why the version
+  command must not migrate either.
+- **The build token may not have D1 permission.** Workers Builds provisions a token for
+  Workers Scripts, KV, R2 and Routes; `d1 migrations apply` needs **D1:Edit**, which is not
+  included by default. If the deploy step fails on a 403 or an authentication error, add a
+  `CLOUDFLARE_API_TOKEN` build *secret* with that permission — wrangler reads it from the
+  environment. See [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/)
+  and [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
 
 `pnpm preview` is the one that catches Workers-specific breakage; `next dev` still runs
 on Node and will happily accept things the Worker won't.
