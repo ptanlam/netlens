@@ -10,7 +10,7 @@
  */
 import {
   isDormant, listInstruments, listPriceSources, updatePrice, upsertPriceHistory,
-  metaGet, metaSet, todayIso,
+  metaGet, metaSet, setFxRates, syncFxTargets, todayIso,
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
 import { MANUAL_SOURCE } from "./types";
@@ -146,6 +146,70 @@ function extractSingle(src: PriceSource, data: unknown): number | null {
   return toNumber(getPath(data, src.price_path));
 }
 
+// ---------- exchange rates ----------
+
+/**
+ * Vietcombank's published board, as JSON: `{ Data: [{ currencyCode, cash, transfer, sell }],
+ * UpdatedDate }`. Their older XML endpoint warns "only one request every 5 minutes", hence
+ * the throttle below — this is a courtesy rate limit as much as a cost one.
+ *
+ * A bank rather than a market feed (Yahoo's `USDVND=X` is the interbank rate) because the
+ * question a goal in dollars asks is "how much dong does $100k cost me", and the answer is
+ * the rate you can actually transact at. `sell` is that side — what the bank charges you
+ * for a dollar — which is also the conservative one: it prices the target *high*, so a goal
+ * is never quietly easier than it looks.
+ */
+const VCB_RATES_URL = "https://www.vietcombank.com.vn/api/exchangerates?date=now";
+const FX_SOURCE_LABEL = "Vietcombank (sell)";
+
+/** Currencies worth storing. Their board carries twenty; a goal can be set in these. */
+const FX_WANTED = new Set(["USD"]);
+
+/** How stale a stored rate may be before it's refetched. A bank posts its board a few
+ *  times a day, so re-asking on every one-minute price tick would be pure noise. */
+const FX_MAX_AGE_MINUTES = 30;
+
+interface VcbRate {
+  currencyCode?: unknown;
+  sell?: unknown;
+}
+
+/**
+ * Refresh the FX rates, then re-cache the VND target of every goal denominated in one.
+ *
+ * Self-throttling, like the history fetchers, so `refreshAll` can call it every tick.
+ * Returns the errors only — a rate isn't a "price updated" and must not inflate that count.
+ */
+export async function refreshFxRates(maxAgeMinutes = FX_MAX_AGE_MINUTES): Promise<string[]> {
+  const at = await metaGet("fx_fetched_at");
+  // `nowIso` stores UTC with the "Z" trimmed off; parsing it back without one would be read
+  // as *local* time and put the gate seven hours out here.
+  if (at && Date.now() - Date.parse(at + "Z") < maxAgeMinutes * 60_000) return [];
+
+  try {
+    const res = await fetch(VCB_RATES_URL, { headers: { "User-Agent": UA, Accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as { Data?: VcbRate[] };
+    const rate: Record<string, number> = {};
+    for (const row of data.Data ?? []) {
+      const ccy = String(row.currencyCode ?? "").toUpperCase();
+      const sell = toNumber(row.sell);
+      // A rate of zero is how their board marks a currency it isn't quoting today; taking
+      // it literally would drive every dollar target to ₫0 and report the goal complete.
+      if (FX_WANTED.has(ccy) && sell && sell > 0) rate[ccy] = sell;
+    }
+    if (!Object.keys(rate).length) throw new Error("no usable rate in the response");
+
+    await setFxRates(rate, FX_SOURCE_LABEL);
+    await syncFxTargets(rate);
+    return [];
+  } catch (e) {
+    // Never fatal: the stored rate stays, and a goal keeps the target it had. A rate
+    // outage costs freshness, not correctness.
+    return [`exchange rates (${FX_SOURCE_LABEL}): ${(e as Error).message}`];
+  }
+}
+
 /** Fetch live prices for every auto-priced instrument. Returns [updated, errors]. */
 export async function refreshAll(): Promise<[number, string[]]> {
   const [instruments, sources] = await Promise.all([listInstruments(), priceSourceMap()]);
@@ -205,6 +269,10 @@ export async function refreshAll(): Promise<[number, string[]]> {
       }
     } catch (e) { errors.push(`${src.label}: ${(e as Error).message}`); }
   }
+
+  // Rides the same tick as the prices: a goal denominated in dollars is quoted by the same
+  // act that quotes a holding, and there is no second mechanism to remember to run.
+  errors.push(...(await refreshFxRates()));
 
   return [updated, errors];
 }

@@ -202,6 +202,13 @@ export const GOAL_METRIC_LABELS: Record<GoalMetric, string> = {
 };
 
 /**
+ * Currencies a target may be denominated in. VND is the app's own money and needs no
+ * conversion; every other one is stored as you said it and converted at the latest rate.
+ */
+export const TARGET_CURRENCIES = ["VND", "USD"] as const;
+export type TargetCurrency = (typeof TARGET_CURRENCIES)[number];
+
+/**
  * A target on a metric, with an optional deadline. Progress is *derived* from the live
  * metric on every render — a goal stores no balance of its own and can never go stale.
  *
@@ -211,12 +218,19 @@ export const GOAL_METRIC_LABELS: Record<GoalMetric, string> = {
  *   otherwise infer from your recurring rules — and it's the only way a `savings` goal
  *   gets a projection, since nothing else tells us about future deposits.
  * `target_date`: NULL means "someday" — progress still tracks, nothing is ever "late".
+ * `target_ccy` / `target_amount`: a goal said in another currency ("$100k"). The amount is
+ *   whole units of that currency and is what you actually committed to; `target` is then
+ *   the VND it converts to at the latest rate, kept in step by `syncFxTargets`. Read
+ *   `GoalProjection.target`, never `Goal.target`, anywhere the figure is shown — the
+ *   projection converts at request time and the column is only as fresh as the last feed.
  */
 export interface Goal {
   id: number;
   name: string;
   metric: GoalMetric;
   target: number;
+  target_ccy: TargetCurrency;
+  target_amount: number | null;
   baseline: number;
   monthly_plan: number | null;
   target_date: string | null;

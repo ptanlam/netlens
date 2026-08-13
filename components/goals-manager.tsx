@@ -7,8 +7,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  GOAL_METRICS, GOAL_METRIC_LABELS,
-  type Goal, type GoalContribution, type GoalMetric, type Saving,
+  GOAL_METRICS, GOAL_METRIC_LABELS, TARGET_CURRENCIES,
+  type Goal, type GoalContribution, type GoalMetric, type Saving, type TargetCurrency,
 } from "@/lib/types";
 import { currentValue, maturityDate } from "@/lib/savings";
 import {
@@ -17,7 +17,7 @@ import {
 } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { shortfall, verdict, type GoalView } from "@/lib/goals";
-import { GoalBar, GoalMetricTag, GoalStatusChip } from "@/components/goal-strip";
+import { FxNote, GoalBar, GoalMetricTag, GoalStatusChip } from "@/components/goal-strip";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
@@ -60,6 +60,7 @@ function GoalForm({
 }) {
   const [pending, startTransition] = React.useTransition();
   const [metric, setMetric] = React.useState<GoalMetric>(goal?.metric ?? "net_worth");
+  const [ccy, setCcy] = React.useState<TargetCurrency>(goal?.target_ccy ?? "VND");
   const formRef = React.useRef<HTMLFormElement>(null);
 
   // A debt counts DOWN, so its baseline is what you owe today (bar starts empty and
@@ -106,12 +107,40 @@ function GoalForm({
         </Select>
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="g-target">{isDebt ? "Target balance (VND)" : "Target amount (VND)"}</Label>
-        <CurrencyInput
-          id="g-target" name="target"
-          defaultValue={goal?.target}
-          placeholder={isDebt ? "0" : isFund ? "800.000.000" : "1.000.000.000"} required
-        />
+        <Label htmlFor="g-target">{isDebt ? `Target balance (${ccy})` : `Target amount (${ccy})`}</Label>
+        {/* The currency sits *on* the amount field because it changes what the number in it
+            means. Pick USD and the goal stores "$100k", not the dong that happens to buy it
+            today — the target then follows the rate instead of freezing. */}
+        <div className="flex gap-2">
+          <CurrencyInput
+            // Remounted per currency: the box holds dollars or dong depending on this
+            // picker, and carrying 2.600.000.000 over into a USD field would be nonsense.
+            key={ccy}
+            id="g-target" name="target"
+            defaultValue={ccy === "VND" ? goal?.target : goal?.target_amount}
+            placeholder={
+              ccy === "USD" ? "100.000" : isDebt ? "0" : isFund ? "800.000.000" : "1.000.000.000"
+            }
+            className="flex-1"
+            required
+          />
+          <Select name="target_ccy" value={ccy} onValueChange={(v) => v && setCcy(v as TargetCurrency)}>
+            <SelectTrigger aria-label="Target currency" className="w-[92px] shrink-0">
+              <SelectValue>{ccy}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {TARGET_CURRENCIES.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {ccy !== "VND" && (
+          <p className="text-[11.5px] text-muted-foreground">
+            Converted at the latest {ccy}/VND rate on every refresh, so the goal stays worth{" "}
+            {ccy === "USD" ? "the dollars" : "the amount"} you asked for.
+          </p>
+        )}
       </div>
       {/* A fund starts empty, so it has no baseline to measure from — and no rate of its
           own: interest comes from the deposits you earmark to it, each on its own terms. */}
@@ -489,10 +518,13 @@ function GoalCard({
             {!archived && <GoalStatusChip status={proj.status} />}
           </div>
           <div className="mt-1 font-mono text-[12px] text-muted-foreground tabular-nums">
-            {fmtVND(proj.current)} / {fmtVND(goal.target)}
+            {fmtVND(proj.current)} / {fmtVND(proj.target)}
             {goal.target_date && ` · by ${goal.target_date}`}
             {goal.note && ` · ${goal.note}`}
           </div>
+          {/* A target that moves on its own has to say why, or "Behind" becomes a number
+              nobody can account for. */}
+          {proj.fx && <FxNote fx={proj.fx} />}
         </div>
         </div>
         <div className="flex gap-1">

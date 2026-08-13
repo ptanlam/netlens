@@ -6,6 +6,18 @@ export function fmtVND(v: number): string {
   return `${neg ? "-" : ""}₫${s}`;
 }
 
+const CCY_SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", JPY: "¥" };
+
+/** A whole amount in some other currency — "$100.000". Grouped with dots like every other
+ *  figure in the app: the reader is Vietnamese, and switching separators per currency would
+ *  make two numbers on one line disagree about what a dot means. */
+export function fmtCcy(v: number, ccy: string): string {
+  const s = Math.abs(Math.round(v)).toLocaleString("de-DE");
+  const sign = v < 0 ? "-" : "";
+  const sym = CCY_SYMBOL[ccy];
+  return sym ? `${sign}${sym}${s}` : `${sign}${s} ${ccy}`;
+}
+
 /** Group a run of digits with dots, as VND is written: "1000000" → "1.000.000".
  *  Non-digits are dropped and leading zeros collapsed, so it's safe to feed raw input. */
 export function groupDigits(raw: string): string {

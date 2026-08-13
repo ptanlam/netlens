@@ -1,8 +1,8 @@
 import * as React from "react";
 import Link from "next/link";
-import { fmtVND } from "@/lib/format";
+import { fmtCcy, fmtVND } from "@/lib/format";
 import { GOAL_METRIC_LABELS, type GoalMetric } from "@/lib/types";
-import { STATUS_LABELS, verdict, type GoalStatus, type GoalView } from "@/lib/goals";
+import { STATUS_LABELS, verdict, type GoalFx, type GoalStatus, type GoalView } from "@/lib/goals";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +83,35 @@ export function GoalStatusChip({ status, className }: { status: GoalStatus; clas
   );
 }
 
+/** An instant in Vietnam time (+07), from the UTC-without-the-Z that `nowIso` stores.
+ *
+ *  A fixed offset rather than the reader's locale, for two reasons: these components render
+ *  on the server, so anything locale-dependent would hydrate to a different string on the
+ *  client; and Vietcombank posts its board on this clock, so this is the time the rate was
+ *  actually quoted at. */
+function ictStamp(iso: string): string {
+  return new Date(Date.parse(`${iso}Z`) + 7 * 3_600_000).toISOString().slice(0, 16).replace("T", " ");
+}
+
+/**
+ * Where a foreign-denominated target's VND figure came from.
+ *
+ * The target moves on its own now, which means a goal can slip to "Behind" on a week you
+ * saved perfectly well. That's honest — the dollars really did get more expensive — but it
+ * is only honest if the page says so, hence the amount you committed to, the rate applied,
+ * and who quoted it, on the row itself.
+ */
+export function FxNote({ fx, className }: { fx: GoalFx; className?: string }) {
+  return (
+    <div className={cn("mt-0.5 font-mono text-[11px] text-faint tabular-nums", className)}>
+      {fmtCcy(fx.amount, fx.ccy)} @ {fmtVND(fx.rate)}
+      {fx.stale
+        ? " · no live rate yet — last known"
+        : `${fx.source ? ` · ${fx.source}` : ""}${fx.asOf ? ` · ${ictStamp(fx.asOf)}` : ""}`}
+    </div>
+  );
+}
+
 /** The dashboard's goals rail: one row per active goal, sitting under the net-worth hero.
  *  Read-only — the row links through to `/goals`, where they're actually managed. */
 export function GoalStrip({ goals }: { goals: GoalView[] }) {
@@ -127,7 +156,14 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
             <div className="flex items-center justify-between gap-3 @2xl:justify-end">
               <span className="font-mono text-[12px] tabular-nums">
                 {fmtVND(proj.current)}{" "}
-                <span className="text-faint">/ {fmtVND(goal.target)}</span>
+                <span className="text-faint">
+                  / {fmtVND(proj.target)}
+                  {/* The dong figure is the one that compares to what you have; the amount
+                      you actually committed to is what explains it moving. The full
+                      attribution (rate, source, when) lives on /goals — this is a glance
+                      surface, and the row has to survive a phone. */}
+                  {proj.fx && ` (${fmtCcy(proj.fx.amount, proj.fx.ccy)})`}
+                </span>
               </span>
               <GoalStatusChip status={proj.status} />
             </div>

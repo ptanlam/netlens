@@ -73,6 +73,14 @@ export interface GoalWorld {
   plannedMonthly: number;
   /** ₫/month you've actually contributed over the trailing window. */
   actualMonthly: number;
+  /** VND per one unit of each foreign currency, latest known. A goal denominated in one
+   *  ("$100k") is converted through this on every projection, so the target tracks the
+   *  rate instead of freezing at whatever it was the day you typed it. */
+  rates: Record<string, number>;
+  /** When those rates were fetched, and who quoted them. Both are shown: a target that
+   *  moves on its own has to say what moved it. */
+  ratesAsOf: string | null;
+  ratesSource: string | null;
 }
 
 export interface FundRef {
@@ -89,7 +97,31 @@ export type PaceSource = "goal" | "planned" | "actual" | "schedule" | "none";
 
 export type GoalStatus = "hit" | "on_track" | "behind" | "open" | "stalled";
 
+/** How a foreign-denominated target was converted — everything the UI needs to attribute
+ *  a target that moved without you touching it. */
+export interface GoalFx {
+  ccy: string;
+  /** Whole units of `ccy` — the figure you actually committed to. */
+  amount: number;
+  /** VND per unit, as applied. */
+  rate: number;
+  asOf: string | null;
+  source: string | null;
+  /** True when no rate has ever been fetched, so `target` is the last stored conversion
+   *  rather than a live one. The UI says so instead of quietly showing a stale number. */
+  stale: boolean;
+}
+
 export interface GoalProjection {
+  /**
+   * The target in VND, converted at today's rate for a foreign-denominated goal.
+   *
+   * **Every display of a goal's target must read this, not `Goal.target`** — the column is
+   * only as fresh as the last FX refresh, and this is resolved per request.
+   */
+  target: number;
+  /** Set only when the goal is denominated in another currency. */
+  fx: GoalFx | null;
   /** The metric's value today. */
   current: number;
   /** 0…1, measured from `baseline` so a payoff bar starts empty. */
@@ -111,6 +143,40 @@ export interface GoalProjection {
   /** Projected minus target date, in months. Positive = late. */
   driftMonths: number | null;
   status: GoalStatus;
+}
+
+/** What a goal's rates look like to the conversion — the whole `GoalWorld` satisfies it,
+ *  and so does a caller that only has a rate table (the form validator in `app/actions`). */
+export type RateSource = Pick<GoalWorld, "rates" | "ratesAsOf" | "ratesSource">;
+
+/**
+ * A goal's target in VND: itself for a VND goal, the live conversion for a foreign one.
+ *
+ * Falls back to the stored `target` when the currency has no rate — that column is the
+ * last conversion that succeeded (see `syncFxTargets`), which is a far better answer than
+ * zero on the day the feed is down, and it means a rate outage degrades a target's
+ * *freshness*, never its existence.
+ */
+export function targetVnd(g: Goal, w: RateSource): number {
+  if (g.target_ccy === "VND" || g.target_amount == null) return g.target;
+  const rate = w.rates[g.target_ccy];
+  return rate ? Math.round(g.target_amount * rate) : g.target;
+}
+
+/** The conversion behind `targetVnd`, for the UI to show. Null for a plain VND goal. */
+export function goalFx(g: Goal, w: RateSource): GoalFx | null {
+  if (g.target_ccy === "VND" || g.target_amount == null) return null;
+  const rate = w.rates[g.target_ccy];
+  return {
+    ccy: g.target_ccy,
+    amount: g.target_amount,
+    // With no live rate, the rate *implied* by the stored target is the one on screen —
+    // quoting a live-looking number we don't have would be the one dishonest option.
+    rate: rate ?? (g.target_amount ? g.target / g.target_amount : 0),
+    asOf: rate ? w.ratesAsOf : null,
+    source: rate ? w.ratesSource : null,
+    stale: !rate,
+  };
 }
 
 /** A goal counts up toward its target — except debts, which count down to it. */
@@ -326,7 +392,13 @@ export function progressOf(g: Goal, current: number): number {
   return Math.min(1, Math.max(0, done / span));
 }
 
-export function project(g: Goal, w: GoalWorld): GoalProjection {
+export function project(goal: Goal, w: GoalWorld): GoalProjection {
+  // The goal as the maths must see it: a foreign-denominated target is converted to VND
+  // once, here, so everything downstream keeps comparing two figures in the same money and
+  // never has to know a currency was involved.
+  const fx = goalFx(goal, w);
+  const g: Goal = fx ? { ...goal, target: targetVnd(goal, w) } : goal;
+
   const { pace, paceSource } = resolvePace(g, w);
   // A monthly plan on a *debt* goal is money aimed at the debt, so it stands in for the
   // repayment schedule. Anywhere else the pace is a contribution.
@@ -378,6 +450,8 @@ export function project(g: Goal, w: GoalWorld): GoalProjection {
       : current - g.target;
 
   return {
+    target: g.target,
+    fx,
     current,
     progress: progressOf(g, current),
     remaining,

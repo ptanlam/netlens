@@ -864,6 +864,84 @@ export async function metaSet(key: string, value: string) {
   await q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").run(key, value);
 }
 
+// ---------- exchange rates ----------
+//
+// One rate per currency, in `meta` rather than a table of its own: there is no history to
+// keep (a goal is measured at today's rate, and yesterday's is of no interest to anything
+// here) and no per-row state beyond the number itself. A currency is emphatically *not* an
+// `instrument` — that would put the dollar in the portfolio, the allocation donut and the
+// P&L series, none of which you own.
+
+/** VND per one unit of `ccy`, as last fetched. */
+const fxKey = (ccy: string) => `fx_${ccy.toLowerCase()}_vnd`;
+/** When the rates were last fetched, and from whom — both are shown to the user, because
+ *  a target that moves on its own has to say what moved it. */
+const FX_FETCHED_AT = "fx_fetched_at";
+const FX_SOURCE = "fx_source";
+
+export interface FxRates {
+  /** VND per unit, keyed by currency code. Missing = never successfully fetched. */
+  rate: Record<string, number>;
+  /** ISO instant of the last successful fetch. */
+  asOf: string | null;
+  /** Who quoted it, e.g. "Vietcombank (sell)". */
+  source: string | null;
+}
+
+export async function fxRates(): Promise<FxRates> {
+  const rows = await q("SELECT key, value FROM meta WHERE key LIKE 'fx\\_%' ESCAPE '\\'")
+    .all<{ key: string; value: string }>();
+  const rate: Record<string, number> = {};
+  let asOf: string | null = null;
+  let source: string | null = null;
+  for (const r of rows) {
+    if (r.key === FX_FETCHED_AT) asOf = r.value;
+    else if (r.key === FX_SOURCE) source = r.value;
+    else {
+      // fx_usd_vnd -> USD
+      const ccy = r.key.slice(3, -4).toUpperCase();
+      const v = Number(r.value);
+      if (ccy && Number.isFinite(v) && v > 0) rate[ccy] = v;
+    }
+  }
+  return { rate, asOf, source };
+}
+
+/** Store a fetched set of rates. One batch, so a reader can never catch half of them. */
+export async function setFxRates(rate: Record<string, number>, source: string) {
+  const set = q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)");
+  await db().batch([
+    ...Object.entries(rate).map(([ccy, v]) => set.bound(fxKey(ccy), String(v))),
+    set.bound(FX_FETCHED_AT, nowIso()),
+    set.bound(FX_SOURCE, source),
+  ]);
+}
+
+/**
+ * Re-cache `goals.target` for every foreign-denominated goal at the given rates.
+ *
+ * The projection converts at request time regardless, so this is not what makes the
+ * dashboard correct — it's what keeps the stored column from being a lie for anything
+ * reading the row directly. Only rows whose figure actually moved are written: rates are
+ * refreshed far more often than they change, and a no-op UPDATE per goal per tick is a
+ * network round trip to D1 for nothing.
+ */
+export async function syncFxTargets(rate: Record<string, number>): Promise<number> {
+  const rows = await q(
+    "SELECT id, target, target_ccy, target_amount FROM goals WHERE target_ccy <> 'VND' AND target_amount IS NOT NULL",
+  ).all<{ id: number; target: number; target_ccy: string; target_amount: number }>();
+  const set = q("UPDATE goals SET target = ? WHERE id = ?");
+  const writes = [];
+  for (const g of rows) {
+    const px = rate[g.target_ccy];
+    if (!px) continue;
+    const vnd = Math.round(g.target_amount * px);
+    if (vnd !== g.target) writes.push(set.bound(vnd, g.id));
+  }
+  if (writes.length) await db().batch(writes);
+  return writes.length;
+}
+
 // ---------- the history stamp (see `DashboardCharts`) ----------
 //
 // The dashboard's full P&L series is the most expensive read in the app, and it is fetched
@@ -908,27 +986,33 @@ export async function getGoal(id: number): Promise<Goal | undefined> {
   return q("SELECT * FROM goals WHERE id=?").get<Goal>(id);
 }
 
+/** `target` is always the VND figure — for a foreign-denominated goal, `targetAmount` units
+ *  of `targetCcy` converted at the rate the caller resolved. See `0007_goal_target_currency`. */
 export async function addGoal(
   name: string, metric: string, target: number, baseline: number,
   monthlyPlan: number | null, targetDate: string | null, note: string | null = null,
+  targetCcy: string = "VND", targetAmount: number | null = null,
 ) {
   // New goals land at the bottom of the ranking — a fresh goal shouldn't quietly outrank
   // the ones you've already thought about.
   const row = await q("SELECT COALESCE(MAX(position), 0) p FROM goals").get<{ p: number }>();
   const last = row?.p ?? 0;
   await q(
-    "INSERT INTO goals(name, metric, target, baseline, monthly_plan, target_date, position, note) VALUES (?,?,?,?,?,?,?,?)",
-  ).run(name.trim(), metric, Math.round(target), Math.round(baseline),
+    "INSERT INTO goals(name, metric, target, target_ccy, target_amount, baseline, monthly_plan, target_date, position, note) VALUES (?,?,?,?,?,?,?,?,?,?)",
+  ).run(name.trim(), metric, Math.round(target), targetCcy,
+    targetAmount == null ? null : Math.round(targetAmount), Math.round(baseline),
     monthlyPlan == null ? null : Math.round(monthlyPlan), targetDate, last + 1, note);
 }
 
 export async function updateGoal(
   id: number, name: string, metric: string, target: number, baseline: number,
   monthlyPlan: number | null, targetDate: string | null, note: string | null,
+  targetCcy: string = "VND", targetAmount: number | null = null,
 ) {
   await q(
-    "UPDATE goals SET name=?, metric=?, target=?, baseline=?, monthly_plan=?, target_date=?, note=? WHERE id=?",
-  ).run(name.trim(), metric, Math.round(target), Math.round(baseline),
+    "UPDATE goals SET name=?, metric=?, target=?, target_ccy=?, target_amount=?, baseline=?, monthly_plan=?, target_date=?, note=? WHERE id=?",
+  ).run(name.trim(), metric, Math.round(target), targetCcy,
+    targetAmount == null ? null : Math.round(targetAmount), Math.round(baseline),
     monthlyPlan == null ? null : Math.round(monthlyPlan), targetDate, note, id);
 }
 
@@ -1079,7 +1163,7 @@ function addMonthsIso(iso: string, months: number): string {
 export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
   // Independent reads, so they go out together — eight sequential round trips to D1 would
   // otherwise be the slowest thing on the dashboard.
-  const [payments, contribs, funds, savings, debts, byGoal, planned, actual] = await Promise.all([
+  const [payments, contribs, funds, savings, debts, byGoal, planned, actual, fx] = await Promise.all([
     listDebtPayments(),
     listGoalContributions(),
     q("SELECT id FROM goals WHERE metric='fund'").all<{ id: number }>(),
@@ -1088,6 +1172,7 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
     savingsByGoal(),
     plannedMonthly(),
     actualMonthly(),
+    fxRates(),
   ]);
 
   const paymentsByDebt: Record<number, Payment[]> = {};
@@ -1110,6 +1195,9 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
     savingsByGoal: byGoal,
     plannedMonthly: planned,
     actualMonthly: actual,
+    rates: fx.rate,
+    ratesAsOf: fx.asOf,
+    ratesSource: fx.source,
   };
 }
 

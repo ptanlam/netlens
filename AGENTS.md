@@ -80,3 +80,12 @@ A goal is a target on a metric (`lib/goals.ts`, `GOAL_METRICS`). Four metrics ar
 - **A net-worth goal excludes everything earmarked** (`earmarkedAt` in `lib/goals.ts`): the money is yours, but it's spoken for, so it can't count toward a number you mean to keep.
 - **"Mark as bought"** drains the cash and *un-earmarks* the deposits — it never deletes them. The bank still holds a deposit until you break it; delete it on the Savings page then.
 
+### A target in another currency
+
+A goal can be denominated in foreign money ("Race to $100k"): `goals.target_ccy` + `target_amount` (whole units) hold what you actually said, and `target` is the VND it converts to.
+
+- **Read `GoalProjection.target`, never `Goal.target`, to display a target.** The projection converts at request time; the column is a cache, only as fresh as the last FX refresh (`syncFxTargets` re-writes it). The cache exists so a raw `SELECT` and a rate outage both still see a sane number.
+- **The rate is `meta`, not an `instrument`** (`fx_usd_vnd`, `fx_fetched_at`, `fx_source`; helpers `db.fxRates` / `setFxRates`). A currency is not a holding — as an instrument the dollar would turn up in the portfolio, the allocation donut and the P&L series.
+- **Vietcombank's `sell` rate**, fetched by `refreshFxRates` inside `refreshAll` (self-throttling, 30 min). A bank rather than the interbank feed because the question is what $100k *costs* you, and `sell` is both that side and the conservative one.
+- A live target means a goal can slip to "Behind" on a week you saved perfectly well, so every screen showing one also shows the amount, the rate, the source and the timestamp (`FxNote`).
+

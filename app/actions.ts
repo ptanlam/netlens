@@ -10,8 +10,8 @@ import {
 import { authToken, COOKIE_NAME } from "@/lib/auth";
 import { fmtVND } from "@/lib/format";
 import {
-  BILLING_CYCLES, GOAL_METRICS, SUBSCRIPTION_CATEGORIES,
-  type BillingCycle, type GoalMetric, type SubscriptionCategory,
+  BILLING_CYCLES, GOAL_METRICS, SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES,
+  type BillingCycle, type GoalMetric, type SubscriptionCategory, type TargetCurrency,
 } from "@/lib/types";
 
 function num(v: FormDataEntryValue | null): number | null {
@@ -338,17 +338,39 @@ type ParsedGoal = {
   name: string;
   metric: GoalMetric;
   target: number;
+  target_ccy: TargetCurrency;
+  target_amount: number | null;
   baseline: number;
   monthly_plan: number | null;
   target_date: string | null;
   note: string | null;
 };
 
-function parseGoal(fd: FormData): { ok: true; value: ParsedGoal } | { ok: false; message: string } {
+/**
+ * `rates` is VND per unit of each foreign currency (`db.fxRates().rate`). It's a parameter
+ * rather than a read in here because parsing a form is sync and because the caller already
+ * has to touch the DB — but it does mean a dollar goal cannot be saved before the first
+ * rate has landed, which is exactly what the error below says.
+ */
+function parseGoal(
+  fd: FormData,
+  rates: Record<string, number>,
+): { ok: true; value: ParsedGoal } | { ok: false; message: string } {
   const name = str(fd.get("name"));
   const metricRaw = str(fd.get("metric")) as GoalMetric;
   const metric = GOAL_METRICS.includes(metricRaw) ? metricRaw : "net_worth";
-  const target = num(fd.get("target"));
+  const ccyRaw = str(fd.get("target_ccy")) as TargetCurrency;
+  const ccy: TargetCurrency = TARGET_CURRENCIES.includes(ccyRaw) ? ccyRaw : "VND";
+  // The one amount field means whatever the currency picker says it means: dong for a VND
+  // goal, whole dollars for a USD one.
+  const amount = num(fd.get("target"));
+  const rate = ccy === "VND" ? 1 : rates[ccy];
+  if (ccy !== "VND" && !rate)
+    return {
+      ok: false,
+      message: `No ${ccy} exchange rate yet — refresh prices, then save this goal.`,
+    };
+  const target = amount == null ? null : Math.round(amount * rate);
   const isFund = metric === "fund";
   // A fund starts empty by definition — its balance IS its progress, so there's nothing
   // to measure from and no baseline field on the form.
@@ -369,6 +391,10 @@ function parseGoal(fd: FormData): { ok: true; value: ParsedGoal } | { ok: false;
       name,
       metric,
       target,
+      target_ccy: ccy,
+      // Only a foreign goal keeps an amount — for a VND one the target IS the amount, and
+      // storing it twice would leave two numbers that could disagree.
+      target_amount: ccy === "VND" ? null : amount,
       baseline,
       monthly_plan: plan != null && plan > 0 ? plan : null,
       target_date: str(fd.get("target_date")) || null,
@@ -378,18 +404,19 @@ function parseGoal(fd: FormData): { ok: true; value: ParsedGoal } | { ok: false;
 }
 
 export async function addGoal(fd: FormData) {
-  const p = parseGoal(fd);
+  const p = parseGoal(fd, (await db.fxRates()).rate);
   if (!p.ok) return { ok: false, message: p.message };
   const g = p.value;
-  await db.addGoal(g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note);
+  await db.addGoal(g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note,
+    g.target_ccy, g.target_amount);
   revalidateAll();
   return { ok: true, message: "Goal saved." };
 }
 
 export async function updateGoal(id: number, fd: FormData) {
-  const existing = await db.getGoal(id);
+  const [existing, fx] = await Promise.all([db.getGoal(id), db.fxRates()]);
   if (!existing) return { ok: false, message: "Not found." };
-  const p = parseGoal(fd);
+  const p = parseGoal(fd, fx.rate);
   if (!p.ok) return { ok: false, message: p.message };
   const g = p.value;
   // Switching a fund to another metric would strand its ledger — the money would vanish
@@ -399,7 +426,8 @@ export async function updateGoal(id: number, fd: FormData) {
       ok: false,
       message: "This fund holds money. Withdraw it (or mark it as bought) before changing what it tracks.",
     };
-  await db.updateGoal(id, g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note);
+  await db.updateGoal(id, g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note,
+    g.target_ccy, g.target_amount);
   revalidateAll();
   return { ok: true, message: "Goal updated." };
 }
