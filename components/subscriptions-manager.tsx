@@ -32,7 +32,10 @@ import { PanelHead } from "@/components/panel-head";
 import { SummaryCards } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
+import {
+  bareAxis, CHART_HOST_STYLE, CHART_THEME, CHIP_LEGEND_CLASS, ChipLegendStyle,
+  INITIAL_PANEL_WIDTH, legendChartMetrics, legendItemWidth, useLegendBand, usePanelWidth,
+} from "@/components/ui/chart";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -465,6 +468,9 @@ function ForecastPanel({
    */
   const [only, setOnly] = React.useState<number | null>(null);
 
+  const [width, measure] = usePanelWidth(INITIAL_PANEL_WIDTH);
+  const [band, watchLegend] = useLegendBand();
+
   // The isolated plan starts from zero rather than keeping its place in the stack: with
   // nothing under it, the space below a floating segment would read as another plan's.
   const shown = React.useMemo(
@@ -543,7 +549,10 @@ function ForecastPanel({
                 setOnly((current) => (current === reason.value ? null : reason.value));
               },
             ),
-            placement: "top",
+            // Under the plot, where a key belongs and where the tooltip — which anchors to
+            // the hovered column and opens upward — can never land on top of it.
+            placement: "bottom",
+            itemWidth: legendItemWidth(width),
             format: (id) => billed.find(({ sub }) => sub.id === id)?.sub.name ?? String(id),
             ariaLabel: "Show one subscription",
             itemAriaLabel: (id, { visible }) => {
@@ -585,8 +594,10 @@ function ForecastPanel({
           },
         },
       }),
-    [shown, months, billed, only],
+    [shown, months, billed, only, width],
   );
+
+  const metrics = legendChartMetrics(billed.length, width, band);
 
   return (
     <div className="card-surface panel-body">
@@ -594,13 +605,20 @@ function ForecastPanel({
         title="Committed spend, next 12 months"
         info="Every charge falling in each calendar month, split by subscription and including the current month in full — charges it has already taken as well as the ones still ahead. Cancelled plans bill nothing."
       />
-      <div className="mt-5">
+      <ChipLegendStyle />
+      <div
+        className="mt-5"
+        ref={(node) => {
+          measure(node);
+          watchLegend(node);
+        }}
+      >
         <Chart
           definition={definition}
-          aspectRatio={3}
-          initialWidth={900}
-          className="w-full"
-          style={{ ...CHART_HOST_STYLE, minHeight: "12rem" }}
+          height={metrics.height}
+          initialWidth={INITIAL_PANEL_WIDTH}
+          className={cn("w-full", CHIP_LEGEND_CLASS)}
+          style={{ ...CHART_HOST_STYLE, "--legend-chip": `${metrics.chip}px` } as React.CSSProperties}
           ariaLabel="Committed spend for each of the next twelve months, split by subscription"
         />
       </div>
