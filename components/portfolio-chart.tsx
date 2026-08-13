@@ -3,6 +3,7 @@
 import * as React from "react";
 import { areaY, defineChart, differenceY, lineY } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
+import type { BrushRange } from "@tanstack/charts/interaction/brush";
 import { Chart } from "@tanstack/charts/react";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
@@ -12,6 +13,7 @@ import { fmtMil, fmtVND } from "@/lib/format";
 import { bucketOf, type Bucket } from "@/components/pnl-chart";
 import { DateRange, defaultWindow } from "@/components/date-range";
 import { PanelHead } from "@/components/panel-head";
+import { BRUSH_MIN_POINTS, SeriesBrush, useDateWindow } from "@/components/chart-brush";
 import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
@@ -68,12 +70,13 @@ export function PortfolioChart({
   const from = range?.from ?? fallback.from;
   const to = range?.to ?? fallback.to;
 
-  // Last point of each bucket, projected onto the chosen metric.
-  const pts = React.useMemo<Point[]>(() => {
+  // Last point of each bucket, projected onto the chosen metric. Bucketed over the whole
+  // history and sliced afterwards, so switching the window doesn't re-bucket the series and
+  // move every point under the reader.
+  const allPts = React.useMemo<Point[]>(() => {
     if (!series) return [];
     const out: PnlPoint[] = [];
     for (const p of series) {
-      if (p.date < from || p.date > to) continue;
       const key = bucketOf(p.date, timeframe);
       if (out.length && bucketOf(out[out.length - 1].date, timeframe) === key)
         out[out.length - 1] = p;
@@ -86,7 +89,19 @@ export function PortfolioChart({
       at: new Date(`${p.date}T00:00:00Z`),
       label: fmtLabel(p.date, timeframe),
     }));
-  }, [series, metric, timeframe, from, to]);
+  }, [series, metric, timeframe]);
+
+  // The picked window: what the strip draws, and the outer bound of everything below it.
+  const pts = React.useMemo(
+    () => allPts.filter((p) => p.date >= from && p.date <= to),
+    [allPts, from, to],
+  );
+
+  // A zoom *inside* that window, owned by the brush alone. The date picker sets how much
+  // history is on the table and the strip always spans exactly that; dragging the handles
+  // then reads a stretch of it without moving the pills — which is what makes the strip a
+  // round trip rather than a one-way narrowing.
+  const zoom = useDateWindow(pts);
 
   const title = metric === "value" ? "Portfolio value over time" : "P&L over time";
   const sub =
@@ -148,13 +163,32 @@ export function PortfolioChart({
             is plotted and how finely, this picks the window, and at anything under a wide
             desktop all five controls on one line wrap at an arbitrary point. */}
         {series && series.length > 1 && (
+          <div className="flex flex-wrap items-center gap-3">
           <DateRange
             from={from}
             to={to}
             min={minDate}
             max={maxDate}
-            onChange={(f, t) => setRange({ from: f, to: t })}
+            onChange={(f, t) => {
+              // A new window is a new strip, so the old selection has no meaning on it —
+              // and leaving it would open the preset already zoomed into part of itself.
+              setRange({ from: f, to: t });
+              zoom.setRange(null);
+            }}
           />
+          {/* Beside the picker, not under it: appearing on its own line would grow the
+              header the moment a drag ends and shift the strip out from under the pointer
+              that was still on it. */}
+          {zoom.zoomed && (
+            <button
+              type="button"
+              className="cursor-pointer border-0 bg-transparent p-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+              onClick={() => zoom.setRange(null)}
+            >
+              Reset zoom
+            </button>
+          )}
+          </div>
         )}
       </div>
 
@@ -173,7 +207,13 @@ export function PortfolioChart({
             No history between {from} and {to}.
           </p>
         ) : (
-          <ChartSvg pts={pts} metric={metric} />
+          <ChartSvg
+            pts={zoom.rows}
+            strip={pts}
+            metric={metric}
+            handles={zoom.range}
+            onHandles={zoom.setRange}
+          />
         )}
       </div>
     </div>
@@ -191,7 +231,22 @@ export function PortfolioChart({
  * pair of hand-built clip paths this chart used to intersect to get the same effect, and it
  * gets the crossing right at the pixel rather than at the nearest sample.
  */
-function ChartSvg({ pts, metric }: { pts: Point[]; metric: Metric }) {
+function ChartSvg({
+  pts,
+  strip,
+  metric,
+  handles,
+  onHandles,
+}: {
+  /** The brushed window, which is what the chart draws. */
+  pts: Point[];
+  /** The picked window — the strip's whole span, so an untouched brush fills it. */
+  strip: Point[];
+  metric: Metric;
+  handles: BrushRange<string> | null;
+  onHandles: (next: BrushRange<string> | null) => void;
+}) {
+
   // The cost line only exists where every point carries one — a partial series would
   // otherwise draw a line that silently jumps across the gaps.
   const hasCost = metric === "value" && pts.every((p) => p.cost != null);
@@ -298,17 +353,38 @@ function ChartSvg({ pts, metric }: { pts: Point[]; metric: Metric }) {
   }
 
   return (
-    <Chart
-      definition={definition}
-      // A fixed height, not a ratio: this card sits in a grid whose column width changes
-      // with the viewport, and a ratio would make the curve shorter exactly where there is
-      // least room to read it.
-      height={250}
-      initialWidth={1000}
-      className="w-full"
-      style={CHART_HOST_STYLE}
-      ariaLabel={metric === "value" ? "Portfolio value over time" : "Profit and loss over time"}
-    />
+    <div>
+      <Chart
+        definition={definition}
+        // A fixed height, not a ratio: this card sits in a grid whose column width changes
+        // with the viewport, and a ratio would make the curve shorter exactly where there is
+        // least room to read it.
+        height={250}
+        initialWidth={1000}
+        className="w-full"
+        style={CHART_HOST_STYLE}
+        ariaLabel={metric === "value" ? "Portfolio value over time" : "Profit and loss over time"}
+      />
+      {/* The strip is the picked window end to end, so an untouched brush spans all of it —
+          whatever the preset. Narrowing from there is the brush's own state, which is why
+          the panel keeps a "Reset zoom" beside the picker. */}
+      {handles && strip.length >= BRUSH_MIN_POINTS && (
+        <div className="mt-1.5">
+          <SeriesBrush
+            data={strip}
+            field="v"
+            color={metric === "value" ? ink : green}
+            range={handles}
+            onRange={onHandles}
+            label={
+              metric === "value"
+                ? "Drag to narrow the portfolio value window"
+                : "Drag to narrow the profit and loss window"
+            }
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

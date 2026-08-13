@@ -3,6 +3,7 @@
 import * as React from "react";
 import { areaY, defineChart, lineY, ruleY } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
+import type { BrushRange } from "@tanstack/charts/interaction/brush";
 import { Chart } from "@tanstack/charts/react";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
@@ -10,6 +11,7 @@ import { scaleUtc } from "d3-scale";
 import { fmtMil, fmtVND } from "@/lib/format";
 import { PanelHead } from "@/components/panel-head";
 import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
+import { BRUSH_MIN_POINTS, SeriesBrush, useDateWindow } from "@/components/chart-brush";
 import { DateRange, defaultWindow } from "@/components/date-range";
 import { cn } from "@/lib/utils";
 
@@ -150,6 +152,17 @@ export function ValueOverTime({
     [series, metric],
   );
 
+  // The picked window: the strip's whole span, so an untouched brush fills it whatever the
+  // preset says.
+  const windowed = React.useMemo(
+    () => shown.filter((p) => p.date >= from && p.date <= to),
+    [shown, from, to],
+  );
+
+  // A zoom inside that window, owned by the brush alone — the picker says how much history
+  // is on the table, the handles read a stretch of it without moving the pills.
+  const zoom = useDateWindow(windowed);
+
   const pill = (active: boolean) =>
     cn(
       "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
@@ -191,13 +204,29 @@ export function ValueOverTime({
           )}
         </div>
         {series.length > 1 && (
-          <DateRange
-            from={from}
-            to={to}
-            min={minDate}
-            max={maxDate}
-            onChange={(f, t) => { setFrom(f); setTo(t); }}
-          />
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <DateRange
+              from={from}
+              to={to}
+              min={minDate}
+              max={maxDate}
+              // A new window is a new strip; the old selection means nothing on it, and
+              // keeping it would open the preset already zoomed into part of itself.
+              onChange={(f, t) => { setFrom(f); setTo(t); zoom.setRange(null); }}
+            />
+            {/* Beside the picker, not under it: appearing on its own line would grow the
+                header the moment a drag ends and shift the strip out from under the pointer
+                that was still on it. */}
+            {zoom.zoomed && (
+              <button
+                type="button"
+                className="cursor-pointer border-0 bg-transparent p-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+                onClick={() => zoom.setRange(null)}
+              >
+                Reset zoom
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -207,7 +236,10 @@ export function ValueOverTime({
         ) : (
           <ChartSvg
             key={metric}
-            pts={shown.filter((p) => p.date >= from && p.date <= to)}
+            pts={zoom.rows}
+            strip={windowed}
+            handles={zoom.range}
+            onHandles={zoom.setRange}
             stroke={stroke}
             areaFill={metric === "interest" ? (bandFill ?? areaFill) : areaFill}
             bandFill={bandFill}
@@ -228,6 +260,9 @@ interface Plotted extends SeriesPoint {
 
 function ChartSvg({
   pts,
+  strip,
+  handles,
+  onHandles,
   stroke,
   areaFill,
   bandFill,
@@ -235,7 +270,12 @@ function ChartSvg({
   baseLabel,
   bandLabel,
 }: {
+  /** The brushed window, which is what the chart draws. */
   pts: SeriesPoint[];
+  /** The picked window — the strip's whole span, so an untouched brush fills it. */
+  strip: SeriesPoint[];
+  handles: BrushRange<string> | null;
+  onHandles: (next: BrushRange<string> | null) => void;
   stroke: string;
   areaFill: string;
   bandFill?: string;
@@ -250,12 +290,16 @@ function ChartSvg({
 
   // Whether this series carries a principal/interest split, and so whether the chart is two
   // curves with a band between them or a single filled line.
-  const split = rows.some((p) => p.base !== undefined);
+  const split = strip.some((p) => p.base !== undefined);
   const baseOf = (p: SeriesPoint) => p.base ?? 0;
 
   // `fmtMil` rounds to whole millions, which collapses an interest-only axis (tens of
-  // thousands) to a column of "0mil" — so the unit follows the size of the series.
-  const fmtTick = React.useMemo(() => axisFmt(Math.max(1, ...rows.map((p) => p.v))), [rows]);
+  // thousands) to a column of "0mil" — so the unit follows the size of the series. It
+  // follows the *visible* one: brushing into an early stretch re-scales the axis to it.
+  const fmtTick = React.useMemo(
+    () => axisFmt(Math.max(1, ...rows.map((p) => p.v))),
+    [rows],
+  );
 
   const definition = React.useMemo(
     () =>
@@ -334,13 +378,29 @@ function ChartSvg({
   }
 
   return (
-    <Chart
-      definition={definition}
-      height={220}
-      initialWidth={1000}
-      className="w-full"
-      style={CHART_HOST_STYLE}
-      ariaLabel={`${tipLabel} over time`}
-    />
+    <div>
+      <Chart
+        definition={definition}
+        height={220}
+        initialWidth={1000}
+        className="w-full"
+        style={CHART_HOST_STYLE}
+        ariaLabel={`${tipLabel} over time`}
+      />
+      {/* The strip is the picked window end to end, so the handles open at its two edges
+          whatever the preset — narrowing from there is the brush's own state. */}
+      {handles && strip.length >= BRUSH_MIN_POINTS && (
+        <div className="mt-1.5">
+          <SeriesBrush
+            data={strip}
+            field="v"
+            color={stroke}
+            range={handles}
+            onRange={onHandles}
+            label={`Drag to narrow the ${tipLabel.toLowerCase()} date range`}
+          />
+        </div>
+      )}
+    </div>
   );
 }
