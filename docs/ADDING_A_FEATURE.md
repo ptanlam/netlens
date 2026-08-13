@@ -5,7 +5,7 @@ want to add `goals`. Do these seven edits, in order.
 
 ### 1. Table — a new `migrations/NNNN_add_<thing>.sql`
 
-(Then `pnpm db:migrate` locally and `pnpm db:migrate:remote` for production.
+(Then `pnpm db:migrate` locally; `pnpm run deploy` applies it to production on the way out.
 The old `SCHEMA` string that auto-created tables on boot is gone — see `docs/CLOUDFLARE.md`.)
 ```sql
 CREATE TABLE IF NOT EXISTS goals (

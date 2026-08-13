@@ -42,7 +42,7 @@ Every tracked entity (transactions, holdings, recurring, **savings**, **debts**,
 
 > table in a new `migrations/NNNN_*.sql` → async CRUD in `lib/db.ts` → type in `lib/types.ts` → actions in `app/actions.ts` (+ add route to `revalidateAll`) → `components/<x>-manager.tsx` → `app/<x>/page.tsx` → link in `components/nav.tsx` `LINKS` (drives desktop nav AND the mobile drawer).
 
-Apply the migration with `pnpm db:migrate` (local) and `pnpm db:migrate:remote`.
+Apply the migration with `pnpm db:migrate` (local). Production is handled by `pnpm run deploy`, which migrates the remote D1 between the build and the deploy — so **keep migrations additive**, since the old Worker serves the gap between the two. See [`docs/CLOUDFLARE.md`](docs/CLOUDFLARE.md#migrations-run-as-part-of-the-deploy-in-this-order).
 
 `savings` and `debts` are near-identical templates — copy one. See `docs/ADDING_A_FEATURE.md`.
 

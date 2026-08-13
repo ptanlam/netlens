@@ -19,6 +19,10 @@ pnpm db:migrate                  # apply migrations/ to the LOCAL D1
 pnpm db:migrate:remote           # ...and to production
 ```
 
+Only the local one is a habit: after this first run, `pnpm run deploy` applies pending
+migrations to production itself (see [Day to day](#day-to-day)). `db:migrate:remote` stays
+for the times you want the schema moved without shipping code.
+
 Set the password as a secret (not a var — `wrangler.jsonc` is committed):
 
 ```bash
@@ -103,12 +107,36 @@ and `savings.goal_id` via `ALTER TABLE`, so SQLite appended them at the end, whi
 ```bash
 pnpm dev            # next dev, with D1 bound through initOpenNextCloudflareForDev()
 pnpm preview        # build + run the real Worker locally (wrangler dev)
-pnpm run deploy     # build + deploy
+pnpm run deploy     # build, migrate production, then deploy
 ```
 
 `deploy` needs the explicit `run`: bare `pnpm deploy` is pnpm's own workspace command
 (it copies a package into a directory) and will not touch this script. The others have no
 builtin of that name, so the shorthand is fine.
+
+### Migrations run as part of the deploy, in this order
+
+`build && db:migrate:remote && deploy` — and the order is the whole point:
+
+- **Build first.** A build that fails must not leave production's schema moved forward for
+  code that never shipped. Nothing before the migration touches the account at all.
+- **Migrate second.** New code routinely reads columns the old schema doesn't have, so a
+  migration *after* the deploy means every request in that window queries a column that
+  isn't there yet. Cheap to get wrong, very loud when you do.
+- **Deploy last**, into a database that already has what it expects.
+
+This works because the window between the migration and the deploy is served by the *old*
+Worker against the *new* schema — which is only safe for **additive** migrations (a new
+table, or a new column with a default). That is every migration here so far, and the
+constraint is worth keeping: adding `goals.target_ccy` is invisible to code that has never
+heard of it.
+
+A migration that renames or drops something breaks the running Worker in that window, and
+this pipeline will not save you. Split it: deploy code that tolerates both shapes, then
+drop the old one in a second deploy.
+
+The step is a no-op when nothing is pending, so it costs one API round trip on a code-only
+deploy. From a terminal, wrangler asks before applying; in CI it takes the fallback yes.
 
 `pnpm preview` is the one that catches Workers-specific breakage; `next dev` still runs
 on Node and will happily accept things the Worker won't.
