@@ -320,12 +320,63 @@ export function DashboardCharts({
   );
 }
 
+/** Holdings a slice's hover card names before it summarises the tail into one line. */
+const SLICE_TIP_ROWS = 6;
+/** Half the hover card's width — how far its centre is kept from either panel edge. */
+const SLICE_TIP_HALF = 108;
+
+/** Where the hover card sits, in px relative to the Allocation panel. It anchors to
+ *  whichever edge is nearer the top, so it opens away from the thing you're pointing at. */
+type TipPos = { left: number; top?: number; bottom?: number };
+
 function AllocationCard({ payload }: { payload: LivePayload }) {
   const total = payload.allocation.reduce((a, x) => a + x.value, 0) || 1;
   const rows = payload.allocation
     .slice()
     .sort((a, b) => b.value - a.value)
     .map((a) => ({ ...a, pct: (a.value / total) * 100, color: typeColor(a.type) }));
+
+  // The positions inside each slice, largest first. A slice is a sum, and the question it
+  // always raises — *which* holdings is that? — is one hover away rather than a trip to the
+  // Holdings panel with its own filter. Grouped once for all slices; `portfolio` already
+  // arrives sorted by value, and grouping preserves that order.
+  const byType = React.useMemo(() => {
+    const out = new Map<string, LivePayload["portfolio"]>();
+    for (const p of payload.portfolio) {
+      if (p.value <= 0) continue;
+      const arr = out.get(p.type);
+      if (arr) arr.push(p);
+      else out.set(p.type, [p]);
+    }
+    return out;
+  }, [payload.portfolio]);
+
+  const [active, setActive] = React.useState<string | null>(null);
+  const [tip, setTip] = React.useState<TipPos | null>(null);
+  const cardRef = React.useRef<HTMLDivElement>(null);
+
+  // The card is *floating*, not an expanding legend row: this panel shares a row with
+  // Holdings and sits above the P&L calendar, so anything that changes its height on hover
+  // would shove half the dashboard down as the pointer crosses the donut.
+  const anchor = React.useCallback((clientX: number, clientY: number) => {
+    const box = cardRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const x = clientX - box.left;
+    const y = clientY - box.top;
+    const half = Math.min(SLICE_TIP_HALF, box.width / 2);
+    const left = Math.min(Math.max(x, half), box.width - half);
+    setTip(y < box.height / 2 ? { left, top: y + 16 } : { left, bottom: box.height - y + 16 });
+  }, []);
+
+  const show = (type: string) => (e: React.MouseEvent) => {
+    setActive(type);
+    anchor(e.clientX, e.clientY);
+  };
+  const hide = () => setActive(null);
+
+  const slice = active ? rows.find((r) => r.type === active) ?? null : null;
+  const held = active ? byType.get(active) ?? [] : [];
+  const rest = held.length - SLICE_TIP_ROWS;
 
   // Donut geometry: a stroked ring with one dash-arc per slice, drawn from 12 o'clock.
   // Prefix pcts (n ≤ 5) give each arc its start offset without mutating across the map.
@@ -335,8 +386,12 @@ function AllocationCard({ payload }: { payload: LivePayload }) {
   const C = 2 * Math.PI * R;
 
   return (
-    <div className="flex h-full flex-col card-surface panel-body">
-      <PanelHead title="Allocation" info="Current value by asset type, across all years." className="mb-5" />
+    <div ref={cardRef} className="relative flex h-full flex-col card-surface panel-body">
+      <PanelHead
+        title="Allocation"
+        info="Current value by asset type, across all years. Hover a slice for the holdings inside it."
+        className="mb-5"
+      />
       <div className="mb-[22px] flex justify-center">
         <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="animate-fade-in">
           <g transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}>
@@ -344,6 +399,8 @@ function AllocationCard({ payload }: { payload: LivePayload }) {
               const start = rows.slice(0, i).reduce((s, x) => s + x.pct, 0);
               const len = (r.pct / 100) * C;
               return (
+                // The gaps in the dash pattern aren't painted, so each arc is its own hit
+                // area — no wedge paths needed to make the ring hoverable.
                 <circle
                   key={r.type}
                   cx={SIZE / 2}
@@ -354,32 +411,97 @@ function AllocationCard({ payload }: { payload: LivePayload }) {
                   strokeWidth={STROKE}
                   strokeDasharray={`${len} ${C - len}`}
                   strokeDashoffset={-(start / 100) * C}
+                  className={cn(
+                    "cursor-pointer transition-opacity",
+                    active && active !== r.type && "opacity-25",
+                  )}
+                  onMouseEnter={show(r.type)}
+                  onMouseMove={(e) => anchor(e.clientX, e.clientY)}
+                  onMouseLeave={hide}
                 />
               );
             })}
           </g>
           <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="var(--faint)" className="font-mono" style={{ fontSize: 9.5, letterSpacing: "0.08em" }}>
-            TOTAL
+            {(slice?.type ?? "Total").toUpperCase()}
           </text>
           <text x="50%" y="59%" textAnchor="middle" dominantBaseline="middle" fill="var(--foreground)" className="font-mono tabular-nums" style={{ fontSize: 15 }}>
-            {fmtMilVND(total)}
+            {fmtMilVND(slice ? slice.value : total)}
           </text>
+          {slice && (
+            <text x="50%" y="70%" textAnchor="middle" dominantBaseline="middle" fill="var(--faint)" className="font-mono tabular-nums" style={{ fontSize: 10 }}>
+              {slice.pct.toFixed(1)}% · {held.length} holding{held.length === 1 ? "" : "s"}
+            </text>
+          )}
         </svg>
       </div>
       <div className="flex flex-col">
+        {/* Buttons, not rows: the legend is the keyboard and touch way into the same
+            breakdown the arcs give a mouse. */}
         {rows.map((r, i) => (
-          <div key={r.type} className={cn("flex items-center justify-between py-[9px]", i < rows.length - 1 && "border-b border-divider")}>
-            <div className="flex items-center gap-2.5">
+          <button
+            key={r.type}
+            type="button"
+            className={cn(
+              "flex w-full items-center justify-between py-[9px] text-left transition-opacity",
+              i < rows.length - 1 && "border-b border-divider",
+              active && active !== r.type && "opacity-45",
+            )}
+            onMouseEnter={show(r.type)}
+            onMouseMove={(e) => anchor(e.clientX, e.clientY)}
+            onMouseLeave={hide}
+            onFocus={(e) => {
+              const box = e.currentTarget.getBoundingClientRect();
+              setActive(r.type);
+              anchor(box.left + box.width / 2, box.top + box.height / 2);
+            }}
+            onBlur={hide}
+          >
+            <span className="flex items-center gap-2.5">
               <span className="size-[9px] rounded-[2px]" style={{ background: r.color }} />
               <span className="text-[13px]">{r.type}</span>
-            </div>
-            <div className="flex gap-3.5">
+            </span>
+            <span className="flex gap-3.5">
               <span className="font-mono text-[12.5px] text-muted-foreground tabular-nums">{fmtMilVND(r.value)}</span>
               <span className="w-[42px] text-right font-mono text-[12.5px] tabular-nums">{r.pct.toFixed(1)}%</span>
-            </div>
-          </div>
+            </span>
+          </button>
         ))}
       </div>
+
+      {slice && tip && held.length > 0 && (
+        <div
+          className="pointer-events-none absolute z-20 w-[216px] -translate-x-1/2 rounded-lg floating-menu p-2.5 text-popover-foreground"
+          style={{ left: tip.left, top: tip.top, bottom: tip.bottom }}
+        >
+          <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-divider pb-1.5">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="size-[9px] shrink-0 rounded-[2px]" style={{ background: slice.color }} />
+              <span className="truncate text-[12px] font-semibold">{slice.type}</span>
+            </span>
+            <span className="shrink-0 font-mono text-[11.5px] text-muted-foreground tabular-nums">
+              {fmtMilVND(slice.value)}
+            </span>
+          </div>
+          {held.slice(0, SLICE_TIP_ROWS).map((h) => (
+            <div key={h.name} className="flex items-baseline gap-2 py-[3px]">
+              <span className="min-w-0 flex-1 truncate text-[11.5px]">{h.name}</span>
+              <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                {fmtMilVND(h.value)}
+              </span>
+              {/* Share of *this slice*, not of the portfolio — the parts add to 100%. */}
+              <span className="w-[38px] shrink-0 text-right font-mono text-[11px] text-faint tabular-nums">
+                {((h.value / (slice.value || 1)) * 100).toFixed(1)}%
+              </span>
+            </div>
+          ))}
+          {rest > 0 && (
+            <div className="pt-1 text-[11px] text-faint">
+              +{rest} smaller holding{rest === 1 ? "" : "s"}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
