@@ -23,23 +23,32 @@ Only the local one is a habit: after this first run, `pnpm run deploy` applies p
 migrations to production itself (see [Day to day](#day-to-day)). `db:migrate:remote` stays
 for the times you want the schema moved without shipping code.
 
-Set the password as a secret (not a var — `wrangler.jsonc` is committed):
+There is no application secret to set — see below.
 
-```bash
-npx wrangler secret put APP_PASSWORD
-```
+## Authentication is Cloudflare Access
 
-Locally, `APP_PASSWORD` comes from `.dev.vars` instead (git-ignored). **Quote the value
-there.** `.dev.vars` is parsed as dotenv, so an unquoted `#` starts an inline comment and the
-password is silently truncated at it — the Worker then rejects a cookie that production
-accepts, and the only symptom is being bounced to `/login` forever:
+The deployed app is guarded by a **Cloudflare Access** application over
+`netlens.lamphan.com`, configured in Zero Trust rather than in this repo. Access
+authenticates the request and only then forwards it; the Worker itself checks nothing.
 
-```
-APP_PASSWORD="pa#ssword"     # quoted: correct
-APP_PASSWORD=pa#ssword       # parsed as "pa"
-```
+Two things here are what make that safe, and both are easy to undo by accident:
 
-`wrangler secret put` reads stdin rather than dotenv, so production is unaffected by this.
+- **`routes` with `custom_domain: true`** (`wrangler.jsonc`). Access can only protect a
+  hostname on an active zone in the account, never a `*.workers.dev` URL — so the app has to
+  serve from the zone to be protectable at all.
+- **`workers_dev: false` and `preview_urls: false`**, stated outright. Wrangler otherwise
+  infers them from whether a route exists, so editing routes silently flips them. Either one
+  turned on is a live hostname Access cannot cover, reaching this same Worker and the same
+  D1 data.
+
+Locally, and under `pnpm preview`, there is no Access and no gate: the app opens straight up.
+
+The app used to carry a shared-password gate of its own (`APP_PASSWORD`, a cookie checked in
+`custom-worker.ts`, before that `proxy.ts`). It was always meant to be temporary cover while
+the domain moved onto the zone, and it is gone: a second prompt in front of a door Access has
+already shut, backed by a static secret with no expiry, no rotation and no record of who
+used it. If you find `APP_PASSWORD` in an old `.dev.vars` or a stale secret, delete it —
+nothing reads it.
 
 ## Bringing your data across
 

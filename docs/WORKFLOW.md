@@ -66,8 +66,8 @@ Tips:
 - To exercise a mutation, fill inputs (`page.type`), submit, assert the result, then
   **delete the test row** via its `[aria-label="Delete …"]` button (auto-accept the
   `confirm()` with `page.on('dialog', d => d.accept())`).
-- If `APP_PASSWORD` is set the app redirects to `/login`; either unset it in dev or log
-  in first.
+- Nothing to log in to: the app has no auth of its own, and Cloudflare Access only sits in
+  front of the deployed domain. A local page loads straight in.
 
 ## Definition of done
 - `tsc --noEmit` and `pnpm lint` both clean.

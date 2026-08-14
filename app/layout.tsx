@@ -66,7 +66,7 @@ export default function RootLayout({
         <ThemeProvider>
           <TooltipProvider delay={200} closeDelay={0}>
             {process.env.NODE_ENV !== 'production' && <SafeAreaDebug />}
-            <Nav authEnabled={Boolean(process.env.APP_PASSWORD)} />
+            <Nav />
             {/* Mounted here rather than in the nav: the gesture belongs to the page, and
                 this is the one place every route passes through. */}
             <PullToRefresh />

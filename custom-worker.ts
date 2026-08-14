@@ -22,67 +22,22 @@ import { default as handler } from "./.open-next/worker.js";
 import { bindD1 } from "./lib/db";
 import { refreshAll, refreshHistory, sweepRecentHistory } from "./lib/prices";
 
-const COOKIE_NAME = "inv_auth";
-
-/** Same derivation as `lib/auth.ts` (which uses node:crypto), so the cookie the `login`
- *  action sets is the one this checks. Cached because it never changes for a given
- *  password and this runs on every request. */
-let cachedToken: string | null = null;
-async function expectedToken(password: string): Promise<string> {
-  if (cachedToken) return cachedToken;
-  const data = new TextEncoder().encode(`investment-viz::${password}`);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  cachedToken = Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return cachedToken;
-}
-
-/**
- * The password gate, formerly `proxy.ts`.
- *
- * It had to move: Next.js 16 runs Proxy on the Node.js runtime and *refuses* a `runtime`
- * override ("Setting the runtime config option in Proxy will throw an error"), while the
- * Cloudflare adapter rejects Node.js middleware outright — so no proxy.ts can build at all.
- *
- * Doing it here is arguably where it belonged: the Next docs describe Proxy as "a network
- * boundary in front of the app", and the Worker genuinely is one. It also now covers route
- * handlers (/api/*, /export.csv, /healthz) that the old `matcher` pattern let through.
- */
-async function gate(request: Request, password: string): Promise<Response | null> {
-  const { pathname } = new URL(request.url);
-  if (pathname === "/login") return null;
-  // Next's own build output, icons and the PWA manifest — never sensitive, and blocking
-  // them breaks the login page. The manifest especially: redirecting it to /login hands the
-  // browser HTML where it expects JSON, which it reports as a manifest syntax error.
-  if (
-    pathname.startsWith("/_next/") ||
-    pathname === "/favicon.ico" ||
-    pathname === "/manifest.webmanifest" ||
-    pathname === "/icon.svg" ||
-    pathname.endsWith(".png")
-  )
-    return null;
-
-  const cookie = request.headers
-    .get("cookie")
-    ?.split(";")
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(`${COOKIE_NAME}=`))
-    ?.slice(COOKIE_NAME.length + 1);
-
-  if (cookie && cookie === (await expectedToken(password))) return null;
-  return Response.redirect(new URL("/login", request.url).toString(), 302);
-}
-
 export default {
+  /**
+   * Straight to the app: **authentication is Cloudflare Access**, not this Worker.
+   *
+   * A shared-password gate used to run here first (before that, `proxy.ts`), and it is gone
+   * on purpose. Access sits in front of `netlens.lamphan.com` and never forwards an
+   * unauthenticated request, so the gate was a second prompt guarding a door already shut —
+   * and a static secret with no expiry, no rotation and no record of who used it, which is
+   * strictly less than what Access gives.
+   *
+   * That leans on two lines in wrangler.jsonc rather than on anything here: `workers_dev`
+   * and `preview_urls` are both `false`, so the zone route Access protects is the only way
+   * in. Turning either on re-opens an unauthenticated path to this Worker and the same D1
+   * data — there is now no second lock behind it.
+   */
   async fetch(request, env, ctx) {
-    // No password set -> open (dev), exactly as before.
-    const password = env.APP_PASSWORD;
-    if (password) {
-      const blocked = await gate(request, password);
-      if (blocked) return blocked;
-    }
     return handler.fetch(request, env, ctx);
   },
 

@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { LivePrices } from '@/components/live-prices';
 import { HeaderSearch } from '@/components/header-search';
-import { logout } from '@/app/actions';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { toggleNavCollapsed } from '@/lib/nav-layout';
 import { cn } from '@/lib/utils';
@@ -322,15 +321,30 @@ function MobileNav({ pathname }: { pathname: string }) {
   );
 }
 
+/**
+ * Where "sign out" goes now that Cloudflare Access owns the session.
+ *
+ * `/cdn-cgi/access/logout` is answered by the edge in front of the protected hostname, not
+ * by this app — which is why it's a plain `<a>` and not a `<Link>`: routing it through the
+ * client router would look for a page that doesn't exist in the app. It only exists in front
+ * of the deployed domain, so in local dev (and `pnpm preview`) the link 404s.
+ */
+const SIGN_OUT_HREF = '/cdn-cgi/access/logout';
+
 function LogoutButton() {
   return (
-    <form action={logout}>
-      <IconTooltip label='Sign out'>
-        <Button variant='outline' size='icon' type='submit' aria-label='Sign out' className='rounded-full bg-card text-muted-foreground hover:text-destructive'>
-          <LogOut className='size-4' />
-        </Button>
-      </IconTooltip>
-    </form>
+    <IconTooltip label='Sign out'>
+      <Button
+        variant='outline'
+        size='icon'
+        aria-label='Sign out'
+        nativeButton={false}
+        className='rounded-full bg-card text-muted-foreground hover:text-destructive'
+        render={<a href={SIGN_OUT_HREF} />}
+      >
+        <LogOut className='size-4' />
+      </Button>
+    </IconTooltip>
   );
 }
 
@@ -374,7 +388,7 @@ function RailLink({
  * hydration mismatch. It costs a handful of static links — the price poller stays in the
  * header, mounted once.
  */
-function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: boolean }) {
+function SideRail({ pathname }: { pathname: string }) {
   return (
     <aside data-side-rail>
       <div data-rail-brand>
@@ -402,34 +416,30 @@ function SideRail({ pathname, authEnabled }: { pathname: string; authEnabled: bo
 
       <div data-rail-foot>
         <RailLink href='/settings' label='Settings' icon={Settings} pathname={pathname} />
-        {authEnabled && (
-          // Shaped like the rows above it rather than as a bordered box: the design's foot
-          // is the same list continued, just dropped to the bottom of the rail.
-          <form action={logout} data-rail-signout>
-            <button
-              type='submit'
-              // The label is hidden by CSS in the collapsed rail, so the button would lose
-              // its accessible name with it.
-              aria-label='Sign out'
-              title='Sign out'
-              className='flex w-full items-center gap-2.5 rounded-lg border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-destructive'
-            >
-              <LogOut className='size-4 shrink-0 opacity-90' />
-              <span data-rail-label className='min-w-0 truncate'>Sign out</span>
-            </button>
-          </form>
-        )}
+        {/* Shaped like the rows above it rather than as a bordered box: the design's foot
+            is the same list continued, just dropped to the bottom of the rail. */}
+        <a
+          data-rail-signout
+          href={SIGN_OUT_HREF}
+          // The label is hidden by CSS in the collapsed rail, so the link would lose its
+          // accessible name with it.
+          aria-label='Sign out'
+          title='Sign out'
+          className='flex w-full items-center gap-2.5 rounded-lg border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-destructive'
+        >
+          <LogOut className='size-4 shrink-0 opacity-90' />
+          <span data-rail-label className='min-w-0 truncate'>Sign out</span>
+        </a>
       </div>
     </aside>
   );
 }
 
-export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
+export function Nav() {
   const pathname = usePathname();
-  if (pathname === '/login') return null;
   return (
     <>
-      <SideRail pathname={pathname} authEnabled={authEnabled} />
+      <SideRail pathname={pathname} />
       <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
         {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
             than the content beneath it. The left/right padding also clears the safe areas:
@@ -472,7 +482,7 @@ export function Nav({ authEnabled = false }: { authEnabled?: boolean }) {
                   <Settings className='size-4' />
                 </Button>
               </IconTooltip>
-              {authEnabled && <LogoutButton />}
+              <LogoutButton />
             </div>
           </div>
         </div>

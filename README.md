@@ -36,7 +36,6 @@ pnpm build && pnpm start
 - `/debts` — loans and **revolving credit cards**: principal/balance, rate, term (or
   revolving), estimated amount owed
 - `/recurring` — auto-DCA rules (weekly/monthly, pause/resume, backfilled on load)
-- `/login` — password sign-in (only when `APP_PASSWORD` is set; enforced by `proxy.ts`)
 - `GET /export.csv`, `GET /api/pnl-history`, `GET /healthz`
 
 ## Contributing / agents
@@ -57,7 +56,10 @@ for the P&L-over-time chart.
 | Variable       | Default               | Meaning                             |
 |----------------|-----------------------|-------------------------------------|
 | `DB` (binding) | `wrangler.jsonc`      | D1 database, not an env var         |
-| `APP_PASSWORD` | unset                 | Enables the login screen when set   |
+
+There is no login setting: the deployed app is guarded by **Cloudflare Access** in front of
+`netlens.lamphan.com`, so nothing runs in the app to authenticate you. Locally there is no
+gate at all. See [`docs/CLOUDFLARE.md`](docs/CLOUDFLARE.md#authentication-is-cloudflare-access).
 
 ## Notes
 

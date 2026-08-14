@@ -37,21 +37,31 @@ Pure, dependency-free logic (safe to import from client components) lives in
 | `lib/pnl.ts` | Reconstructs the daily P&L series from transactions + `price_history`. |
 | `lib/prices.ts` | Live/historical price fetching (CoinGecko, Yahoo, fmarket, VCBF). Never throws; collects errors. |
 | `lib/format.ts` | `fmtVND` (₫ with `.` thousands), `fmtMil` (axis short form: `40mil`), `MONTHS`. |
-| `lib/auth.ts` | Token helper for the optional password gate. |
-| `app/actions.ts` | Every mutation (transactions, holdings, recurring, savings, debts, subscriptions, goals, auth). |
+| `app/actions.ts` | Every mutation (transactions, holdings, recurring, savings, debts, subscriptions, goals). |
 | `app/**/page.tsx` | One server component per route. |
 | `components/ui/*` | Base UI primitives wrapped shadcn-style. Don't reinvent — reuse these. |
 | `components/*-manager.tsx` | Client CRUD UIs (recurring, savings, debts, subscriptions, goals). |
 | `components/dashboard-charts.tsx` | The dashboard's date-range picker + all charts. |
 | `components/net-worth.tsx` | Net worth = investments + savings − debts panel. |
 | `components/nav.tsx` | `LINKS` array → desktop nav + mobile side-drawer. |
-| `proxy.ts` | Middleware-style auth gate (redirects to `/login` when `APP_PASSWORD` is set). |
+| `custom-worker.ts` | Worker entrypoint: hands every request to the Next.js app, and runs the price cron. No auth of its own. |
+
+## Authentication
+
+There is none in the app — no login route, no session, no cookie. **Cloudflare Access**
+guards `netlens.lamphan.com` and never forwards an unauthenticated request, so by the time
+a request reaches the Worker it is already someone you let in. The nav's "Sign out" is a
+plain link to `/cdn-cgi/access/logout`, answered by the edge.
+
+The load-bearing part is in `wrangler.jsonc`, not in any code: `workers_dev: false` and
+`preview_urls: false`. Access can only protect a hostname on a zone, so a live
+`*.workers.dev` URL would be an unauthenticated path to the same Worker and the same D1.
 
 ## Routes
 
 Pages: `/` (dashboard), `/transactions`, `/holdings`, `/savings`, `/debts`,
 `/subscriptions`, `/goals`,
-`/recurring`, `/settings/appearance`, `/settings/price-sources`, `/login`.
+`/recurring`, `/settings/appearance`, `/settings/price-sources`.
 Route handlers: `GET /export.csv`, `GET /api/pnl-history`, `GET /healthz`.
 (There is **no** `/add` page — adding a transaction is a `<Dialog>` on `/transactions`.)
 

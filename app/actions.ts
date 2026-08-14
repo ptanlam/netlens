@@ -1,13 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import * as db from "@/lib/db";
 import {
   refreshAll, refreshHistory, refreshRecentHistory, testPriceSource as runPriceSourceTest,
 } from "@/lib/prices";
-import { authToken, COOKIE_NAME } from "@/lib/auth";
 import { fmtVND } from "@/lib/format";
 import {
   BILLING_CYCLES, GOAL_METRICS, SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES,
@@ -728,22 +725,6 @@ export async function deleteRule(id: number) {
   return { ok: true, message: "Rule deleted." };
 }
 
-// ---------- auth ----------
-
-export async function login(fd: FormData) {
-  const password = str(fd.get("password"));
-  const expected = process.env.APP_PASSWORD;
-  if (!expected) redirect("/");
-  if (password !== expected) return { ok: false, message: "Wrong password, try again." };
-  const jar = await cookies();
-  jar.set(COOKIE_NAME, authToken(expected), {
-    httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 90, path: "/",
-  });
-  redirect("/");
-}
-
-export async function logout() {
-  const jar = await cookies();
-  jar.delete(COOKIE_NAME);
-  redirect("/login");
-}
+// No auth actions here any more. Signing in and out is Cloudflare Access's job — the nav's
+// "Sign out" is a link to `/cdn-cgi/access/logout`, which the edge answers before a request
+// ever reaches this app.

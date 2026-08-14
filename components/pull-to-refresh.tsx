@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { usePathname } from "next/navigation";
 import { ArrowDown, RefreshCw } from "lucide-react";
 import { useRefreshPrices } from "@/components/live-prices";
 import { cn } from "@/lib/utils";
@@ -52,12 +51,6 @@ function popupOpen(): boolean {
  * gesture and this one fire together.
  */
 export function PullToRefresh() {
-  // Nothing to refresh before you're signed in, and the action behind it would be rejected
-  // anyway. Same gate as the nav, which also disappears on this route.
-  return usePathname() === "/login" ? null : <PullGesture />;
-}
-
-function PullGesture() {
   const { run } = useRefreshPrices();
   const barRef = React.useRef<HTMLDivElement>(null);
   const startY = React.useRef(0);
