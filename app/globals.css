@@ -555,6 +555,19 @@
   }
 }
 
+/* One ring out of the "Updated" dot on the portfolio panel, each time a price tick lands.
+ * A ring rather than a fade so it reads even at 5px, and one shot rather than a loop
+ * because it is reporting an event, not a state — the header's own dot already says the
+ * poller is armed. A box-shadow, so the ring costs no second element and no layout. */
+@keyframes tick-ping {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent-brand) 60%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
 /* The net-worth hero ticks green (up) / red (down) and nudges into place whenever a price
  * refresh moves the total — colour + motion make a refresh legible without reading digits. */
 @keyframes nw-flash-up {
@@ -615,6 +628,9 @@
   }
   .animate-pulse-dot {
     animation: pulse-dot 2s ease-in-out infinite;
+  }
+  .animate-tick-ping {
+    animation: tick-ping 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .animate-nw-flash-up {
     animation: nw-flash-up 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;

@@ -143,11 +143,19 @@ export function DashboardCharts({
     [goalRows, world, live],
   );
 
+  // When the series on screen last landed. The portfolio panel draws its final point at this
+  // instant rather than at that date's midnight, so a tick visibly carries the curve
+  // forward — including the ticks where the price came back unchanged. Stamped here, in the
+  // callbacks, because reading a clock during render is impure (`react-hooks/purity`) and
+  // because this is the moment that actually means something: when the data arrived.
+  const [asOf, setAsOf] = React.useState<number | null>(null);
+
   // Today's point, spliced onto whatever series is already on screen. Both the tick and a
   // cache hit want exactly this, and neither wants the days behind it refetched.
   const spliceLatest = React.useCallback((d: PnlHistory) => {
     setSeries((s) => (s ? withLatest(s, d.series) : s));
     setHoldingSeries((h) => (h ? withLatest(h, d.holdings) : h));
+    setAsOf(Date.now());
     if (d.live) setLive(d.live);
   }, []);
 
@@ -165,6 +173,7 @@ export function DashboardCharts({
         if (!alive) return;
         setSeries(hit ? withLatest(hit.series, d.series) : d.series);
         setHoldingSeries(hit ? withLatest(hit.holdings, d.holdings) : d.holdings);
+        setAsOf(Date.now());
         if (d.live) setLive(d.live);
         setSeriesError(null); // a good re-pull clears a stale error from an earlier attempt
       })
@@ -287,7 +296,7 @@ export function DashboardCharts({
           their tops. */}
       <div className="flex flex-wrap-reverse items-end gap-3 sm:gap-4">
         <div className="flex min-w-0 flex-[1_1_560px] flex-col gap-3 sm:gap-4">
-          <PortfolioChart series={series} error={seriesError} />
+          <PortfolioChart series={series} asOf={asOf} error={seriesError} />
           {/* Side by side rather than stacked, and wrapping on content for the same reason
               the outer row does. The allocation donut is a fixed 172px: given the whole
               width of the analysis column it would sit in the middle of an otherwise empty

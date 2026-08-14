@@ -33,6 +33,61 @@ interface Point {
   label: string;
 }
 
+/**
+ * The panel's controls all change what the curve *is* — the metric, the bucket, the window,
+ * the brush — and every one of them used to swap one picture for another between frames.
+ * Tweening the geometry is what makes those the same curve moving rather than four unrelated
+ * charts: switching Weekly to Monthly reads as the line settling, not redrawing.
+ *
+ * A tween rather than the `motion()` renderer, which is the other option here. Motion buys
+ * springs, entrance choreography and a crosshair that keeps its velocity while focus
+ * retargets; it also pulls a browser motion runtime into the dashboard bundle. Nothing in
+ * this panel is a physical object, so the tween is the honest amount of animation for it.
+ *
+ * Two defaults are load-bearing and deliberately left alone. `respectReducedMotion` is on,
+ * so a reader who asked the OS for less motion gets none of this. `resize` is off, so
+ * dragging the window doesn't restart the tween on every layout pass — the curve reflows
+ * instantly while it is being resized, which is the behaviour you want when the chart is
+ * chasing a column width.
+ *
+ * The crosshair is unaffected: with the default SVG renderer it is painted straight at its
+ * current target, so the guide still tracks the pointer exactly rather than lagging it by a
+ * quarter second.
+ */
+const CURVE_MOTION = { duration: 260, easing: "ease-out" } as const;
+
+/**
+ * "Updated 14:32:05", with a dot that pings once each time it changes.
+ *
+ * This is what a price tick looks like on this panel, and it exists because the curve
+ * itself can't be it. A tick moves today's point up or down and the geometry tweens —
+ * visible, but only on the ticks where the price actually moved, which on a quiet
+ * afternoon is none of them. Carrying the last point forward in time doesn't help either:
+ * the x scale is fitted to the data, so the newest point is pinned to the plot's right
+ * edge by construction and a later timestamp just rescales the rest by a hair. Minutes
+ * between ticks against a window measured in months is sub-pixel however it's drawn.
+ *
+ * So the honest signal is the one that says what actually happened: prices were read, at
+ * this second. The ping replays on every tick because the element is keyed on the stamp —
+ * a new key is a new element, and a one-shot animation starts again from the top.
+ */
+function LiveStamp({ asOf }: { asOf: number | null }) {
+  if (asOf == null) return null;
+  const t = new Date(asOf);
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return (
+    <span
+      // Right-aligned in the title row rather than beside the controls: it reports on the
+      // data, not on what you can do to it.
+      className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] text-faint tabular-nums"
+      title="When the prices behind this curve were last read"
+    >
+      <span key={asOf} className="size-[5px] animate-tick-ping rounded-full bg-accent-brand" />
+      Updated {p2(t.getHours())}:{p2(t.getMinutes())}:{p2(t.getSeconds())}
+    </span>
+  );
+}
+
 /** Round up to a "nice" axis maximum (1, 2, 2.5, 5, 10 × 10ⁿ). */
 function niceMax(v: number): number {
   if (v <= 0) return 1e6;
@@ -49,9 +104,14 @@ function fmtLabel(date: string, tf: Bucket): string {
 
 export function PortfolioChart({
   series,
+  asOf,
   error,
 }: {
   series: PnlPoint[] | null;
+  /** When this series landed, in epoch ms — see `LiveStamp`. Supplied by the caller because
+   *  a clock read during render is impure, and because the caller is the thing that knows:
+   *  it stamps the moment each fetch resolves. */
+  asOf: number | null;
   error: string | null;
 }) {
   const [metric, setMetric] = React.useState<Metric>("value");
@@ -142,6 +202,7 @@ export function PortfolioChart({
               </span>
             </div>
           )}
+          <LiveStamp asOf={asOf} />
         </div>
         <div className="flex flex-wrap items-center gap-3.5">
           <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
@@ -294,6 +355,7 @@ function ChartSvg({
           axis: bareAxis<number>({ format: fmtMil }),
         },
         theme: CHART_THEME,
+        svgAnimation: CURVE_MOTION,
         focus: "nearest-x",
         maxFocusDistance: Number.POSITIVE_INFINITY,
         tooltip: { use: tooltip, content: (points) => tip(points[0]?.datum, metric) },
@@ -338,6 +400,7 @@ function ChartSvg({
         axis: bareAxis<number>({ format: fmtMil }),
       },
       theme: CHART_THEME,
+      svgAnimation: CURVE_MOTION,
       focus: "nearest-x",
       maxFocusDistance: Number.POSITIVE_INFINITY,
       tooltip: { use: tooltip, content: (points) => tip(points[0]?.datum, metric) },
