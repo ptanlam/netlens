@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
-  Menu, LogOut, Settings, ChevronsLeft,
+  Menu, Settings, ChevronsLeft,
   LayoutDashboard, TrendingUp, ArrowLeftRight, PiggyBank, CreditCard, CalendarSync, Target,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IconTooltip } from '@/components/ui/tooltip';
-import { AccessUser } from '@/components/access-user';
+import { UserMenu } from '@/components/user-menu';
 import { LivePrices } from '@/components/live-prices';
 import { HeaderSearch } from '@/components/header-search';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -325,32 +325,6 @@ function MobileNav({ pathname }: { pathname: string }) {
   );
 }
 
-/**
- * Where "sign out" goes now that Cloudflare Access owns the session.
- *
- * `/cdn-cgi/access/logout` is answered by the edge in front of the protected hostname, not
- * by this app — which is why it's a plain `<a>` and not a `<Link>`: routing it through the
- * client router would look for a page that doesn't exist in the app. It only exists in front
- * of the deployed domain, so in local dev (and `pnpm preview`) the link 404s.
- */
-const SIGN_OUT_HREF = '/cdn-cgi/access/logout';
-
-function LogoutButton() {
-  return (
-    <IconTooltip label='Sign out'>
-      <Button
-        variant='outline'
-        size='icon'
-        aria-label='Sign out'
-        nativeButton={false}
-        className='rounded-full bg-card text-muted-foreground hover:text-destructive'
-        render={<a href={SIGN_OUT_HREF} />}
-      >
-        <LogOut className='size-4' />
-      </Button>
-    </IconTooltip>
-  );
-}
 
 /** One row of the side rail: same shape for the five sections and for Settings. The label
  *  is a sibling of the icon rather than plain text so the collapsed rail can drop it in
@@ -418,23 +392,11 @@ function SideRail({ pathname }: { pathname: string }) {
         ))}
       </nav>
 
-      <div data-rail-foot>
-        <RailLink href='/settings' label='Settings' icon={Settings} pathname={pathname} />
-        {/* Shaped like the rows above it rather than as a bordered box: the design's foot
-            is the same list continued, just dropped to the bottom of the rail. */}
-        <a
-          data-rail-signout
-          href={SIGN_OUT_HREF}
-          // The label is hidden by CSS in the collapsed rail, so the link would lose its
-          // accessible name with it.
-          aria-label='Sign out'
-          title='Sign out'
-          className='flex w-full items-center gap-2.5 rounded-lg border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-destructive'
-        >
-          <LogOut className='size-4 shrink-0 opacity-90' />
-          <span data-rail-label className='min-w-0 truncate'>Sign out</span>
-        </a>
-      </div>
+      {/* No foot any more. It carried Settings and Sign out, which the account menu in the
+          header now owns in both layouts — and unlike the old header icons, which CSS could
+          hide in rail mode, a rail row and a menu row are visible at the same time, so the
+          two really were on screen together. The rail is sections; the account button is the
+          account. */}
     </aside>
   );
 }
@@ -466,30 +428,18 @@ export function Nav() {
           </div>
           <div className='flex shrink-0 items-center gap-2'>
             <LivePrices />
-            {/* Both outside `data-nav-icons` on purpose: that group is hidden in side-rail
-                mode because the rail carries its own Settings and Sign out, but the rail has
-                neither a theme control nor the signed-in chip, so these two have to survive
-                both layouts. */}
-            <AccessUser />
             <ThemeToggle />
             {/* The design's header affordances are bordered circles on the panel surface,
                 not bare glyphs — they have to hold their own against a chart scrolling
-                under the translucent bar. */}
-            <div data-nav-icons className='flex items-center gap-2'>
-              <IconTooltip label='Settings'>
-                <Button
-                  variant='outline'
-                  size='icon'
-                  aria-label='Settings'
-                  nativeButton={false}
-                  className='hidden rounded-full bg-card text-muted-foreground sm:inline-flex'
-                  render={<Link href='/settings' />}
-                >
-                  <Settings className='size-4' />
-                </Button>
-              </IconTooltip>
-              <LogoutButton />
-            </div>
+                under the translucent bar.
+
+                Settings and Sign out used to sit here as two more circles, in a
+                `data-nav-icons` group that CSS hid in side-rail mode because the rail's foot
+                carries both. They're inside the account menu now, which changes that
+                calculation: a collapsed menu isn't a visible duplicate of the rail's rows,
+                and it is the only thing in either layout that says whose account they act
+                on. So it stays in both. */}
+            <UserMenu />
           </div>
         </div>
       </header>

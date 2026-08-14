@@ -686,14 +686,6 @@
     flex-direction: column;
     gap: 4px;
   }
-  /* `auto` sinks the foot to the bottom of the full-height rail; when the links do fill
-     it, the margin collapses to 0 and the column's own gap takes over. */
-  html[data-nav="side"] [data-rail-foot] {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    margin-top: auto;
-  }
 
   /* Collapsed: icons only, centred, and the chevron flips to point back out. */
   html[data-nav="side"][data-nav-collapsed] [data-rail-label] {
@@ -704,9 +696,7 @@
     gap: 14px;
     padding: 0;
   }
-  html[data-nav="side"][data-nav-collapsed] [data-rail-nav] a,
-  html[data-nav="side"][data-nav-collapsed] [data-rail-foot] a,
-  html[data-nav="side"][data-nav-collapsed] [data-rail-foot] button {
+  html[data-nav="side"][data-nav-collapsed] [data-rail-nav] a {
     justify-content: center;
     gap: 0;
     padding-left: 0;
@@ -724,11 +714,8 @@
   html[data-nav="side"] [data-header-search] {
     display: block;
   }
-  /* Same story on the right: the rail's foot carries Settings and Sign out, so the header's
-     copies are duplicates. Both were showing at once — `data-nav-icons` was on the markup
-     from the start, but this rule was never written to go with it. Scoped to the rail's own
-     breakpoint, so below 900px, where the rail is hidden entirely, the header keeps them. */
-  html[data-nav="side"] [data-nav-icons] {
-    display: none;
-  }
+  /* Nothing to hide on the right any more. The header's Settings and Sign out were two bare
+     circles duplicating the rail's foot, and this rule dropped them in rail mode; they are
+     rows inside the account menu now, which is collapsed until you open it and is the only
+     thing in either layout that names the account they act on. It stays in both. */
 }
