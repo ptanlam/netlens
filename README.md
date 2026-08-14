@@ -27,10 +27,13 @@ pnpm build && pnpm start
   invested / P&L stat cards, a **date-range picker** (Year to date, This year, Last 12
   months, All time, Custom) driving invested-per-month, cumulative, and P&L-over-time
   charts, plus a live allocation donut, holdings bars, and P&L-by-holding
-- `/transactions` — full history (paginated) with an **Add-transaction dialog**, edit
-  dialog, delete, CSV export, and the "Awaiting fund units" (T+1/T+2) section
-- `/holdings` — per-instrument valuation: asset type, price source, symbol, quantity,
-  manual value; Refresh-prices and Save buttons
+- `/investments` — what you hold: portfolio/invested/P&L stat cards, holdings grouped by
+  asset type, each expanding to its price source, recurring rules and a link to its
+  history; archived holdings; the "Awaiting fund units" (T+1/T+2) banner
+- `/transactions` — what you did: every buy and sell in a date window you pick and can
+  brush-zoom, filtered by holding and buy/sell, over summary tiles, cumulative-deployed
+  and deployed-by-month charts and a sortable table. Add/edit/delete dialogs, CSV export.
+  `?holding=<name>` opens it filtered to one holding — how `/investments` links through
 - `/savings` — term deposits: principal, interest rate, term, estimated current &
   maturity value
 - `/debts` — loans and **revolving credit cards**: principal/balance, rate, term (or

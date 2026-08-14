@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
-import type { RecurringRule, Tx } from "@/lib/types";
+import type { RecurringRule } from "@/lib/types";
 import { InvestmentManager, type HoldingView } from "@/components/investment-manager";
 import { PendingUnitsCard } from "@/components/pending-units";
 
@@ -18,11 +18,13 @@ export default async function InvestmentsPage() {
   ]);
   const sourceKeys = [db.MANUAL_SOURCE, ...sources.map((s) => s.key)];
 
+  // Cost basis per holding, and how many transactions built it. The rows themselves live on
+  // /transactions now — a holding row only quotes the count and links through.
   const costBy: Record<string, number> = {};
-  const txsByInstrument: Record<string, Tx[]> = {};
+  const txCountBy: Record<string, number> = {};
   for (const tx of txs) {
     costBy[tx.instrument] = (costBy[tx.instrument] ?? 0) + tx.amount;
-    (txsByInstrument[tx.instrument] ??= []).push(tx);
+    txCountBy[tx.instrument] = (txCountBy[tx.instrument] ?? 0) + 1;
   }
 
   const rulesByInstrument: Record<string, { rule: RecurringRule; nextDue: string | null }[]> = {};
@@ -57,8 +59,7 @@ export default async function InvestmentsPage() {
   return (
     <InvestmentManager
       holdings={holdings}
-      allTxs={txs}
-      txsByInstrument={txsByInstrument}
+      txCountBy={txCountBy}
       rulesByInstrument={rulesByInstrument}
       sourceKeys={sourceKeys}
       banner={pending.length > 0 ? <PendingUnitsCard pending={pending} /> : null}

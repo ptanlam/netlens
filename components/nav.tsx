@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
   Menu, LogOut, Settings, ChevronsLeft,
-  LayoutDashboard, TrendingUp, PiggyBank, CreditCard, CalendarSync, Target,
+  LayoutDashboard, TrendingUp, ArrowLeftRight, PiggyBank, CreditCard, CalendarSync, Target,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,9 @@ import { cn } from '@/lib/utils';
 const LINKS: { href: string; label: string; icon: LucideIcon; tint: string }[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, tint: 'text-hue-blue' },
   { href: '/investments', label: 'Investments', icon: TrendingUp, tint: 'text-hue-cyan' },
+  // Sits next to Investments because it's the other half of the same subject: what you hold,
+  // then what you did. Amber matches the dashboard's own "History" shortcut.
+  { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight, tint: 'text-hue-amber' },
   { href: '/savings', label: 'Savings', icon: PiggyBank, tint: 'text-hue-green' },
   { href: '/debts', label: 'Debts', icon: CreditCard, tint: 'text-hue-amber' },
   { href: '/subscriptions', label: 'Subscriptions', icon: CalendarSync, tint: 'text-hue-amber' },

@@ -42,6 +42,8 @@ Pure, dependency-free logic (safe to import from client components) lives in
 | `components/ui/*` | Base UI primitives wrapped shadcn-style. Don't reinvent — reuse these. |
 | `components/*-manager.tsx` | Client CRUD UIs (recurring, savings, debts, subscriptions, goals). |
 | `components/dashboard-charts.tsx` | The dashboard's date-range picker + all charts. |
+| `components/investment-manager.tsx` | `/investments`: KPIs and the holdings list, grouped by asset type. |
+| `components/transactions-view.tsx` | `/transactions`: date window + brush zoom, filters, tiles, both capital-deployed charts, the table. |
 | `components/net-worth.tsx` | Net worth = investments + savings − debts panel. |
 | `components/nav.tsx` | `LINKS` array → desktop nav + mobile side-drawer. |
 | `custom-worker.ts` | Worker entrypoint: hands every request to the Next.js app, and runs the price cron. No auth of its own. |
@@ -59,11 +61,18 @@ The load-bearing part is in `wrangler.jsonc`, not in any code: `workers_dev: fal
 
 ## Routes
 
-Pages: `/` (dashboard), `/transactions`, `/holdings`, `/savings`, `/debts`,
+Pages: `/` (dashboard), `/investments`, `/transactions`, `/savings`, `/debts`,
 `/subscriptions`, `/goals`,
 `/recurring`, `/settings/appearance`, `/settings/price-sources`.
 Route handlers: `GET /export.csv`, `GET /api/pnl-history`, `GET /healthz`.
-(There is **no** `/add` page — adding a transaction is a `<Dialog>` on `/transactions`.)
+(There is **no** `/add` page — adding a transaction is a `<Dialog>` in the page header.)
+
+**Investments and Transactions are two pages, deliberately.** A holding is a position you
+hold now; a transaction is a thing that happened on a date. They were one page for a while
+and it had to carry both date models at once — a live valuation and a window over history.
+`/investments` quotes each holding's transaction count and links to
+`/transactions?holding=<name>`; `/holdings` is an old route that redirects to
+`/investments`.
 
 **Settings** is a shell (`app/settings/layout.tsx` + `components/settings-nav.tsx`) around
 one section per folder. To add a section: a folder under `app/settings/` and an entry in

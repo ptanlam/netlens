@@ -48,7 +48,7 @@ Apply the migration with `pnpm db:migrate` (local). Production is handled by `pn
 
 ## Must-know gotchas
 
-- **`searchParams` and `params` are Promises** in page props — `await` them (e.g. `app/transactions/page.tsx` pagination).
+- **`searchParams` and `params` are Promises** in page props — `await` them (e.g. `app/transactions/page.tsx` reading `?holding=`).
 - **Base UI `<Button render={<Link/>}>`** needs `nativeButton={false}` or it warns.
 - **React Compiler lint (`react-hooks/immutability`)** forbids reassigning a captured variable inside a `.map()` in `useMemo` (e.g. `sum += x`). Use prefix sums / `reduce` instead.
 - **Money is whole-VND integers** (signed: + in, − out). Format with `fmtVND` / `fmtMil` from `lib/format.ts`. Never hardcode currency.

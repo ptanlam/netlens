@@ -15,12 +15,17 @@ import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { stackRowsY } from "@tanstack/charts/transform/stack";
 import { scaleUtc } from "d3-scale";
+import { Download } from "lucide-react";
 import type { Tx } from "@/lib/types";
 import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-table";
+import { AddRecurringDialog } from "@/components/add-recurring-dialog";
+import { AddTxDialog } from "@/components/add-tx-dialog";
 import { TxRowActions } from "@/components/tx-row-actions";
 import type { InstrumentOption } from "@/components/tx-form";
+import { PageHeader } from "@/components/page-header";
 import { PanelHead } from "@/components/panel-head";
 import {
   bareAxis, CHART_HOST_STYLE, CHART_THEME, CHIP_LEGEND_CLASS, ChipLegendStyle,
@@ -54,12 +59,27 @@ function milVND(n: number): string {
   return `${n < 0 ? "−" : ""}₫${Math.round(abs / 1e3)}k`;
 }
 
-export function InvestmentActivity({
+/**
+ * The Transactions page: every transaction across every holding, with the date window, the
+ * filters, the two capital-deployed charts and the table all reading the same selection.
+ *
+ * It was a panel on the Investments page until the two were split. A holding is a position
+ * you hold now; a transaction is a thing that happened on a date — they answer different
+ * questions, and the one page had to carry two date models at once (a live valuation and a
+ * window over history) to serve both. `/investments` now keeps the positions and links each
+ * holding through to here, pre-filtered.
+ */
+export function TransactionsView({
   txs,
   options,
+  initialHolding = "All",
 }: {
   txs: Tx[];
   options: InstrumentOption[];
+  /** From `?holding=` — how a holding on `/investments` opens its own history. Only the
+   *  initial value: the picker below owns it from the first render on, so changing the
+   *  filter here doesn't rewrite the URL and the Back button still goes back a page. */
+  initialHolding?: string;
 }) {
   const today = isoNow();
   const year = today.slice(0, 4);
@@ -67,10 +87,19 @@ export function InvestmentActivity({
 
   // Opens on the last year of activity — or on everything, when there's less than a year of
   // it. Seeded once: `today` and `minDate` don't move within a mount.
-  const initial = defaultWindow(minDate, today);
+  //
+  // Arriving pre-filtered to one holding is the exception, and it has to be: a position you
+  // stopped adding to two years ago would open on a year that contains none of it, so the
+  // link from /investments would land on an empty page. Scoped to a holding, the window
+  // opens on that holding's whole history instead. `min` below stays the portfolio's, so
+  // "All" still reaches everything.
+  const initial =
+    initialHolding === "All"
+      ? defaultWindow(minDate, today)
+      : { from: txs.reduce((m, t) => (t.instrument === initialHolding && t.date < m ? t.date : m), today), to: today };
   const [from, setFrom] = React.useState(initial.from);
   const [to, setTo] = React.useState(initial.to);
-  const [filterHolding, setFilterHolding] = React.useState("All");
+  const [filterHolding, setFilterHolding] = React.useState(initialHolding);
   const [filterType, setFilterType] = React.useState("All");
 
   const holdingNames = React.useMemo(
@@ -238,85 +267,106 @@ export function InvestmentActivity({
     "h-7 rounded-lg border border-input bg-pane px-2.5 font-mono text-[12px] outline-none focus:border-ring";
 
   return (
-    <div className="mt-6 card-surface panel-body">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <PanelHead title="Activity" info="Every transaction across all holdings, inside the selected date range." />
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <DateRange
-            from={from}
-            to={to}
-            min={minDate}
-            max={today}
-            // A new window is a new strip; the old selection means nothing on it, and
-            // keeping it would open the preset already zoomed into part of itself.
-            onChange={(f, t) => { setFrom(f); setTo(t); zoom.setRange(null); }}
-          />
-          {/* Beside the picker, not under it: appearing on its own line would grow the
-              header the moment a drag ends and shift the strip out from under the pointer
-              that was still on it. */}
-          {zoom.zoomed && (
-            <button
-              type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
-              onClick={() => zoom.setRange(null)}
-            >
-              Reset zoom
-            </button>
-          )}
+    <div>
+      {/* Export CSV lives here rather than on /investments: the file it downloads is the
+          transaction ledger, row for row — the same thing this page is a view of. */}
+      <PageHeader
+        title="Transactions"
+        className="mb-4"
+        actions={
+          <>
+            <Button variant="outline" nativeButton={false} render={<a href="/export.csv" download />}>
+              <Download className="size-3.5" />
+              Export CSV
+            </Button>
+            <AddRecurringDialog instruments={options} />
+            <AddTxDialog instruments={options} />
+          </>
+        }
+      >
+        Every buy and sell across your holdings, and what they add up to over time.
+      </PageHeader>
+
+      <div className="card-surface panel-body">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <PanelHead title="Activity" info="Every transaction across all holdings, inside the selected date range." />
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <DateRange
+              from={from}
+              to={to}
+              min={minDate}
+              max={today}
+              // A new window is a new strip; the old selection means nothing on it, and
+              // keeping it would open the preset already zoomed into part of itself.
+              onChange={(f, t) => { setFrom(f); setTo(t); zoom.setRange(null); }}
+            />
+            {/* Beside the picker, not under it: appearing on its own line would grow the
+                header the moment a drag ends and shift the strip out from under the pointer
+                that was still on it. */}
+            {zoom.zoomed && (
+              <button
+                type="button"
+                className="cursor-pointer border-0 bg-transparent p-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+                onClick={() => zoom.setRange(null)}
+              >
+                Reset zoom
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2.5">
-        <span className="text-[12.5px] text-muted-foreground">Filter</span>
-        <select value={filterHolding} onChange={(e) => setFilterHolding(e.target.value)} className={selectCls}>
-          <option value="All">All holdings</option>
-          {holdingNames.map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={selectCls}>
-          <option value="All">All types</option>
-          <option value="Buy">Buy</option>
-          <option value="Sell">Sell</option>
-        </select>
-      </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2.5">
+          <span className="text-[12.5px] text-muted-foreground">Filter</span>
+          <select value={filterHolding} onChange={(e) => setFilterHolding(e.target.value)} className={selectCls}>
+            <option value="All">All holdings</option>
+            {holdingNames.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={selectCls}>
+            <option value="All">All types</option>
+            <option value="Buy">Buy</option>
+            <option value="Sell">Sell</option>
+          </select>
+        </div>
 
-      {/* Summary tiles. Monthly average and Best month are scoped to the selected range
-          like everything else here, so they move with the 1M/3M/YTD/1Y/All picker. */}
-      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-divider bg-divider lg:grid-cols-3">
-        <SummaryTile label="Transactions" value={String(filtered.length)} />
-        <SummaryTile label="Invested" value={fmtVND(invested)} />
-        <SummaryTile label="Proceeds" value={proceeds > 0 ? fmtVND(proceeds) : "₫0"} valueCls="text-accent-brand" />
-        <SummaryTile label="Net deployed" value={fmtVND(net)} />
-        <SummaryTile label="Monthly average" value={fmtVND(monthlyAvg)} />
-        <SummaryTile label="Best month" value={best ? `${best.label} · ${fmtVND(best.amt)}` : "—"} />
-      </div>
+        {/* Summary tiles. Monthly average and Best month are scoped to the selected range
+            like everything else here, so they move with the 1M/3M/YTD/1Y/All picker. */}
+        <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-divider bg-divider lg:grid-cols-3">
+          <SummaryTile label="Transactions" value={String(filtered.length)} />
+          <SummaryTile label="Invested" value={fmtVND(invested)} />
+          <SummaryTile label="Proceeds" value={proceeds > 0 ? fmtVND(proceeds) : "₫0"} valueCls="text-accent-brand" />
+          <SummaryTile label="Net deployed" value={fmtVND(net)} />
+          <SummaryTile label="Monthly average" value={fmtVND(monthlyAvg)} />
+          <SummaryTile label="Best month" value={best ? `${best.label} · ${fmtVND(best.amt)}` : "—"} />
+        </div>
 
-      <div className="mt-6 mb-3 text-[13px] font-semibold text-muted-foreground">
-        Cumulative capital deployed
-      </div>
-      <CumulativeChart
-        txs={filtered}
-        from={zFrom}
-        to={zTo}
-        strip={strip}
-        handles={zoom.range}
-        onHandles={zoom.setRange}
-      />
-
-      <div className="mt-6 mb-2.5 text-[13px] font-semibold text-muted-foreground">
-        Capital deployed by month
-      </div>
-      <DeployedByMonth txs={filtered} months={bars} />
-
-      {/* Transactions table */}
-      <div className="mt-6 border-t border-divider pt-4">
-        <DataTable
-          columns={columns}
-          data={filtered}
-          initialSorting={[{ id: "date", desc: true }]}
-          pageSize={PER_PAGE}
-          emptyMessage="No transactions in this range."
-          storageKey="activity"
+        <div className="mt-6 mb-3 text-[13px] font-semibold text-muted-foreground">
+          Cumulative capital deployed
+        </div>
+        <CumulativeChart
+          txs={filtered}
+          from={zFrom}
+          to={zTo}
+          strip={strip}
+          handles={zoom.range}
+          onHandles={zoom.setRange}
         />
+
+        <div className="mt-6 mb-2.5 text-[13px] font-semibold text-muted-foreground">
+          Capital deployed by month
+        </div>
+        <DeployedByMonth txs={filtered} months={bars} />
+
+        {/* Transactions table */}
+        <div className="mt-6 border-t border-divider pt-4">
+          <DataTable
+            columns={columns}
+            data={filtered}
+            initialSorting={[{ id: "date", desc: true }]}
+            pageSize={PER_PAGE}
+            emptyMessage="No transactions in this range."
+            storageKey="activity"
+          />
+        </div>
       </div>
     </div>
   );

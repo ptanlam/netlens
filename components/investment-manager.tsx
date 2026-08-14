@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Download, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Archive, ArchiveRestore, ArrowRight, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import type { Instrument, RecurringRule, Tx } from "@/lib/types";
+import type { Instrument, RecurringRule } from "@/lib/types";
 import { deleteHolding, setHoldingArchived } from "@/app/actions";
 import { fmtUnits, fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -12,10 +13,8 @@ import { IconTooltip } from "@/components/ui/tooltip";
 import { AddHoldingDialog, EditHoldingDialog } from "@/components/add-holding-dialog";
 import { AddTxDialog } from "@/components/add-tx-dialog";
 import { AddRecurringDialog } from "@/components/add-recurring-dialog";
-import { TxRowActions } from "@/components/tx-row-actions";
 import { type InstrumentOption } from "@/components/tx-form";
 import { RecurringManager } from "@/components/recurring-manager";
-import { InvestmentActivity } from "@/components/investment-activity";
 import { SummaryCards, type Stat } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
 import { EntityAvatar } from "@/components/entity-avatar";
@@ -113,84 +112,7 @@ function SoldOutPrompt({ name }: { name: string }) {
   );
 }
 
-/** Shared with the spacer rows in `TxList`, which is what keeps a short page exactly as
- *  tall as a full one. The divider sits on top rather than below so trailing spacers draw
- *  no line — `first:border-t-0` then does what `last:border-0` used to. */
-const TX_ROW = "flex items-center gap-3 border-t border-divider-soft py-2 text-sm first:border-t-0";
-
-function TxRow({ tx, option }: { tx: Tx; option: InstrumentOption }) {
-  return (
-    <div className={TX_ROW}>
-      <span className="font-mono whitespace-nowrap tabular-nums text-muted-foreground">{tx.date}</span>
-      <span className={cn("font-mono whitespace-nowrap font-medium tabular-nums", tx.amount < 0 && "text-(--chart-negative)")}>
-        {fmtVND(tx.amount)}
-      </span>
-      <span className="font-mono whitespace-nowrap tabular-nums text-muted-foreground">
-        {tx.quantity != null ? `${fmtUnits(tx.quantity)} u` : "—"}
-      </span>
-      <span className="flex-1 truncate text-muted-foreground">{tx.note}</span>
-      <TxRowActions tx={tx} instruments={[option]} />
-    </div>
-  );
-}
-
-const TX_PAGE_SIZE = 5;
-
-/**
- * Up to five transactions, the list just is what it is — it hugs its rows.
- *
- * Past five it pages, and a short last page is padded out with empty rows so the panel
- * doesn't shrink under the pager and make the layout jump as you step through pages.
- *
- * That padding used to be a fixed `h-[225px]` with the overflow hidden, which assumed a
- * 45px row. A row is 49px — `py-2` either side of the action buttons, which are `size-8`
- * — so five of them came to 244px and the last one was clipped by 19px. Spacers can't
- * drift like that: they *are* rows, and they take their height from the same token the
- * real ones do.
- */
-function TxList({ txs, option }: { txs: Tx[]; option: InstrumentOption }) {
-  const [page, setPage] = React.useState(0);
-  const paged = txs.length > TX_PAGE_SIZE;
-  const pageCount = Math.max(1, Math.ceil(txs.length / TX_PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const start = safePage * TX_PAGE_SIZE;
-  const visible = paged ? txs.slice(start, start + TX_PAGE_SIZE) : txs;
-
-  return (
-    <>
-      <div className="rounded-lg border border-border bg-pane px-3">
-        {visible.map((tx) => (
-          <TxRow key={tx.id} tx={tx} option={option} />
-        ))}
-        {paged &&
-          Array.from({ length: TX_PAGE_SIZE - visible.length }, (_, i) => (
-            // `size-8` is the action buttons' own size (`icon-sm`), which is what sets a
-            // row's height — so a spacer measures the same as a row by construction.
-            <div key={`pad-${i}`} aria-hidden className={cn(TX_ROW, "border-t-0")}>
-              <span className="block size-8" />
-            </div>
-          ))}
-      </div>
-      {paged && (
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-          <span className="font-mono tabular-nums">
-            Page {safePage + 1} of {pageCount} · {txs.length} tx{txs.length === 1 ? "" : "s"}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPage(safePage - 1)} disabled={safePage === 0}>
-              <ChevronLeft className="size-3.5" /> Previous
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setPage(safePage + 1)} disabled={safePage >= pageCount - 1}>
-              Next <ChevronRight className="size-3.5" />
-            </Button>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView; txs: Tx[]; rules: RuleView[]; sourceKeys: string[] }) {
+function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingView; txCount: number; rules: RuleView[]; sourceKeys: string[] }) {
   const [open, setOpen] = React.useState(false);
   const { inst, value, pnl, cost, live } = holding;
   const option: InstrumentOption = { name: inst.name, asset_type: inst.asset_type };
@@ -231,7 +153,7 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
               {inst.quantity != null && inst.last_price != null
                 ? `${fmtUnits(inst.quantity)} × ${inst.last_price.toLocaleString("de-DE")}`
                 : "manual value"}
-              {" · "}{txs.length} tx{txs.length === 1 ? "" : "s"}
+              {" · "}{txCount} tx{txCount === 1 ? "" : "s"}
               {rules.length > 0 && ` · ${rules.length} rule${rules.length === 1 ? "" : "s"}`}
             </div>
           </div>
@@ -258,23 +180,29 @@ function HoldingRow({ holding, txs, rules, sourceKeys }: { holding: HoldingView;
             </div>
           </div>
 
-          <section className="mb-5">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-[13px] font-semibold">Transactions</h4>
-              <div className="flex flex-wrap items-center gap-2">
-                <AddRecurringDialog instruments={[option]} />
-                <AddTxDialog instruments={[option]} />
-              </div>
-            </div>
-            {txs.length === 0 ? (
+          {/* The ledger itself lives on /transactions — this is the way through to it, with
+              the filter already set. A holding's own rows used to be paged five at a time
+              right here, which was a second, weaker copy of a table that page does properly
+              (sorting, units, price, the lot). */}
+          <div className="mb-5">
+            {txCount === 0 ? (
               <p className="text-[13px] text-muted-foreground">No transactions recorded.</p>
             ) : (
-              <TxList txs={txs} option={option} />
+              <Link
+                href={`/transactions?holding=${encodeURIComponent(inst.name)}`}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent-brand hover:underline"
+              >
+                {txCount} transaction{txCount === 1 ? "" : "s"}
+                <ArrowRight className="size-3.5" />
+              </Link>
             )}
-          </section>
+          </div>
 
           <section>
-            <h4 className="mb-2 text-[13px] font-semibold">Recurring</h4>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-[13px] font-semibold">Recurring</h4>
+              <AddRecurringDialog instruments={[option]} />
+            </div>
             <RecurringManager rules={rules} instruments={[option]} showAddForm={false} />
           </section>
         </div>
@@ -301,15 +229,16 @@ function groupByType(holdings: HoldingView[]): HoldingGroup[] {
 
 export function InvestmentManager({
   holdings,
-  allTxs,
-  txsByInstrument,
+  txCountBy,
   rulesByInstrument,
   sourceKeys,
   banner,
 }: {
   holdings: HoldingView[];
-  allTxs: Tx[];
-  txsByInstrument: Record<string, Tx[]>;
+  /** How many transactions each holding has. A count, not the rows: the rows are
+   *  /transactions' job, and shipping every one of them here was most of this page's
+   *  payload for a list you had to expand a holding to see. */
+  txCountBy: Record<string, number>;
   rulesByInstrument: Record<string, RuleView[]>;
   sourceKeys: string[];
   /** Page-level alert. Rendered under the heading, because the design opens every view
@@ -351,28 +280,22 @@ export function InvestmentManager({
         className="mb-4"
         actions={
           <>
-            <Button variant="outline" nativeButton={false} render={<a href="/export.csv" download />}>
-              <Download className="size-3.5" />
-              Export CSV
-            </Button>
             <AddRecurringDialog instruments={options} />
             <AddTxDialog instruments={options} />
             <AddHoldingDialog sources={sourceKeys} />
           </>
         }
       >
-        Your holdings, their transactions, and the recurring rules that automate them — grouped by asset type.
+        What you hold now, what it cost and what it&apos;s worth — grouped by asset type.
       </PageHeader>
 
       {banner && <div className="mb-4">{banner}</div>}
 
       <SummaryCards stats={kpis} />
 
-      <InvestmentActivity txs={allTxs} options={options} />
-
       <div className="mt-6 mb-3.5">
         <div className="text-[16px] font-bold tracking-[-0.01em]">Holdings</div>
-        <div className="mt-0.5 text-[12.5px] text-muted-foreground">Select a holding to see its transactions</div>
+        <div className="mt-0.5 text-[12.5px] text-muted-foreground">Select a holding for its price source, rules and history</div>
       </div>
 
       {active.length === 0 ? (
@@ -405,7 +328,7 @@ export function InvestmentManager({
                   <HoldingRow
                     key={h.inst.name}
                     holding={h}
-                    txs={txsByInstrument[h.inst.name] ?? []}
+                    txCount={txCountBy[h.inst.name] ?? 0}
                     rules={rulesByInstrument[h.inst.name] ?? []}
                     sourceKeys={sourceKeys}
                   />
@@ -419,7 +342,7 @@ export function InvestmentManager({
       {archived.length > 0 && (
         <ArchivedHoldings
           holdings={archived}
-          txsByInstrument={txsByInstrument}
+          txCountBy={txCountBy}
           rulesByInstrument={rulesByInstrument}
           sourceKeys={sourceKeys}
         />
@@ -435,12 +358,12 @@ export function InvestmentManager({
  */
 function ArchivedHoldings({
   holdings,
-  txsByInstrument,
+  txCountBy,
   rulesByInstrument,
   sourceKeys,
 }: {
   holdings: HoldingView[];
-  txsByInstrument: Record<string, Tx[]>;
+  txCountBy: Record<string, number>;
   rulesByInstrument: Record<string, RuleView[]>;
   sourceKeys: string[];
 }) {
@@ -465,7 +388,7 @@ function ArchivedHoldings({
             <HoldingRow
               key={h.inst.name}
               holding={h}
-              txs={txsByInstrument[h.inst.name] ?? []}
+              txCount={txCountBy[h.inst.name] ?? 0}
               rules={rulesByInstrument[h.inst.name] ?? []}
               sourceKeys={sourceKeys}
             />

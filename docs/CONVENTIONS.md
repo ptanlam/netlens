@@ -21,7 +21,7 @@
 - **All data tables use TanStack Table** (`@tanstack/react-table`) via the shared
   `components/data-table.tsx` (`<DataTable columns={} data={} />`; supports sortable
   headers, optional client `pageSize`, and per-column `meta.align`). See
-  `debts-manager.tsx` / `transactions-table.tsx` for column-def examples; even the
+  `debts-manager.tsx` / `transactions-view.tsx` for column-def examples; even the
   editable holdings form renders through it (sorting disabled, input names keyed by a
   stable row index). Do not hand-roll `<table>` markup.
 - Charts: **Recharts** via the `ChartContainer`/`ChartTooltip` wrappers in

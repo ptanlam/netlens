@@ -22,7 +22,7 @@ function str(v: FormDataEntryValue | null): string {
 }
 
 function revalidateAll() {
-  for (const p of ["/", "/investments", "/savings", "/debts", "/subscriptions", "/goals", "/settings/price-sources"])
+  for (const p of ["/", "/investments", "/transactions", "/savings", "/debts", "/subscriptions", "/goals", "/settings/price-sources"])
     revalidatePath(p);
 }
 
