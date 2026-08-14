@@ -73,9 +73,14 @@ export function TransactionsView({
   txs,
   options,
   initialHolding = "All",
+  banner,
 }: {
   txs: Tx[];
   options: InstrumentOption[];
+  /** Page-level alert — the awaiting-fund-units panel. Rendered under the heading, because
+   *  the design opens every view with its <h1> and a banner above it pushes the page title
+   *  off the top of the screen. */
+  banner?: React.ReactNode;
   /** From `?holding=` — how a holding on `/investments` opens its own history. Only the
    *  initial value: the picker below owns it from the first render on, so changing the
    *  filter here doesn't rewrite the URL and the Back button still goes back a page. */
@@ -286,6 +291,8 @@ export function TransactionsView({
       >
         Every buy and sell across your holdings, and what they add up to over time.
       </PageHeader>
+
+      {banner && <div className="mb-4">{banner}</div>}
 
       <div className="card-surface panel-body">
         <div className="flex flex-wrap items-start justify-between gap-4">

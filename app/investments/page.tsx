@@ -2,19 +2,17 @@ import { connection } from "next/server";
 import * as db from "@/lib/db";
 import type { RecurringRule } from "@/lib/types";
 import { InvestmentManager, type HoldingView } from "@/components/investment-manager";
-import { PendingUnitsCard } from "@/components/pending-units";
 
 export default async function InvestmentsPage() {
   await connection();
   // Must land before anything reads transactions — it inserts the due ones.
   await db.materializeRecurring();
 
-  const [instruments, txs, rules, sources, pendingTxs] = await Promise.all([
+  const [instruments, txs, rules, sources] = await Promise.all([
     db.listInstruments(),
     db.allTransactions(),
     db.listRecurring(),
     db.listPriceSources(),
-    db.pendingFundUnits(),
   ]);
   const sourceKeys = [db.MANUAL_SOURCE, ...sources.map((s) => s.key)];
 
@@ -43,26 +41,12 @@ export default async function InvestmentsPage() {
     })
     .sort((a, b) => b.value - a.value || a.inst.name.localeCompare(b.inst.name));
 
-  // Looked up from the list already in hand rather than a query per pending row, which
-  // on D1 would be a round trip each.
-  const instrumentByName = new Map(instruments.map((i) => [i.name, i]));
-  const pending = pendingTxs.map((tx) => {
-    const inst = instrumentByName.get(tx.instrument);
-    return {
-      tx,
-      window: db.expectedUnitsWindow(tx.date),
-      estUnits: inst?.last_price ? Number((tx.amount / inst.last_price).toFixed(2)) : null,
-      hasHoldingQty: inst?.quantity != null,
-    };
-  });
-
   return (
     <InvestmentManager
       holdings={holdings}
       txCountBy={txCountBy}
       rulesByInstrument={rulesByInstrument}
       sourceKeys={sourceKeys}
-      banner={pending.length > 0 ? <PendingUnitsCard pending={pending} /> : null}
     />
   );
 }

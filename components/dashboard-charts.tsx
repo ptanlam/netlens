@@ -258,7 +258,7 @@ export function DashboardCharts({
 
       {pending > 0 && (
         <Link
-          href="/investments"
+          href="/transactions"
           className="flex items-start gap-2.5 rounded-xl border border-warning-border bg-warning-bg px-5 py-4 transition-colors hover:border-warning"
         >
           <TriangleAlert className="mt-0.5 size-4 text-warning" />
@@ -267,7 +267,7 @@ export function DashboardCharts({
               {pending} fund purchase{pending > 1 ? "s" : ""} awaiting unit confirmation
             </div>
             <div className="mt-0.5 text-[12.5px] text-muted-foreground">
-              Enter the confirmed units on the Investments page so live valuation stays accurate.
+              Enter the confirmed units on the Transactions page so live valuation stays accurate.
             </div>
           </div>
         </Link>

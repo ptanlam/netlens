@@ -29,11 +29,13 @@ pnpm build && pnpm start
   charts, plus a live allocation donut, holdings bars, and P&L-by-holding
 - `/investments` — what you hold: portfolio/invested/P&L stat cards, holdings grouped by
   asset type, each expanding to its price source, recurring rules and a link to its
-  history; archived holdings; the "Awaiting fund units" (T+1/T+2) banner
+  history; archived holdings
 - `/transactions` — what you did: every buy and sell in a date window you pick and can
   brush-zoom, filtered by holding and buy/sell, over summary tiles, cumulative-deployed
-  and deployed-by-month charts and a sortable table. Add/edit/delete dialogs, CSV export.
-  `?holding=<name>` opens it filtered to one holding — how `/investments` links through
+  and deployed-by-month charts and a sortable table. Add/edit/delete dialogs, CSV export,
+  and the "Awaiting fund units" (T+1/T+2) panel — a fund buy waiting on its unit count is
+  a transaction, and confirming one writes back to it. `?holding=<name>` opens the page
+  filtered to one holding — how `/investments` links through
 - `/savings` — term deposits: principal, interest rate, term, estimated current &
   maturity value
 - `/debts` — loans and **revolving credit cards**: principal/balance, rate, term (or

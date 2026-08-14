@@ -232,7 +232,6 @@ export function InvestmentManager({
   txCountBy,
   rulesByInstrument,
   sourceKeys,
-  banner,
 }: {
   holdings: HoldingView[];
   /** How many transactions each holding has. A count, not the rows: the rows are
@@ -241,9 +240,6 @@ export function InvestmentManager({
   txCountBy: Record<string, number>;
   rulesByInstrument: Record<string, RuleView[]>;
   sourceKeys: string[];
-  /** Page-level alert. Rendered under the heading, because the design opens every view
-   *  with its <h1> — a banner above it pushes the page title off the top of the screen. */
-  banner?: React.ReactNode;
 }) {
   // Totals stay over every holding so archiving a sold-out one never moves a KPI — its
   // value is 0 and its realised P&L is preserved. Archived rows only leave the live list.
@@ -288,8 +284,6 @@ export function InvestmentManager({
       >
         What you hold now, what it cost and what it&apos;s worth — grouped by asset type.
       </PageHeader>
-
-      {banner && <div className="mb-4">{banner}</div>}
 
       <SummaryCards stats={kpis} />
 
