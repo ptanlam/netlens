@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IconTooltip } from '@/components/ui/tooltip';
+import { AccessUser } from '@/components/access-user';
 import { LivePrices } from '@/components/live-prices';
 import { HeaderSearch } from '@/components/header-search';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -465,9 +466,11 @@ export function Nav() {
           </div>
           <div className='flex shrink-0 items-center gap-2'>
             <LivePrices />
-            {/* Outside `data-nav-icons` on purpose: that group is hidden in side-rail mode
-                because the rail carries its own Settings and Sign out, but the rail has no
-                theme control, so this one has to survive both layouts. */}
+            {/* Both outside `data-nav-icons` on purpose: that group is hidden in side-rail
+                mode because the rail carries its own Settings and Sign out, but the rail has
+                neither a theme control nor the signed-in chip, so these two have to survive
+                both layouts. */}
+            <AccessUser />
             <ThemeToggle />
             {/* The design's header affordances are bordered circles on the panel surface,
                 not bare glyphs — they have to hold their own against a chart scrolling
