@@ -9,7 +9,7 @@ the old app to migrate (same schema).
 
 - **Next.js 16** (App Router, Server Actions, Turbopack) + React 19
 - **shadcn/ui** (Base UI primitives) + Tailwind CSS 4
-- **Recharts** via the shadcn chart wrapper
+- **@tanstack/charts** behind the shared helpers in `components/ui/chart.tsx`
 - **Cloudflare D1** for storage, via `@opennextjs/cloudflare` (see `docs/CLOUDFLARE.md`)
 
 ## Run it

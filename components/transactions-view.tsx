@@ -28,7 +28,7 @@ import type { InstrumentOption } from "@/components/tx-form";
 import { PageHeader } from "@/components/page-header";
 import { PanelHead } from "@/components/panel-head";
 import {
-  bareAxis, CHART_HOST_STYLE, CHART_THEME, CHIP_LEGEND_CLASS, ChipLegendStyle,
+  bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME, CHIP_LEGEND_CLASS, ChipLegendStyle,
   INITIAL_PANEL_WIDTH, legendChartMetrics, legendItemWidth, useLegendBand, usePanelWidth,
 } from "@/components/ui/chart";
 import { BRUSH_MIN_POINTS, SeriesBrush, useDateWindow } from "@/components/chart-brush";
@@ -514,6 +514,10 @@ function CumulativeChart({
           axis: bareAxis<number>({ format: (v) => (v === 0 ? "₫0" : milVND(v)) }),
         },
         theme: CHART_THEME,
+        // For a staircase redrawn over the same days — a transaction added or edited. The
+        // window controls change how many samples there are, and that lands as a cut
+        // whatever is set here (see `CHART_MOTION`).
+        svgAnimation: CHART_MOTION,
         // The date is what you point at, and the steps are irregular — an unbounded radius
         // means a long flat run between two buys is still reachable anywhere along it.
         focus: "nearest-x",
@@ -777,6 +781,11 @@ function DeployedByMonth({
           }),
         },
         theme: CHART_THEME,
+        // Isolating a holding from the legend re-stacks the columns *and* rescales the axis
+        // under them, which is a lot to take in as a cut. Tweened, the segments you kept
+        // visibly grow into the room the others left, so the new axis is something you
+        // watched happen. Keyed on month + holding, so a segment survives a re-stack.
+        svgAnimation: CHART_MOTION,
         // Hovering anywhere in a column means the whole column: a stack is only readable if
         // you can see every holding that adds up to the height at once.
         focus: "group-x",

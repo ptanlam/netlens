@@ -24,8 +24,11 @@
   `debts-manager.tsx` / `transactions-view.tsx` for column-def examples; even the
   editable holdings form renders through it (sorting disabled, input names keyed by a
   stable row index). Do not hand-roll `<table>` markup.
-- Charts: **Recharts** via the `ChartContainer`/`ChartTooltip` wrappers in
-  `components/ui/chart.tsx`. Set `isAnimationActive={false}` (matches existing charts).
+- Charts: **@tanstack/charts** — a `defineChart({...})` in a `useMemo`, rendered by
+  `<Chart definition={} />`. The shared furniture lives in `components/ui/chart.tsx`:
+  `CHART_THEME`, `CHART_HOST_STYLE`, `bareAxis()`, and **`CHART_MOTION`** (`svgAnimation:
+  CHART_MOTION` — put it on every chart whose numbers can move under a stable set of marks;
+  its doc comment says what the tween does and does not cover).
 - Toasts: `sonner` (`toast.success` / `toast.error`), configured in `app/layout.tsx`.
 - Theme: `next-themes`, `class` attribute, system default. Picked on
   `/settings/appearance` (`components/appearance-settings.tsx`) — Match system / Daylight

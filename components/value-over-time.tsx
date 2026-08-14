@@ -10,7 +10,7 @@ import { tooltip } from "@tanstack/charts/tooltip";
 import { scaleUtc } from "d3-scale";
 import { fmtMil, fmtVND } from "@/lib/format";
 import { PanelHead } from "@/components/panel-head";
-import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
+import { bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 import { BRUSH_MIN_POINTS, SeriesBrush, useDateWindow } from "@/components/chart-brush";
 import { DateRange, defaultWindow } from "@/components/date-range";
 import { cn } from "@/lib/utils";
@@ -342,6 +342,11 @@ function ChartSvg({
         x: { scale: scaleUtc, axis: bareAxis<Date>() },
         y: { scale: scaleLinear, nice: true, grid: true, axis: bareAxis<number>({ format: fmtTick }) },
         theme: CHART_THEME,
+        // For the figures moving, not for the window changing. Edit a deposit's rate or add
+        // one and the balance is redrawn over the same days, so the curve walks to its new
+        // shape; the date picker hands the chart a different number of samples, which lands
+        // as a cut whatever is set here (see `CHART_MOTION`).
+        svgAnimation: CHART_MOTION,
         // The date is what you point at; how near the cursor is to the curve vertically
         // says nothing, and an unbounded radius means no dead zones between samples.
         focus: "nearest-x",

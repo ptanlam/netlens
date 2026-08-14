@@ -33,7 +33,7 @@ import { SummaryCards } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  bareAxis, CHART_HOST_STYLE, CHART_THEME, CHIP_LEGEND_CLASS, ChipLegendStyle,
+  bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME, CHIP_LEGEND_CLASS, ChipLegendStyle,
   INITIAL_PANEL_WIDTH, legendChartMetrics, legendItemWidth, useLegendBand, usePanelWidth,
 } from "@/components/ui/chart";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -562,6 +562,10 @@ function ForecastPanel({
           }),
         },
         theme: CHART_THEME,
+        // Same story as the deployed-by-month stack: isolating a plan from the legend
+        // re-stacks the columns and rescales the axis under them, and tweening is what makes
+        // that one movement rather than two unrelated pictures. Keyed on month + plan id.
+        svgAnimation: CHART_MOTION,
         // Hovering anywhere in a column means the whole column: a stack is only readable if
         // you can see every plan that adds up to the height at once.
         focus: "group-x",

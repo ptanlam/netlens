@@ -9,7 +9,7 @@ import { Chart } from "@tanstack/charts/react";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { scalePoint } from "@tanstack/charts/scales/point";
 
-import { CHART_THEME } from "@/components/ui/chart";
+import { CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 
 /**
  * The one thing every series here has in common: an ISO date per row. It is the brush's
@@ -168,6 +168,14 @@ export function SeriesBrush<TDatum extends Dated>({
         // No axes, grid or margins: the strip is a shape, not a reading.
         guides: false,
         theme: CHART_THEME,
+        // The silhouette moves with the chart above it when the numbers behind them both
+        // move — switching the metric changes how many samples there are, and that lands as
+        // a cut here as it does there (see `CHART_MOTION`).
+        //
+        // It cannot reach the handles: the brush is a *control*, painted into a second SVG
+        // over this one, so dragging stays exact. Measured mid-drag — the handle sits on the
+        // pointer to the pixel at every sample.
+        svgAnimation: CHART_MOTION,
         focus: focusDisabled,
         // Without this the host still lays a focus ring over every point in the series —
         // hundreds of circles in the DOM for a strip that can't be focused in the first

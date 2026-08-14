@@ -14,7 +14,7 @@ import { bucketOf, type Bucket } from "@/components/pnl-chart";
 import { DateRange, defaultWindow } from "@/components/date-range";
 import { PanelHead } from "@/components/panel-head";
 import { BRUSH_MIN_POINTS, SeriesBrush, useDateWindow } from "@/components/chart-brush";
-import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
+import { bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
 const TIMEFRAMES: Bucket[] = ["Daily", "Weekly", "Monthly", "Yearly"];
@@ -32,29 +32,6 @@ interface Point {
   at: Date;
   label: string;
 }
-
-/**
- * The panel's controls all change what the curve *is* — the metric, the bucket, the window,
- * the brush — and every one of them used to swap one picture for another between frames.
- * Tweening the geometry is what makes those the same curve moving rather than four unrelated
- * charts: switching Weekly to Monthly reads as the line settling, not redrawing.
- *
- * A tween rather than the `motion()` renderer, which is the other option here. Motion buys
- * springs, entrance choreography and a crosshair that keeps its velocity while focus
- * retargets; it also pulls a browser motion runtime into the dashboard bundle. Nothing in
- * this panel is a physical object, so the tween is the honest amount of animation for it.
- *
- * Two defaults are load-bearing and deliberately left alone. `respectReducedMotion` is on,
- * so a reader who asked the OS for less motion gets none of this. `resize` is off, so
- * dragging the window doesn't restart the tween on every layout pass — the curve reflows
- * instantly while it is being resized, which is the behaviour you want when the chart is
- * chasing a column width.
- *
- * The crosshair is unaffected: with the default SVG renderer it is painted straight at its
- * current target, so the guide still tracks the pointer exactly rather than lagging it by a
- * quarter second.
- */
-const CURVE_MOTION = { duration: 260, easing: "ease-out" } as const;
 
 /**
  * "Updated 14:32:05", with a dot that pings once each time it changes.
@@ -355,7 +332,7 @@ function ChartSvg({
           axis: bareAxis<number>({ format: fmtMil }),
         },
         theme: CHART_THEME,
-        svgAnimation: CURVE_MOTION,
+        svgAnimation: CHART_MOTION,
         focus: "nearest-x",
         maxFocusDistance: Number.POSITIVE_INFINITY,
         tooltip: { use: tooltip, content: (points) => tip(points[0]?.datum, metric) },
@@ -400,7 +377,7 @@ function ChartSvg({
         axis: bareAxis<number>({ format: fmtMil }),
       },
       theme: CHART_THEME,
-      svgAnimation: CURVE_MOTION,
+      svgAnimation: CHART_MOTION,
       focus: "nearest-x",
       maxFocusDistance: Number.POSITIVE_INFINITY,
       tooltip: { use: tooltip, content: (points) => tip(points[0]?.datum, metric) },

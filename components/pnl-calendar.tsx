@@ -16,7 +16,7 @@ import { scaleThreshold } from "d3-scale";
 import type { HoldingPnlPoint, PnlDayStatus, PnlPoint } from "@/lib/types";
 import { fmtMil, fmtVND, MONTHS } from "@/lib/format";
 import { PanelHead } from "@/components/panel-head";
-import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
+import { bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -221,6 +221,11 @@ function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
         },
         theme: CHART_THEME,
         focusRing: false,
+        // Picking a different day rewrites this panel, and the bars that survive the change
+        // are the point of it: a holding that moved on both days slides to its new length
+        // rather than being redrawn at it. Keyed on the holding name, which `barX` infers
+        // from `y` — the bars are one per holding, so identity is the name.
+        svgAnimation: CHART_MOTION,
         tooltip: {
           use: tooltip,
           portal,
@@ -600,6 +605,14 @@ export function PnlCalendar({
       // here needs now that neither axis prints.
       margin: { top: 2, left: 0, right: 0 },
       focusRing: false,
+      // No `svgAnimation` on the grid, deliberately — it would be inert here and reading as
+      // if the calendar animates when it doesn't is worse than the plain truth. A square is
+      // keyed on its date, so no square survives a step to another month; the squares
+      // themselves never move, because the grid is the same seven columns whatever is in
+      // it; and the one thing that *does* change on a price tick is the fill, which is a
+      // `var(--…)` and so has nothing to interpolate between. Measured: a month step and a
+      // month/year switch both land in one frame. The bar panel below is the animated half
+      // of this card.
       selection,
       // No tooltip on the grid. Every square already prints its own figure, so a card
       // following the pointer repeated what was under it — and on a grid you read by

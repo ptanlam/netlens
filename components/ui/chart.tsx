@@ -25,6 +25,50 @@ export const CHART_THEME: Partial<ChartTheme> = {
 };
 
 /**
+ * How every chart here moves when its data changes.
+ *
+ * The controls on these panels all change what a chart *is* — the metric, the bucket, the
+ * window, the month, the holdings you've filtered to — and without this each one swapped
+ * one picture for another between frames. Tweening the geometry is what makes those the
+ * same chart moving rather than a series of unrelated ones: switching Weekly to Monthly
+ * reads as the line settling, and a price tick nudges a bar rather than replacing it.
+ *
+ * 260ms because these are all small, dense panels where a slower tween starts to feel like
+ * latency; it is quick enough to read as a response to the click that caused it.
+ *
+ * A tween rather than the `motion()` renderer, which is the other option the library
+ * offers. Motion buys springs, entrance choreography and a crosshair that keeps its
+ * velocity while focus retargets; it also pulls a browser motion runtime into every bundle
+ * that draws a chart. Nothing on these panels is a physical object, so the tween is the
+ * honest amount of animation for them.
+ *
+ * Two defaults are load-bearing and deliberately left alone. `respectReducedMotion` is on,
+ * so a reader who asked the OS for less motion gets none of this. `resize` is off, so
+ * dragging the window doesn't restart the tween on every layout pass — a chart reflows
+ * instantly while it is being resized, which is what you want when it is chasing a column
+ * width.
+ *
+ * What it animates is narrower than it sounds, and worth knowing before adding it to a
+ * chart and assuming the chart now moves. Measured on these panels:
+ *
+ * - **Values move, geometry interpolates.** A price tick that changes today's figure walks
+ *   the curve's last point up over the duration, and the donut's arcs sweep to their new
+ *   angles. Bars are the same: isolating one series from a legend re-stacks the columns and
+ *   rescales the axis, and every segment slides.
+ * - **The sample set changes, the new picture is installed as it is.** Pick a different
+ *   date window and the path has a different number of commands, so there is no skeleton to
+ *   interpolate against and the library swaps it — verified: the new geometry is on screen
+ *   within 40ms of the click. Only when the mark *set* changes does the fallback show, and
+ *   that is a crossfade rather than a slide.
+ * - **A colour written as `var(--x)` cannot interpolate**, which is most of ours.
+ *
+ * So this is worth adding where a chart's numbers move under a stable set of marks, and not
+ * worth pretending about anywhere else. Keys are what decide "same mark, new value" from
+ * "different mark", so a mark whose identity isn't its x value carries an explicit `key`.
+ */
+export const CHART_MOTION = { duration: 260, easing: "ease-out" } as const;
+
+/**
  * The built-in tooltip is a real DOM element the chart host owns, styled from
  * `--ts-chart-tooltip-*` custom properties that each fall back to a browser default.
  * Setting them on the chart host — which the tooltip is always a descendant of, portalled

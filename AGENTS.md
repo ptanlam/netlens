@@ -25,7 +25,7 @@ Personal net-worth tracker: **investments, savings (term deposits), debts (loans
 
 ## Stack
 
-Next.js 16 (App Router, Server Actions, Turbopack) · React 19 · **@base-ui/react** primitives wrapped in `components/ui/` (shadcn-style) · Tailwind CSS v4 · Recharts · **Cloudflare D1** via `@opennextjs/cloudflare` · sonner (toasts) · next-themes.
+Next.js 16 (App Router, Server Actions, Turbopack) · React 19 · **@base-ui/react** primitives wrapped in `components/ui/` (shadcn-style) · Tailwind CSS v4 · @tanstack/charts · **Cloudflare D1** via `@opennextjs/cloudflare` · sonner (toasts) · next-themes.
 
 ## Architecture in 6 lines
 

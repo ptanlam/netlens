@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { project, type GoalView, type GoalWorld } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
-import { CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
+import { CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
 import { usePriceRefreshCount } from "@/components/live-prices";
 import { cn } from "@/lib/utils";
@@ -402,6 +402,12 @@ function AllocationCard({ payload }: { payload: LivePayload }) {
       x: null,
       y: null,
       theme: CHART_THEME,
+      // Arcs sweep to their new angles instead of jumping, which is the whole reason a
+      // price tick is worth watching here: the ring is the one panel where you can see a
+      // holding gaining on another. Reconciled by `key` above, so an arc keeps its identity
+      // as the order changes — without it a slice that changed rank would swap fills with
+      // its neighbour mid-tween.
+      svgAnimation: CHART_MOTION,
       focusRing: false,
       tooltip: {
         use: tooltip,
