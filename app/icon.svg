@@ -1,5 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#17150f" />
-  <circle cx="32" cy="32" r="17" fill="none" stroke="#f4f2ee" stroke-width="4" />
-  <circle cx="32" cy="32" r="7" fill="#2f7d55" />
+  <!--
+    The app's own brand mark, as `BrandMark` in `components/nav.tsx` draws it: the brand
+    gradient tile at the same 150° with the same two stops, and a bold white "N". Note that a
+    double hyphen is illegal inside an XML comment, so the CSS custom properties this mirrors
+    are named here without their leading pair; an SVG carrying one fails to parse at all, and
+    a favicon that fails to parse simply doesn't appear.
+
+    Ratios rather than absolute values, since this tile is 64px and the header's is 34px. The
+    corner is 0.35 of the side (12px on 34px there); 12px on 64px would read as a squarer,
+    different object. The N is set at the same 0.44em-per-side the header uses.
+
+    The N is three straight runs rather than a <text> element: a favicon is rendered outside
+    the page, so `Space Grotesk` isn't loaded and <text> would fall back to whatever grotesk
+    the OS happens to have. The numbers are that font's own, its Bold N measured off a canvas
+    raster at 400px, in ems: 0.535 wide, 0.700 cap, 0.128 stems, and a 0.125 diagonal inset
+    between the stems rather than run corner to corner, which is what gives Space Grotesk's N
+    its three distinct strokes.
+  -->
+  <defs>
+    <!--
+      CSS's `150deg` is measured clockwise from "to top"; SVG wants the two endpoints. The
+      line runs through the centre along (sin150°, cos150°) = (0.5, 0.866), long enough for
+      both corners to project onto it. For a square that is 64·0.5 + 64·0.866 = 87.4, which
+      is what puts the ends off the tile at y = -5.85 and 69.85.
+    -->
+    <linearGradient id="brand" x1="0.159" y1="-0.091" x2="0.841" y2="1.091">
+      <stop offset="0" stop-color="#2b7fff" />
+      <stop offset="1" stop-color="#7c5cff" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="22.6" fill="url(#brand)" />
+  <path
+    fill="#fff"
+    d="M24.44 22.11h3.61v19.77h-3.61zM35.93 22.11h3.61v19.77h-3.61zM28.05 22.11h3.53l4.35 19.77h-3.53z"
+  />
 </svg>
