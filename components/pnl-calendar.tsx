@@ -642,6 +642,30 @@ export function PnlCalendar({
     ? year < Number(bounds.max.slice(0, 4))
     : active < bounds.max);
 
+  /**
+   * Whether the grid is already showing today, and so whether "Today" has anywhere to go.
+   *
+   * "Today" here is the newest period the series covers, not the wall clock. The last point
+   * in the series *is* today's row everywhere else in the app — it's the one the dashboard
+   * reads for "Today's move", and the one this panel rings as `live` — so following the data
+   * is both the honest reading and the one that can't offer a jump to a month the calendar
+   * has no squares for. It also keeps this deterministic: no clock means nothing to differ
+   * between the Worker's UTC and the reader's timezone.
+   *
+   * Year view compares years, because that's all the year grid is keyed on — a jump from
+   * March to August of the same year would redraw nothing.
+   */
+  const atToday = !!bounds && !!active && (view === "year"
+    ? year === Number(bounds.max.slice(0, 4))
+    : active === bounds.max);
+
+  /** Clearing the override rather than setting today's key, so the panel goes back to
+   *  tracking the end of the series — a tick that lands a new month still lands you on it. */
+  function goToday() {
+    setMonth(null);
+    setSelected(null);
+  }
+
   return (
     <div className="card-surface panel-body">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
@@ -651,7 +675,12 @@ export function PnlCalendar({
             info="Change in unrealized P&L — by day in month view, by month in year view. Select a cell for the per-holding breakdown."
           />
           {active && (
-            <div className="flex items-center gap-3">
+            // Wrapping, and a tighter gap below `sm`: four controls plus the native month
+            // picker come to ~300px, which is more than a 360px phone leaves this row once
+            // the panel's padding is off it. The gap alone doesn't buy enough, so the wrap
+            // is the backstop — it only ever engages under ~370px, and Today is the last
+            // child, so it is the one that drops.
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
               <button
                 type="button"
                 onClick={() => shift(-1)}
@@ -688,6 +717,19 @@ export function PnlCalendar({
                 className="size-7 rounded-md border border-input bg-pane text-[13px] text-muted-foreground disabled:opacity-40"
               >
                 ›
+              </button>
+              {/* Disabled rather than hidden when there's nowhere to go, so the row keeps its
+                  width — and it sits next to a `›` that is disabled on exactly the same
+                  reading, which is what makes a greyed Today on first load read as "you are
+                  already here" rather than as a broken control. */}
+              <button
+                type="button"
+                onClick={goToday}
+                disabled={atToday}
+                aria-label={view === "year" ? "Go to the current year" : "Go to the current month"}
+                className="h-7 rounded-md border border-input bg-pane px-2.5 text-[12px] font-semibold text-muted-foreground disabled:opacity-40"
+              >
+                Today
               </button>
             </div>
           )}
