@@ -322,6 +322,23 @@
   ::selection {
     background: var(--selection);
   }
+  /* A chart host is a `tabindex="0"` element so arrow keys can walk its points — which means
+     Chrome's plain `:focus` rule paints a ring around the whole panel the moment you click
+     the chart, and leaves it there after the pointer has gone. Pointing at a curve is not a
+     focus gesture, so the ring reads as a stuck selection on a picture you were only
+     reading. Drop it, and restore the ring on `:focus-visible` alone — verified to match
+     when the chart is reached by Tab and not when it is clicked, so the keyboard path keeps
+     its indicator. Descendants too: the brush strip and the zoom handles are separately
+     focusable inside the host. */
+  [aria-roledescription="chart"]:focus,
+  [aria-roledescription="chart"] :focus {
+    outline: none;
+  }
+  [aria-roledescription="chart"]:focus-visible,
+  [aria-roledescription="chart"] :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
   /* A date field sizes itself from the UA's segmented control, so it comes out taller than
      a text input carrying the exact same height/padding/font — a few px in Chrome, and a
      lot more in iOS Safari, which is where a row of otherwise-matched fields visibly ends
