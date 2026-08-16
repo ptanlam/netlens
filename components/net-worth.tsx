@@ -142,13 +142,26 @@ export function NetWorthPanel({
                     : undefined
                 }
                 className={cn(
-                  "mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[12px] whitespace-nowrap tabular-nums @xl:mt-3.5 @xl:px-3 @xl:text-[13.5px]",
+                  // `max-w-full` and the wrap are what keep this out from under the spark.
+                  // An `inline-flex` sizes to its content, and its content is one unbroken
+                  // nowrap line — so on a rail-width card the pill grew past the flex column
+                  // it lives in and ran beneath the sparkline, which is `shrink-0` and holds
+                  // its 110px whatever the text does. Capped at the column, it breaks between
+                  // its own spans instead: the amount keeps the first line, "since Aug 14"
+                  // drops to a second. The parts stay `whitespace-nowrap` individually, so a
+                  // figure is never split down the middle.
+                  //
+                  // `rounded-2xl` rather than `rounded-full` for the same reason: 16px is
+                  // past half the height of a one-line pill, so CSS clamps it back to the
+                  // lozenge you see today — but a wrapped two-line pill gets a 16px corner
+                  // instead of a stadium, which is the right shape for a block of text.
+                  "mt-2.5 inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-2xl px-2.5 py-1 font-mono text-[12px] tabular-nums @xl:mt-3.5 @xl:px-3 @xl:text-[13.5px]",
                   todayDelta < 0
                     ? "bg-negative-wash text-(--chart-negative)"
                     : "bg-accent text-accent-brand",
                 )}
               >
-                <span className="font-semibold">
+                <span className="font-semibold whitespace-nowrap">
                   {todayDelta < 0 ? "↘ −" : "↗ +"}
                   {fmtVND(Math.abs(todayDelta)).replace("-", "")}
                 </span>
@@ -161,7 +174,7 @@ export function NetWorthPanel({
                     {Math.abs(todayPct).toFixed(2)}%)
                   </span>
                 )}
-                <span className="opacity-70">
+                <span className="whitespace-nowrap opacity-70">
                   {todayFrom ? `since ${fmtDayShort(todayFrom)}` : "today"}
                 </span>
               </div>
