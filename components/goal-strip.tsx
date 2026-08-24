@@ -129,14 +129,20 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
           Manage →
         </Link>
       </div>
-      <div>
+      {/* One grid for the whole list, and every row a `subgrid` of it: name, bar, figures and
+          chip then share four columns across rows instead of each row sizing its own. That is
+          what keeps the bars on a common track — before this, a longer figure (a target with
+          its foreign amount spelled out) ate its row's bar down to a stub while the rows above
+          kept theirs full width. `max-content` on the last two columns means the list is as
+          wide as its widest number and no wider. */}
+      <div className="@2xl:grid @2xl:grid-cols-[minmax(0,1fr)_minmax(6rem,0.5fr)_max-content_max-content] @2xl:gap-x-5">
         {goals.map(({ goal, proj }, i) => (
           <Link
             key={goal.id}
             href="/goals"
-            className="flex flex-col gap-2 border-t border-divider px-5 py-3.5 transition-colors hover:bg-muted/40 @2xl:flex-row @2xl:items-center @2xl:gap-5"
+            className="flex flex-col gap-2 border-t border-divider px-5 py-3.5 transition-colors hover:bg-muted/40 @2xl:col-span-4 @2xl:grid @2xl:grid-cols-subgrid @2xl:items-center"
           >
-            <div className="flex min-w-0 items-center gap-2 @2xl:w-[34%]">
+            <div className="flex min-w-0 items-center gap-2">
               {/* The rank you set on /goals — the rail is ordered by it, so showing the
                   number is what makes that order legible rather than arbitrary. */}
               <span className="shrink-0 font-mono text-[11px] text-faint tabular-nums">{i + 1}</span>
@@ -146,26 +152,35 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
               <GoalMetricTag metric={goal.metric} className="hidden @3xl:inline-flex" />
             </div>
 
-            <div className="flex flex-1 items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <GoalBar progress={proj.progress} muted={proj.status === "stalled"} metric={goal.metric} />
-              <span className="shrink-0 font-mono text-[11.5px] text-muted-foreground tabular-nums">
+              {/* A fixed slot: "0%" and "100%" must not move where the bar ends, or the
+                  bars stop lining up down the column again. */}
+              <span className="w-10 shrink-0 text-right font-mono text-[11.5px] text-muted-foreground tabular-nums">
                 {Math.round(proj.progress * 100)}%
               </span>
             </div>
 
-            <div className="flex items-center justify-between gap-3 @2xl:justify-end">
-              <span className="font-mono text-[12px] tabular-nums">
+            {/* Stacked on a phone this is one line, figures left and chip right; from @2xl it
+                dissolves (`contents`) so both land in their own shared column. */}
+            <div className="flex items-center justify-between gap-3 @2xl:contents">
+              {/* Only once it has a column of its own does this refuse to break: on a phone
+                  the figures need to be able to wrap under themselves, or a foreign amount
+                  shoves the status chip off the card. */}
+              <span className="font-mono text-[12px] tabular-nums @2xl:text-right @2xl:whitespace-nowrap">
                 {fmtVND(proj.current)}{" "}
                 <span className="text-faint">
-                  / {fmtVND(proj.target)}
+                  <span className="whitespace-nowrap">/ {fmtVND(proj.target)}</span>
                   {/* The dong figure is the one that compares to what you have; the amount
                       you actually committed to is what explains it moving. The full
                       attribution (rate, source, when) lives on /goals — this is a glance
                       surface, and the row has to survive a phone. */}
-                  {proj.fx && ` (${fmtCcy(proj.fx.amount, proj.fx.ccy)})`}
+                  {proj.fx && (
+                    <span className="whitespace-nowrap"> ({fmtCcy(proj.fx.amount, proj.fx.ccy)})</span>
+                  )}
                 </span>
               </span>
-              <GoalStatusChip status={proj.status} />
+              <GoalStatusChip status={proj.status} className="@2xl:justify-self-end" />
             </div>
           </Link>
         ))}
