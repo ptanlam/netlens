@@ -442,6 +442,15 @@ function stripSeries(txs: Tx[], from: string, to: string): { date: string; v: nu
     while (i < rows.length && rows[i].date <= date) cum += rows[i++].amount;
     out.push({ date, v: cum });
   }
+  // The grid steps in whole days, so on a span that isn't a multiple of the step its last
+  // rung lands short of `to` — a year steps by two days and stops yesterday. That is not
+  // just a stunted curve: the strip's last date *is* the window's end everywhere below
+  // (`useDateWindow` hands back the whole span when nothing is brushed), so today's
+  // transactions dropped out of the table and the tiles on 1Y and All while showing on 1M.
+  if (out.length && out[out.length - 1].date < to) {
+    while (i < rows.length && rows[i].date <= to) cum += rows[i++].amount;
+    out.push({ date: to, v: cum });
+  }
   return out;
 }
 
