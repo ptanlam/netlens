@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { areaY, defineChart, lineY, rect } from "@tanstack/charts";
+import { areaY, defineChart, lineY, rect, ruleY } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
 import type { BrushRange } from "@tanstack/charts/interaction/brush";
 import { controlledSignal } from "@tanstack/charts/interaction/signal";
@@ -148,15 +148,21 @@ export function TransactionsView({
   const proceeds = filtered.filter((t) => t.amount < 0).reduce((a, t) => a - t.amount, 0);
   const net = invested - proceeds;
 
-  // Monthly capital deployed (buys) within range.
+  // Monthly capital deployed within range, and what came back out of it.
+  //
+  // `amt` stays buys only, because it is what "Monthly average" and "Best month" mean — net
+  // a sell into it and a busy month you also took profit in reads as a quiet one. `sold` is
+  // carried beside it as a positive magnitude, for the columns to draw under the axis.
   const bars = React.useMemo(() => {
-    const byMonth = new Map<string, number>();
-    for (const t of filtered) if (t.amount >= 0) {
+    const bought = new Map<string, number>();
+    const sold = new Map<string, number>();
+    for (const t of filtered) {
       const k = t.date.slice(0, 7);
-      byMonth.set(k, (byMonth.get(k) ?? 0) + t.amount);
+      if (t.amount >= 0) bought.set(k, (bought.get(k) ?? 0) + t.amount);
+      else sold.set(k, (sold.get(k) ?? 0) - t.amount);
     }
     // month buckets from `from` to `to`
-    const out: { key: string; label: string; amt: number }[] = [];
+    const out: { key: string; label: string; amt: number; sold: number }[] = [];
     let y = Number(zFrom.slice(0, 4));
     let m = Number(zFrom.slice(5, 7));
     const ey = Number(zTo.slice(0, 4));
@@ -164,7 +170,7 @@ export function TransactionsView({
     let guard = 0;
     while ((y < ey || (y === ey && m <= em)) && guard++ < 60) {
       const key = `${y}-${String(m).padStart(2, "0")}`;
-      out.push({ key, label: MONTHS[m - 1], amt: byMonth.get(key) ?? 0 });
+      out.push({ key, label: MONTHS[m - 1], amt: bought.get(key) ?? 0, sold: sold.get(key) ?? 0 });
       if (++m > 12) { m = 1; y++; }
     }
     return out;
@@ -358,8 +364,10 @@ export function TransactionsView({
           onHandles={zoom.setRange}
         />
 
+        {/* "in and out", not "deployed": the columns run both ways now, and a heading that
+            named only the half above the axis would be read as a label for the whole chart. */}
         <div className="mt-6 mb-2.5 text-[13px] font-semibold text-muted-foreground">
-          Capital deployed by month
+          Capital in and out by month
         </div>
         <DeployedByMonth txs={filtered} months={bars} />
 
@@ -399,6 +407,10 @@ interface CumPoint {
   v: number;
   date: string;
   label: string;
+  /** What this step *is*, across redraws: the transaction's row id, or a bookend's name.
+   *  Without it the library falls back to row position, which is not identity here — two
+   *  transactions can share a date, and inserting one renumbers every step after it. */
+  key: string;
 }
 
 /**
@@ -483,7 +495,9 @@ function CumulativeChart({
   const pts = React.useMemo(() => {
     const rows = txs.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
     let cum = 0;
-    const out: CumPoint[] = [{ at: new Date(from), v: 0, date: from, label: "Range start" }];
+    const out: CumPoint[] = [
+      { at: new Date(from), v: 0, date: from, label: "Range start", key: "start" },
+    ];
     for (const t of rows) {
       cum += t.amount; // signed: buys add, sells subtract
       out.push({
@@ -491,9 +505,10 @@ function CumulativeChart({
         v: cum,
         date: t.date,
         label: `${t.instrument} · ${t.amount >= 0 ? "Buy" : "Sell"}`,
+        key: `tx:${t.id}`,
       });
     }
-    out.push({ at: new Date(to), v: cum, date: to, label: "Range end" });
+    out.push({ at: new Date(to), v: cum, date: to, label: "Range end", key: "end" });
     return out;
   }, [txs, from, to]);
 
@@ -506,8 +521,8 @@ function CumulativeChart({
             y: false,
             marker: { radius: 4.5, fill: "var(--card)", stroke: "var(--chart-gold)", strokeWidth: 2 },
           }),
-          areaY(pts, { x: "at", y1: 0, y2: "v", fill: "rgb(var(--gold-rgb) / 0.15)", fillOpacity: 1 }),
-          lineY(pts, { x: "at", y: "v", stroke: "var(--chart-gold)", strokeWidth: 2 }),
+          areaY(pts, { x: "at", y1: 0, y2: "v", key: "key", fill: "rgb(var(--gold-rgb) / 0.15)", fillOpacity: 1 }),
+          lineY(pts, { x: "at", y: "v", key: "key", stroke: "var(--chart-gold)", strokeWidth: 2 }),
         ],
         // Fixed to the window, not to the transactions: an empty stretch at either end is
         // information — it is when you weren't buying.
@@ -613,40 +628,64 @@ function slotFill(i: number): string {
     : `color-mix(in srgb, ${hue} 55%, transparent)`;
 }
 
-/** One rectangle: what a single holding bought in a single month. */
+/** Which side of the axis a segment sits on. Buys stack up from zero, sells stack down. */
+type Side = "buy" | "sell";
+const SIDES: readonly Side[] = ["buy", "sell"];
+
+/**
+ * A holding's buys and its sells are two *stack* series but one colour.
+ *
+ * Two, because a stack takes at most one value per position per series and a month where you
+ * both topped up and trimmed a holding has two. One colour, because they are the same
+ * holding — the sign is what says which way the money went, and giving the sell its own hue
+ * would double the legend to say something the axis already says.
+ */
+const seriesKey = (side: Side, name: string) => `${side}:${name}`;
+
+/** One rectangle: what a single holding bought — or sold — in a single month. */
 interface DeployedSegment {
   month: string;
   /** Tooltip heading — carries the year, which the axis label drops. */
   full: string;
-  /** The series key: a holding's name, or `OTHER`. */
+  /** A holding's name, or `OTHER`. What the colour scale and the legend read. */
   name: string;
+  side: Side;
+  /** The stack series: the name, qualified by side. */
+  series: string;
+  /** Signed — buys positive, sells negative. The sign is what puts the segment below zero. */
   amount: number;
-  /** Everything the column deployed — the figure its height means. */
-  total: number;
+  /** What the whole month deployed, and what it returned (a positive magnitude) — the two
+   *  figures the column's two halves add up to. */
+  bought: number;
+  sold: number;
 }
 
 /**
- * Capital deployed each month, split by holding.
+ * Capital deployed each month, split by holding — and, below the axis, what came back out.
  *
- * Buys only: a sell is money coming back out, and a column that netted the two would read as
- * a quiet month rather than as a busy one you also took profit in. A month that deployed
- * nothing keeps its column — that zero is the same information the "monthly average" tile is
- * built on.
+ * The two directions are drawn rather than netted: a column that subtracted its sells from
+ * its buys would read as a quiet month rather than as a busy one you also took profit in.
+ * Above the line is money going in, below it money coming back, and the axis between them is
+ * the only thing that has to be read to tell which. A month that moved nothing keeps its
+ * empty column — that zero is the same information the "monthly average" tile is built on.
  */
 function DeployedByMonth({
   txs,
   months,
 }: {
   txs: Tx[];
-  /** Every month in the window, in order, with the total the summary tiles quote. Passed in
+  /** Every month in the window, in order, with the totals the summary tiles quote. Passed in
    *  rather than re-derived, so the columns and the tiles can never disagree. */
-  months: { key: string; label: string; amt: number }[];
+  months: { key: string; label: string; amt: number; sold: number }[];
 }) {
   const plan = React.useMemo(() => {
-    const buys = txs.filter((t) => t.amount >= 0);
-
+    // Ranked on gross flow, not on what was bought: a holding you only sold inside this
+    // window is a real column under the line, and ranking it on its buys alone would fold it
+    // into "Other" while its sell was the biggest thing on the chart.
     const totals = new Map<string, number>();
-    for (const t of buys) totals.set(t.instrument, (totals.get(t.instrument) ?? 0) + t.amount);
+    for (const t of txs) {
+      totals.set(t.instrument, (totals.get(t.instrument) ?? 0) + Math.abs(t.amount));
+    }
     // Ties broken by name, so two equal holdings don't swap places in the stack between
     // renders.
     const ranked = [...totals.entries()].sort(
@@ -659,26 +698,39 @@ function DeployedByMonth({
     const series = ranked.length > top.length ? [...top, OTHER] : top;
 
     const cells = new Map<string, number>();
-    for (const t of buys) {
-      const key = `${t.date.slice(0, 7)} ${named.has(t.instrument) ? t.instrument : OTHER}`;
+    for (const t of txs) {
+      const side: Side = t.amount >= 0 ? "buy" : "sell";
+      const name = named.has(t.instrument) ? t.instrument : OTHER;
+      const key = `${t.date.slice(0, 7)} ${seriesKey(side, name)}`;
       cells.set(key, (cells.get(key) ?? 0) + t.amount);
     }
 
     const segments: DeployedSegment[] = [];
     for (const m of months) {
-      for (const name of series) {
-        const amount = cells.get(`${m.key} ${name}`) ?? 0;
-        if (!amount) continue;
-        segments.push({
-          month: m.key,
-          full: `${m.label} ${m.key.slice(0, 4)}`,
-          name,
-          amount,
-          total: m.amt,
-        });
+      for (const side of SIDES) {
+        for (const name of series) {
+          const amount = cells.get(`${m.key} ${seriesKey(side, name)}`) ?? 0;
+          if (!amount) continue;
+          segments.push({
+            month: m.key,
+            full: `${m.label} ${m.key.slice(0, 4)}`,
+            name,
+            side,
+            series: seriesKey(side, name),
+            amount,
+            bought: m.amt,
+            sold: m.sold,
+          });
+        }
       }
     }
-    return { segments, series };
+    // Buys before sells, so the ranked order runs outward from the axis on both sides: the
+    // heaviest holding sits against the baseline going up and going down alike.
+    const order = [
+      ...series.map((name) => seriesKey("buy", name)),
+      ...series.map((name) => seriesKey("sell", name)),
+    ];
+    return { segments, series, order };
   }, [txs, months]);
 
   /**
@@ -701,15 +753,29 @@ function DeployedByMonth({
   // The stacking order is spelled out rather than inferred: biggest at the base of every
   // column, so the heaviest holding is the one the eye measures against the axis.
   const order = React.useMemo(
-    () => (only === null ? plan.series : [only]),
-    [plan.series, only],
+    () => (only === null ? plan.order : [seriesKey("buy", only), seriesKey("sell", only)]),
+    [plan.order, only],
   );
+  // One stack over both sides. The default `diverging` offset is what splits them: positive
+  // amounts accumulate up from zero and negative ones down from it, so the sells need no
+  // second baseline of their own.
   const stacked = React.useMemo(
-    () => stackRowsY(shown, { x: "month", y: "amount", z: "name", order }),
+    () => stackRowsY(shown, { x: "month", y: "amount", z: "series", order }),
     [shown, order],
   );
+  // Split again to paint, because `rect` takes one constant `fillOpacity` for the whole
+  // mark. That constant is the point: sells come back a shade lighter, so the half of the
+  // column below the axis reads as returned money at a glance and not as another deployment.
+  const bought = React.useMemo(() => stacked.filter((s) => s.side === "buy"), [stacked]);
+  const sold = React.useMemo(() => stacked.filter((s) => s.side === "sell"), [stacked]);
+  const hasSells = sold.length > 0;
 
   const monthKeys = React.useMemo(() => months.map((m) => m.key), [months]);
+  /** Each holding's place in the colour domain — the tooltip's row order. */
+  const rank = React.useMemo(
+    () => new Map(plan.series.map((name, i) => [name, i])),
+    [plan.series],
+  );
 
   const definition = React.useMemo(
     () =>
@@ -722,21 +788,41 @@ function DeployedByMonth({
             x: { band: { fill: "var(--muted)", fillOpacity: 1, inset: -5, radius: 4 } },
             y: false,
           }),
-          rect(stacked, {
+          // The baseline, drawn only when there is something under it. Zero is already a grid
+          // rung, but once a column hangs below it the line stops being one tick among
+          // several and becomes the thing the whole chart is read against.
+          ...(hasSells
+            ? [ruleY([0], { stroke: "var(--foreground)", strokeOpacity: 0.28, strokeWidth: 1 })]
+            : []),
+          rect(bought, {
             x: "x",
             y1: "y1",
             y2: "y2",
-            // The holding is the series, and saying so is what makes a column's segments one
-            // thing: grouped focus collects one point per series at the hovered month, so
-            // without `z` every segment would look like the same series and the tooltip would
-            // collapse to a single row.
+            // The *side-qualified* holding is the series, and saying so is what makes a
+            // column's segments one thing each: grouped focus collects one point per series
+            // at the hovered month, so without `z` every segment would look like the same
+            // series and the tooltip would collapse to a single row. `color` is the bare
+            // name, so a holding's buy and its sell are painted the same hue.
             z: "z",
-            key: (s) => `${s.month}:${s.name}`,
+            color: "name",
+            key: (s) => `${s.month}:${s.series}`,
             // A hairline in the panel's own colour, so two holdings that land near the same
             // hue still read as two segments where they meet.
             stroke: "var(--card)",
             strokeWidth: 1,
             inset: 0,
+          }),
+          rect(sold, {
+            x: "x",
+            y1: "y1",
+            y2: "y2",
+            z: "z",
+            color: "name",
+            key: (s) => `${s.month}:${s.series}`,
+            stroke: "var(--card)",
+            strokeWidth: 1,
+            inset: 0,
+            fillOpacity: 0.5,
           }),
         ],
         x: {
@@ -804,19 +890,31 @@ function DeployedByMonth({
           anchor: "group-center",
           placement: ["top", "right", "left", "bottom"],
           // Rows in the colour scale's order, which is the stacking order — the tooltip lists
-          // a column's holdings the same way the column stacks them.
-          sort: "color-domain",
+          // a column's holdings the same way the column stacks them, with a holding's sell
+          // directly under its buy. Spelled out rather than `"color-domain"`, which reads the
+          // *series* key: those are side-qualified here and so aren't in the colour domain at
+          // all, and the sort would quietly fall back to whatever order the points arrived
+          // in.
+          sort: (left, right) =>
+            (rank.get(left.datum.name) ?? 0) - (rank.get(right.datum.name) ?? 0) ||
+            (left.datum.side === right.datum.side ? 0 : left.datum.side === "buy" ? -1 : 1),
           content: (points) => {
             const first = points[0]?.datum;
             if (!first) return { rows: [] };
+            // The month's own totals belong in the heading: they're the figures the column's
+            // halves mean, and the rows beneath are what add up to them. Both are magnitudes
+            // — "out" is what carries the direction, so a minus sign in front of it would say
+            // the same thing twice. "in" only earns its word beside an "out"; on a month that
+            // only bought, the heading is the total it always was.
+            const flows: string[] = [first.full];
+            if (first.bought) flows.push(`${fmtVND(first.bought)}${first.sold ? " in" : ""}`);
+            if (first.sold) flows.push(`${fmtVND(first.sold)} out`);
             return {
-              // The month's total belongs in the heading: it's the figure the column height
-              // means, and the rows beneath it are what add up to it. Isolated, the column
-              // height *is* the row below, so quoting the month's full deployment would be a
-              // number the chart isn't showing — the month alone is honest.
-              title: only === null ? `${first.full} · ${fmtVND(first.total)}` : first.full,
+              // Isolated, the column *is* the rows below, so quoting the month's full flow
+              // would be a number the chart isn't showing — the month alone is honest.
+              title: only === null ? flows.join(" · ") : first.full,
               rows: points.map((point) => ({
-                label: point.datum.name,
+                label: point.datum.side === "buy" ? point.datum.name : `${point.datum.name} · sold`,
                 value: fmtVND(point.datum.amount),
                 color: point.color,
               })),
@@ -824,13 +922,13 @@ function DeployedByMonth({
           },
         },
       }),
-    [stacked, monthKeys, plan.series, only, width],
+    [bought, sold, hasSells, monthKeys, plan.series, rank, only, width],
   );
 
   if (!plan.series.length) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
-        Nothing bought in this range.
+        Nothing bought or sold in this range.
       </p>
     );
   }
@@ -858,7 +956,7 @@ function DeployedByMonth({
         initialWidth={INITIAL_PANEL_WIDTH}
         className={cn("w-full", CHIP_LEGEND_CLASS)}
         style={{ ...CHART_HOST_STYLE, "--legend-chip": `${metrics.chip}px` } as React.CSSProperties}
-        ariaLabel="Capital deployed each month, split by holding"
+        ariaLabel="Capital in and out each month — deployed above the axis, sold below it — split by holding"
       />
     </div>
   );
