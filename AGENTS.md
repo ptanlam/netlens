@@ -89,3 +89,16 @@ A goal can be denominated in foreign money ("Race to $100k"): `goals.target_ccy`
 - **Vietcombank's `sell` rate**, fetched by `refreshFxRates` inside `refreshAll` (self-throttling, 30 min). A bank rather than the interbank feed because the question is what $100k *costs* you, and `sell` is both that side and the conservative one.
 - A live target means a goal can slip to "Behind" on a week you saved perfectly well, so every screen showing one also shows the amount, the rate, the source and the timestamp (`FxNote`).
 
+
+## Where the portfolio panels live
+
+**Allocation and Top holdings are on `/investments`**, not the dashboard: the dashboard's job is net
+worth and the shape of the year, and "how is the portfolio split" is a question about the page that
+lists the holdings. They live in `components/portfolio-panels.tsx` and are driven by `LivePayload`,
+which `/investments` builds for free with the pure `db.livePayload(instruments, costBy)` — no extra
+query. `typeColor` has one home there now; it used to be copied into `investment-manager.tsx` too.
+
+`components/use-pnl-history.ts` holds the `/api/pnl-history` fetch, its module-level cache and the
+price-tick top-up, extracted from the dashboard so Investments can draw the row sparks without a
+second implementation. **The cache is shared**, so moving between the two pages no longer rebuilds
+the series the other just fetched.

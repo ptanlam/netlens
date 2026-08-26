@@ -41,6 +41,22 @@ export function fmtMil(v: number): string {
   return `${Math.round(v / 1e6)}mil`;
 }
 
+/** Short VND for bars, legends and dense rows: ₫1.2bil, ₫372mil, ₫22mil. `fmtMil` above is
+ *  the bare-axis form; this one carries the sign and the currency, which a legend needs and
+ *  an axis tick does not. */
+export function fmtMilVND(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return `${v < 0 ? "−" : ""}₫${+(abs / 1e9).toFixed(1)}bil`;
+  if (abs >= 1e6) return `${v < 0 ? "−" : ""}₫${Math.round(abs / 1e6)}mil`;
+  return `${v < 0 ? "−" : ""}₫${Math.round(abs / 1e3)}k`;
+}
+
+/** A signed VND figure in full, for a move rather than a balance: always +₫… or −₫…, never
+ *  an unsigned one you have to read the colour of to interpret. */
+export function fmtSigned(v: number): string {
+  return `${v < 0 ? "−" : "+"}₫${Math.abs(Math.round(v)).toLocaleString("de-DE")}`;
+}
+
 export const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

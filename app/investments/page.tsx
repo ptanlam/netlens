@@ -8,11 +8,12 @@ export default async function InvestmentsPage() {
   // Must land before anything reads transactions — it inserts the due ones.
   await db.materializeRecurring();
 
-  const [instruments, txs, rules, sources] = await Promise.all([
+  const [instruments, txs, rules, sources, historyStamp] = await Promise.all([
     db.listInstruments(),
     db.allTransactions(),
     db.listRecurring(),
     db.listPriceSources(),
+    db.historyStamp(),
   ]);
   const sourceKeys = [db.MANUAL_SOURCE, ...sources.map((s) => s.key)];
 
@@ -24,6 +25,10 @@ export default async function InvestmentsPage() {
     costBy[tx.instrument] = (costBy[tx.instrument] ?? 0) + tx.amount;
     txCountBy[tx.instrument] = (txCountBy[tx.instrument] ?? 0) + 1;
   }
+
+  // The same figures the dashboard's payload carries, from rows this page already holds —
+  // `livePayload` is pure, so the Allocation and Top holdings panels cost no extra query.
+  const payload = db.livePayload(instruments, costBy);
 
   const rulesByInstrument: Record<string, { rule: RecurringRule; nextDue: string | null }[]> = {};
   for (const rule of rules) {
@@ -44,6 +49,8 @@ export default async function InvestmentsPage() {
   return (
     <InvestmentManager
       holdings={holdings}
+      payload={payload}
+      historyStamp={historyStamp}
       txCountBy={txCountBy}
       rulesByInstrument={rulesByInstrument}
       sourceKeys={sourceKeys}

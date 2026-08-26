@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Archive, ArchiveRestore, ArrowRight, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import type { Instrument, RecurringRule } from "@/lib/types";
+import type { Instrument, LivePayload, RecurringRule } from "@/lib/types";
 import { deleteHolding, setHoldingArchived } from "@/app/actions";
 import { fmtUnits, fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ import { AddRecurringDialog } from "@/components/add-recurring-dialog";
 import { type InstrumentOption } from "@/components/tx-form";
 import { RecurringManager } from "@/components/recurring-manager";
 import { SummaryCards, type Stat } from "@/components/stat-card";
+import { AllocationCard, HoldingsListCard, typeColor } from "@/components/portfolio-panels";
+import { usePnlHistory } from "@/components/use-pnl-history";
 import { PageHeader } from "@/components/page-header";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { holdingLogo } from "@/lib/logos";
@@ -30,14 +32,6 @@ export interface HoldingView {
 }
 
 type RuleView = { rule: RecurringRule; nextDue: string | null };
-
-const TYPE_COLORS: Record<string, string> = {
-  Funds: "var(--chart-1)",
-  Stocks: "var(--chart-2)",
-  Crypto: "var(--chart-3)",
-  "Real Estate": "var(--chart-4)",
-};
-const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
 
 function DeleteHoldingButton({ name }: { name: string }) {
   const [pending, startTransition] = React.useTransition();
@@ -229,11 +223,18 @@ function groupByType(holdings: HoldingView[]): HoldingGroup[] {
 
 export function InvestmentManager({
   holdings,
+  payload,
+  historyStamp,
   txCountBy,
   rulesByInstrument,
   sourceKeys,
 }: {
   holdings: HoldingView[];
+  /** Drives the two overview panels. Server-rendered, then replaced by each price tick's
+   *  own figures so the donut moves with the header's live prices. */
+  payload: LivePayload;
+  /** Changes when a settled day moves, or when the day does — see `usePnlHistory`. */
+  historyStamp: string;
   /** How many transactions each holding has. A count, not the rows: the rows are
    *  /transactions' job, and shipping every one of them here was most of this page's
    *  payload for a list you had to expand a holding to see. */
@@ -241,6 +242,11 @@ export function InvestmentManager({
   rulesByInstrument: Record<string, RuleView[]>;
   sourceKeys: string[];
 }) {
+  // Shared with the dashboard, so arriving here from it costs nothing: the series is
+  // already in the module cache. Only the per-holding breakdown is used — the row sparks.
+  const { holdings: holdingSeries, live } = usePnlHistory(historyStamp);
+  const figures = live ?? payload;
+
   // Totals stay over every holding so archiving a sold-out one never moves a KPI — its
   // value is 0 and its realised P&L is preserved. Archived rows only leave the live list.
   const totalValue = holdings.reduce((a, h) => a + h.value, 0);
@@ -286,6 +292,22 @@ export function InvestmentManager({
       </PageHeader>
 
       <SummaryCards stats={kpis} />
+
+      {/* The overview band, moved here from the dashboard. It belongs beside the holdings it
+          describes: the dashboard's job is net worth and the shape of the year, and "how is
+          the portfolio split" is a question about this page.
+          Side by side rather than stacked, wrapping on content. The allocation donut is a
+          fixed 172px — given a whole page width it would sit in the middle of an empty card,
+          while the list is the panel that wants the extra measure. `items-stretch` (the
+          default) plus `h-full` inside keeps the pair level while their contents differ. */}
+      <div className="mt-3 flex flex-wrap gap-3 sm:mt-4 sm:gap-4">
+        <div className="flex min-w-0 flex-[1_1_260px] flex-col">
+          <AllocationCard payload={figures} />
+        </div>
+        <div className="flex min-w-0 flex-[2_1_320px] flex-col">
+          <HoldingsListCard payload={figures} holdingSeries={holdingSeries} />
+        </div>
+      </div>
 
       <div className="mt-6 mb-3.5">
         <div className="text-[16px] font-bold tracking-[-0.01em]">Holdings</div>
