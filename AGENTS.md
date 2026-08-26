@@ -90,6 +90,47 @@ A goal can be denominated in foreign money ("Race to $100k"): `goals.target_ccy`
 - A live target means a goal can slip to "Behind" on a week you saved perfectly well, so every screen showing one also shows the amount, the rate, the source and the timestamp (`FxNote`).
 
 
+## Streak
+
+The saving streak (`lib/score.ts`, `components/streak-card.tsx`) **opens the dashboard's analysis
+column**, above the portfolio chart — the deliberate order being that the chart is what the market
+did to you and the streak is what you did yourself, and only one of those you can act on. It counts
+consecutive **months** you cleared your own monthly commitment. Three rules, and they are the
+whole design — see `plans/points-and-streaks.md` for the reasoning:
+
+- **Nothing is stored.** No `streak` column, no points ledger, **no migration**. Every figure is
+  derived from dated rows per request, so correcting an old transaction correctly rewrites the
+  streak — and you never have a counter you'd protect by leaving a mistake in place.
+- **Only money that moved counts**, never app usage. You enter your own data here, so rewarding
+  a login or a logged row would be farmable in one keystroke and would pay you to type fiction.
+- **Market movement is excluded**, exactly as `lib/goals.ts` assumes zero return. A bull market
+  must not hand you a streak and a crash must not break one.
+
+Four levers, one per page that already exists: net money in (`transactions`, **signed** — a month
+of net selling is negative), new deposit principal, fund cash set aside (netted per fund per
+month, floored at 0 so buying the thing you saved for isn't a lapse), and repayments **beyond**
+what the schedule required (counting them in full would just say "you paid your mortgage").
+
+The bar is `commitment()`: your recurring rules, else your goals' `monthly_plan`, else none — only
+things you declared on purpose. A trailing average of your own past would be a treadmill. **No
+commitment, no streak**: the card renders an empty state, mirroring a goal's `stalled`.
+
+A month short of the bar still counts if the trailing 3-month average clears it (`carried`) —
+lumpy income is not a lapse. The current month is `open`, never `missed`, and the card shows the
+**shortfall**, never a countdown: "your streak dies in 3 days" is loss aversion pointed at a
+financial decision. The shortfall is the *cheaper* of clearing the bar or lifting the average.
+
+The dashboard passes **every** debt (`listDebts(true)`) into the streak and filters for the
+net-worth figure: a settled debt's old repayments are still history, and dropping them would
+retroactively break the streak you earned by paying it off.
+
+Each lever is drawn in **the hue of the page it came from** (`LEVER_COLOR`) — the same five-slot
+palette the nav tints its sections with and `GoalStrip` fills its bars from. A column's **height is
+the month's net**, since that is what the commitment line judges, and the segments take their
+*share* of it from the gross: drawing gross-up and gross-down instead let a month that sold ₫59M to
+repay ₫74M of debt cross a line it had not cleared. A net-sell month hangs below the baseline in
+the negative ink. Missed months keep their hues but drop back — you still put that money somewhere.
+
 ## Where the portfolio panels live
 
 **Allocation and Top holdings are on `/investments`**, not the dashboard: the dashboard's job is net

@@ -7,6 +7,8 @@ import type { Goal, LivePayload, Payload } from "@/lib/types";
 import { fmtSigned, fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel } from "@/components/net-worth";
 import { GoalStrip } from "@/components/goal-strip";
+import { StreakCard } from "@/components/streak-card";
+import type { Streak } from "@/lib/score";
 import { SummaryCards, type Stat } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
 import { QuickActions } from "@/components/quick-actions";
@@ -24,6 +26,7 @@ export function DashboardCharts({
   pending,
   goalRows,
   world,
+  streak,
   historyStamp,
 }: {
   payload: Payload;
@@ -33,6 +36,9 @@ export function DashboardCharts({
   pending: number;
   goalRows: Goal[];
   world: GoalWorld;
+  /** Finished on the server — nothing a price tick does can move it. Null when no monthly
+   *  commitment is set, which the card renders as its own empty state. */
+  streak: Streak | null;
   /** Changes when a settled day moves, or when the day does — see `usePnlHistory`. */
   historyStamp: string;
 }) {
@@ -144,8 +150,11 @@ export function DashboardCharts({
           their tops. */}
       <div className="flex flex-wrap-reverse items-end gap-3 sm:gap-4">
         <div className="flex min-w-0 flex-[1_1_560px] flex-col gap-3 sm:gap-4">
-          {/* Allocation and Holdings used to sit between these two; they're on Investments
-              now, beside the holdings they describe. */}
+          {/* Ahead of the portfolio chart, which is the deliberate order: the chart is what
+              the market did to you and the streak is what you did yourself, and only one of
+              those is a thing you can act on this month. Allocation and Holdings used to sit
+              in this column; they're on Investments now, beside the holdings they describe. */}
+          <StreakCard streak={streak} />
           <PortfolioChart series={series} asOf={asOf} error={seriesError} />
           <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
         </div>

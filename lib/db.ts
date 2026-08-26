@@ -1151,6 +1151,23 @@ export async function actualMonthly(months = 6): Promise<number> {
   return Math.max(0, (row?.s ?? 0) / months);
 }
 
+/**
+ * Net ₫ into investments per calendar month, keyed `YYYY-MM`.
+ *
+ * Aggregated in SQL rather than by pulling the ledger: it's one row per month however many
+ * years of transactions there are, which is what lets the streak walk the whole history on
+ * a page that also has to draw a chart. Signed, and deliberately not floored — a month of
+ * net selling is a month you took money *out*, and `lib/score.ts` needs to see that.
+ */
+export async function investedByMonth(): Promise<Record<string, number>> {
+  const rows = await q(
+    "SELECT substr(date,1,7) m, SUM(amount) s FROM transactions GROUP BY 1",
+  ).all<{ m: string; s: number }>();
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.m] = r.s;
+  return out;
+}
+
 function addMonthsIso(iso: string, months: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   const base = new Date(Date.UTC(y, m - 1 + months, 1));
