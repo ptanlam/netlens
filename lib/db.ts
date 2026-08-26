@@ -1152,16 +1152,22 @@ export async function actualMonthly(months = 6): Promise<number> {
 }
 
 /**
- * Net ₫ into investments per calendar month, keyed `YYYY-MM`.
+ * ₫ **bought** into investments per calendar month, keyed `YYYY-MM`. Purchases only —
+ * sells are not subtracted.
  *
  * Aggregated in SQL rather than by pulling the ledger: it's one row per month however many
  * years of transactions there are, which is what lets the streak walk the whole history on
- * a page that also has to draw a chart. Signed, and deliberately not floored — a month of
- * net selling is a month you took money *out*, and `lib/score.ts` needs to see that.
+ * a page that also has to draw a chart.
+ *
+ * This was `SUM(amount)`, signed, so a month of net selling came back negative. That netted
+ * a sale against whatever the proceeds went on — which is right when they landed somewhere
+ * the app tracks, and wrong when they didn't, since there is no cash account for them to sit
+ * in. Buys-only is the reading the app can always justify from its own rows; the cost is
+ * that money moved from investments to a tracked debt now counts on both sides.
  */
 export async function investedByMonth(): Promise<Record<string, number>> {
   const rows = await q(
-    "SELECT substr(date,1,7) m, SUM(amount) s FROM transactions GROUP BY 1",
+    "SELECT substr(date,1,7) m, SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) s FROM transactions GROUP BY 1",
   ).all<{ m: string; s: number }>();
   const out: Record<string, number> = {};
   for (const r of rows) out[r.m] = r.s;

@@ -41,8 +41,6 @@ const HEADROOM = 1.15;
 const LEVER_COLOR: Record<Lever, string> = {
   invest: "var(--chart-3)",
   deposit: "var(--chart-4)",
-  fund: "var(--chart-5)",
-  debt: "var(--chart-2)",
 };
 
 const STATUS_WORD: Record<MonthStatus, string> = {
@@ -52,16 +50,9 @@ const STATUS_WORD: Record<MonthStatus, string> = {
   missed: "Missed",
 };
 
-/** The gross of the positive levers — the denominator for a segment's share of the column,
- *  never its height. See `MonthColumn` for why those are different numbers. */
-function gross(m: StreakMonth): number {
-  return LEVERS.reduce((a, l) => a + Math.max(0, m.levers[l]), 0);
-}
-
 function MonthColumn({
   m,
   bar,
-  zero,
   px,
   isNow,
   isOpen,
@@ -70,8 +61,6 @@ function MonthColumn({
 }: {
   m: StreakMonth | null;
   bar: number;
-  /** Baseline offset from the bottom of the plot, in px. */
-  zero: number;
   /** ₫ → px on the plot's single scale. */
   px: (v: number) => number;
   isNow: boolean;
@@ -85,7 +74,6 @@ function MonthColumn({
     return <div aria-hidden />;
   }
 
-  const g = gross(m);
   const dim = m.status === "missed";
   const segments = LEVERS.filter((l) => m.levers[l] > 0);
 
@@ -123,31 +111,21 @@ function MonthColumn({
               )}
               aria-hidden
             >
-              {m.total >= 0 ? (
-                // **The column is the month's NET total**, because that is the figure the
-                // commitment line judges. Segments then take their *share* of it from the
-                // gross, so a month that also sold something shows where the money went while
-                // still standing at the height it actually counts for. Drawing gross-up and
-                // gross-down instead made a net-sell month cross the line it had not cleared.
-                <span
-                  className="absolute inset-x-0 flex flex-col-reverse overflow-hidden rounded-[4px]"
-                  style={{ bottom: zero, height: px(m.total) }}
-                >
-                  {segments.map((l) => (
-                    <span
-                      key={l}
-                      style={{ height: `${(m.levers[l] / g) * 100}%`, background: LEVER_COLOR[l] }}
-                    />
-                  ))}
-                </span>
-              ) : (
-                // Sold more than you saved. Below the line, in the app's negative ink — the
-                // same way the transactions chart draws a sell.
-                <span
-                  className="absolute inset-x-0 rounded-[4px]"
-                  style={{ top: PLOT - zero, height: px(-m.total), background: "var(--chart-negative)" }}
-                />
-              )}
+              {/* The column's height is the month's total, and each lever takes its share of
+                  it — so the stack reads as "where this month's money went" and its top edge
+                  is exactly the figure the commitment line judges. Neither lever can be
+                  negative (see `LEVERS`), so there is nothing below the baseline to draw. */}
+              <span
+                className="absolute inset-x-0 bottom-0 flex flex-col-reverse overflow-hidden rounded-[4px]"
+                style={{ height: px(m.total) }}
+              >
+                {segments.map((l) => (
+                  <span
+                    key={l}
+                    style={{ height: `${(m.levers[l] / m.total) * 100}%`, background: LEVER_COLOR[l] }}
+                  />
+                ))}
+              </span>
             </span>
           </button>
         }
@@ -162,10 +140,7 @@ function MonthColumn({
           </span>
           {LEVERS.filter((l) => Math.round(m.levers[l]) !== 0).map((l) => (
             <span key={l} className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] tabular-nums">
-              <span
-                className="size-[7px] shrink-0 rounded-[2px]"
-                style={{ background: m.levers[l] < 0 ? "var(--chart-negative)" : LEVER_COLOR[l] }}
-              />
+              <span className="size-[7px] shrink-0 rounded-[2px]" style={{ background: LEVER_COLOR[l] }} />
               {LEVER_LABELS[l]} {fmtVND(m.levers[l])}
             </span>
           ))}
@@ -220,10 +195,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
   // One scale for the whole plot, spanning the deepest sell-off to the biggest month, with
   // the commitment guaranteed a place on it. Drawn to a common scale rather than each column
   // to its own, because the comparison between months is the entire point.
-  const ceiling = Math.max(bar * HEADROOM, ...shown.map((m) => Math.max(0, m.total)));
-  const floor = Math.max(0, ...shown.map((m) => -m.total));
-  const range = ceiling + floor || 1;
-  const zero = (floor / range) * PLOT;
+  const range = Math.max(bar * HEADROOM, ...shown.map((m) => m.total)) || 1;
   const px = (v: number) => (v / range) * PLOT;
 
   // Only the levers this year actually used. A legend naming four when you used two is four
@@ -240,10 +212,11 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
         title="Streak"
         info={
           <>
-            Consecutive months you put in at least your monthly commitment — money in, new
-            deposits, cash set aside, and repayments beyond what the schedule required.
-            Market movement is excluded, so a good month for prices is not a month you saved.
-            A short month still counts if the 3-month average clears the bar.
+            Consecutive months you put in at least your monthly commitment. Two things count:
+            what you bought into investments, and principal you put into a new term deposit.
+            Sells are not subtracted, and market movement is excluded — so a good month for
+            prices is not a month you saved. A short month still counts if the 3-month average
+            clears the bar.
           </>
         }
         actions={
@@ -323,24 +296,14 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
                 columns are measured against, not a region of its own. */}
             <div
               className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-muted-foreground/45"
-              style={{ bottom: zero + px(bar) }}
+              style={{ bottom: px(bar) }}
               aria-hidden
             />
-            {/* Only drawn when something actually went below it — an axis for a value no
-                month reached is a line explaining nothing. */}
-            {floor > 0 && (
-              <div
-                className="pointer-events-none absolute inset-x-0 border-t border-divider"
-                style={{ bottom: zero }}
-                aria-hidden
-              />
-            )}
             <div className="grid h-full grid-cols-12 items-end gap-1 sm:gap-1.5">
               {cells.map((m, i) => (
                 <MonthColumn
                   key={m?.month ?? `pad-${i}`}
                   m={m}
-                  zero={zero}
                   px={px}
                   isNow={m?.month === now.month}
                   bar={bar}

@@ -23,9 +23,8 @@
  * which nothing was ever supposed to happen.
  */
 
-import { isRevolving, maturityValue, type Accruing } from "./savings";
 import { MONTHS } from "./format";
-import type { DebtPayment, Goal, GoalContribution, Saving } from "./types";
+import type { Goal, Saving } from "./types";
 
 /** How many months back the trailing average may reach to rescue a short month. */
 const GRACE_WINDOW = 3;
@@ -33,17 +32,23 @@ const GRACE_WINDOW = 3;
 /** `YYYY-MM`. The key everything here is bucketed by. */
 export type MonthKey = string;
 
-/** The four ways you can push your own net worth up in a month. One per page that already
- *  exists — which is the point: the streak reports on what you already track, and asks for
- *  nothing new to be typed. */
-export const LEVERS = ["invest", "deposit", "fund", "debt"] as const;
+/**
+ * The two ways a month counts: money you put into investments, and principal you put into a
+ * new term deposit. Neither can be negative — money out is not subtracted, it is simply not
+ * counted in.
+ *
+ * Fund cash and debt repayments used to be levers here too. They are deliberately out: a
+ * repayment is mostly a promise being kept rather than a decision to save, and fund cash is
+ * money moved between your own pockets. What is left is the two acts that put money to work,
+ * which is also what the recurring rules setting the bar are made of — so the bar and the
+ * levers are now measured in the same thing.
+ */
+export const LEVERS = ["invest", "deposit"] as const;
 export type Lever = (typeof LEVERS)[number];
 
 export const LEVER_LABELS: Record<Lever, string> = {
   invest: "Invested",
   deposit: "Deposited",
-  fund: "Set aside",
-  debt: "Debt, ahead of plan",
 };
 
 /** Where the monthly bar came from. Named rather than inferred, so the card can say it —
@@ -60,35 +65,28 @@ export type MonthStatus =
   /** The current month, still in progress. Not a failure yet, and never counted as one. */
   | "open";
 
-export type ScoredDebt = Accruing & {
-  id: number;
-  kind: string;
-  monthly_payment: number | null;
-};
-
 export interface StreakWorld {
   /** ISO date the streak is anchored to — which month counts as "in progress". */
   today: string;
   /**
-   * Net ₫ into investments per month (`SUM(amount) GROUP BY month`). **Signed**: a month of
-   * net selling comes back negative and is left that way, which is what stops "sold a fund
-   * to pay for a holiday" reading as a month of saving. Selling one holding to open a term
-   * deposit nets to zero across this and `savings` instead of counting twice.
+   * ₫ **bought** into investments per month — purchases only, sells not subtracted, so this
+   * is never negative (`db.investedByMonth`).
+   *
+   * Netting sells off was the earlier reading. It kept a sale from being counted twice when
+   * the proceeds landed on something else the app tracks — a debt repayment, a new deposit —
+   * but it also booked a sale you simply held in cash as dissaving, which the app cannot see
+   * either way for want of a cash account. The trade is stated where the query lives.
    */
   investedByMonth: Record<MonthKey, number>;
+  /** New deposits, by the month they started — the principal is the money you committed. */
   savings: Pick<Saving, "start_date" | "principal">[];
-  contributions: GoalContribution[];
-  /** Every debt, settled ones included: their old repayments are still history, and
-   *  dropping them would retroactively break months you actually made. */
-  debts: ScoredDebt[];
-  payments: DebtPayment[];
   bar: number;
   barSource: BarSource;
 }
 
 export interface StreakMonth {
   month: MonthKey;
-  /** What the four levers came to. May be negative — a month of net selling. */
+  /** What the two levers came to. Neither can be negative, so nor can this. */
   total: number;
   levers: Record<Lever, number>;
   status: MonthStatus;
@@ -162,24 +160,10 @@ export function commitment(plannedMonthly: number, goals: Goal[]): { bar: number
   return { bar: 0, barSource: "none" };
 }
 
-/**
- * What a debt's own schedule already asked of you this month — the part of a repayment
- * that is merely keeping a promise, and so isn't saving.
- *
- * Straight-line to maturity, matching the assumption `lib/goals.ts` projects debts under.
- * A credit line has no term, so its `monthly_payment` is the whole of what's required; with
- * no stated minimum there is nothing to beat and every ₫ counts.
- */
-function requiredMonthly(d: ScoredDebt): number {
-  if (d.monthly_payment && d.monthly_payment > 0) return d.monthly_payment;
-  if (isRevolving(d)) return 0;
-  return d.term_months > 0 ? maturityValue(d) / d.term_months : 0;
-}
-
 // ---------- the walk ----------
 
 function emptyLevers(): Record<Lever, number> {
-  return { invest: 0, deposit: 0, fund: 0, debt: 0 };
+  return { invest: 0, deposit: 0 };
 }
 
 /**
@@ -200,33 +184,6 @@ export function streak(w: StreakWorld): Streak | null {
 
   for (const [month, amount] of Object.entries(w.investedByMonth)) bump(month, "invest", amount);
   for (const s of w.savings) bump(monthOf(s.start_date), "deposit", s.principal);
-
-  // Fund cash, netted per fund per month and floored at zero. Floored because draining a
-  // fund is usually the goal *arriving* — you bought the car — and spending money you
-  // deliberately saved for is the plan working, not a lapse. Netted because moving fund
-  // cash into a term deposit is one movement recorded twice (a withdrawal here, a new
-  // deposit there) and must not read as fresh saving.
-  const fundNet = new Map<string, number>();
-  for (const c of w.contributions) {
-    const key = `${c.goal_id}|${monthOf(c.date)}`;
-    fundNet.set(key, (fundNet.get(key) ?? 0) + c.amount);
-  }
-  for (const [key, net] of fundNet) bump(key.slice(key.indexOf("|") + 1), "fund", Math.max(0, net));
-
-  // Only the part of a repayment that beat the schedule. Counting repayments in full would
-  // make the streak say "you paid your mortgage" — true every month, and worth nothing.
-  const required = new Map<number, number>();
-  for (const d of w.debts) required.set(d.id, requiredMonthly(d));
-  const paidPerDebt = new Map<string, number>();
-  for (const p of w.payments) {
-    const key = `${p.debt_id}|${monthOf(p.date)}`;
-    paidPerDebt.set(key, (paidPerDebt.get(key) ?? 0) + p.amount);
-  }
-  for (const [key, paid] of paidPerDebt) {
-    const cut = key.indexOf("|");
-    const req = required.get(Number(key.slice(0, cut))) ?? 0;
-    bump(key.slice(cut + 1), "debt", Math.max(0, paid - req));
-  }
 
   const keys = [...byMonth.keys()].sort();
   if (keys.length === 0) return null;

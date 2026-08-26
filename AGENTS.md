@@ -106,10 +106,19 @@ whole design — see `plans/points-and-streaks.md` for the reasoning:
 - **Market movement is excluded**, exactly as `lib/goals.ts` assumes zero return. A bull market
   must not hand you a streak and a crash must not break one.
 
-Four levers, one per page that already exists: net money in (`transactions`, **signed** — a month
-of net selling is negative), new deposit principal, fund cash set aside (netted per fund per
-month, floored at 0 so buying the thing you saved for isn't a lapse), and repayments **beyond**
-what the schedule required (counting them in full would just say "you paid your mortgage").
+Two levers: what you **bought** into investments (`transactions`, purchases only — sells are not
+subtracted) and **new deposit principal** (`savings`). Neither can be negative, so no month can be.
+
+Both of those are deliberate narrowings, and both cost something:
+
+- **Sells used to net off.** That stopped a sale being counted twice when its proceeds landed on
+  something else the app tracks, but it also read a sale you simply held in cash as dissaving —
+  which the app cannot tell apart, having no cash account. Selling investments to repay a debt now
+  counts on both sides.
+- **Fund cash and debt repayments used to be levers too.** They are out: a repayment is mostly a
+  promise being kept rather than a decision to save, and fund cash is money moved between your own
+  pockets. What is left is the two acts that put money to work — which is also what the recurring
+  rules setting the bar are made of, so the bar and the levers now measure the same thing.
 
 The bar is `commitment()`: your recurring rules, else your goals' `monthly_plan`, else none — only
 things you declared on purpose. A trailing average of your own past would be a treadmill. **No
@@ -120,10 +129,6 @@ lumpy income is not a lapse. The current month is `open`, never `missed`, and th
 **shortfall**, never a countdown: "your streak dies in 3 days" is loss aversion pointed at a
 financial decision. The shortfall is the *cheaper* of clearing the bar or lifting the average.
 
-The dashboard passes **every** debt (`listDebts(true)`) into the streak and filters for the
-net-worth figure: a settled debt's old repayments are still history, and dropping them would
-retroactively break the streak you earned by paying it off.
-
 The month breakdown is a **controlled** `<Tooltip open=…>` over a real `<button>` per column,
 and it has to stay both: left to itself a tooltip opens on hover and focus, which a phone has
 neither of — the columns were decoration there, carrying a popup nothing could open. Driving
@@ -132,11 +137,10 @@ second mobile-only layout to keep in step. A second tap on the same column close
 touch there is no "pointer away".
 
 Each lever is drawn in **the hue of the page it came from** (`LEVER_COLOR`) — the same five-slot
-palette the nav tints its sections with and `GoalStrip` fills its bars from. A column's **height is
-the month's net**, since that is what the commitment line judges, and the segments take their
-*share* of it from the gross: drawing gross-up and gross-down instead let a month that sold ₫59M to
-repay ₫74M of debt cross a line it had not cleared. A net-sell month hangs below the baseline in
-the negative ink. Missed months keep their hues but drop back — you still put that money somewhere.
+palette the nav tints its sections with and `GoalStrip` fills its bars from. A column's height is
+the month's total and each segment takes its share of it, so the top edge is exactly the figure the
+commitment line judges. Missed months keep their hues but drop back — you still put that money
+somewhere.
 
 ## Where the portfolio panels live
 

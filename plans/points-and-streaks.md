@@ -33,12 +33,21 @@ The unit is a **calendar month**. Money in this app moves monthly — salary, de
 subscription renewals, debt payments. A daily streak would punish you for an ordinary
 Tuesday on which nothing was supposed to happen, and it would train the wrong reflex.
 
-A month **counts** when your net contribution that month clears your commitment:
+A month **counts** when your contribution that month clears your commitment:
 
-- **net contribution** = buys − sells in `transactions`, + new `savings` principal,
-  + positive `goal_contributions`, + `debt_payments` beyond what the schedule required.
+- **contribution** = buys in `transactions` (sells are not subtracted) + new `savings`
+  principal. Two levers, both non-negative.
 - **commitment** = `plannedMonthly` (already computed in `GoalWorld` from active recurring
-  rules), or a floor set in `meta` if there are no rules.
+  rules), else the goals' `monthly_plan`.
+
+> **Narrowed after living with it.** This started as four levers — net money in, deposits,
+> fund cash, and repayments beyond schedule — and netted sells off. Both wider readings were
+> defensible and both confused in practice. Netting made a month where ₫80M of VIC and Bitcoin
+> funded a ₫74M repayment read as ₫22.9M, a number you could not get back to from any screen.
+> Counting repayments rewarded keeping a promise. What is left is the two acts that put money
+> to work, measured in the same thing the bar is. The costs are real and written down in
+> `AGENTS.md`: selling to repay a tracked debt now counts twice, and paying down a mortgage
+> counts for nothing.
 
 Note what is *excluded*: market movement. A bull market must not hand you a streak, and a
 crash must not break one. This is exactly the goals lib's existing "market return is 0%"
@@ -61,7 +70,7 @@ already exists:
 
 | Lever | Source | Awarded on |
 |---|---|---|
-| **Contribute** | `transactions`, `savings` | net money in, above the plan |
+| **Contribute** | `transactions`, `savings` | money in, above the plan |
 | **Deleverage** | `debt_payments` vs. `debtOwed()` amortization | principal killed *ahead of* schedule |
 | **Earn** | `savings` | interest accrued — money that worked while you didn't |
 | **Prune** | `subscriptions.cancelled_date` | 12 × the plan's ₫/month, once |
