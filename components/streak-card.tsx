@@ -10,13 +10,13 @@ import {
   monthShort,
   recentMonths,
   type Lever,
+  type MonthKey,
   type MonthStatus,
   type Streak,
   type StreakMonth,
 } from "@/lib/score";
 import { PanelHead } from "@/components/panel-head";
 import { Badge } from "@/components/ui/badge";
-import { IconTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 /** A year of columns. Twelve because a saving habit is worth looking at over a year —
@@ -59,18 +59,22 @@ function gross(m: StreakMonth): number {
 
 function MonthColumn({
   m,
-  bar,
   zero,
   px,
   isNow,
+  isActive,
+  onPick,
+  onPeek,
 }: {
   m: StreakMonth | null;
-  bar: number;
   /** Baseline offset from the bottom of the plot, in px. */
   zero: number;
   /** ₫ → px on the plot's single scale. */
   px: (v: number) => number;
   isNow: boolean;
+  isActive: boolean;
+  onPick: () => void;
+  onPeek: (on: boolean) => void;
 }) {
   if (!m) {
     // Before you were tracking anything. There was no bar to fall short of, so this is not
@@ -83,69 +87,103 @@ function MonthColumn({
   const segments = LEVERS.filter((l) => m.levers[l] > 0);
 
   return (
-    <IconTooltip
-      label={
-        <span className="block">
-          <span className="block font-semibold">
-            {monthLong(m.month)} · {STATUS_WORD[m.status]}
-          </span>
-          <span className="block font-mono tabular-nums">
-            {fmtVND(m.total)} of {fmtVND(bar)}
-          </span>
-          {LEVERS.filter((l) => Math.round(m.levers[l]) !== 0).map((l) => (
-            <span key={l} className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] tabular-nums">
+    // A real button, which is what makes this work on a phone: the breakdown used to live in
+    // a hover tooltip, and a touch device has no hover — the columns were decoration there.
+    // Tapping one now picks it, exactly as tapping a day in the P&L calendar does, and the
+    // detail lands in the strip below rather than in a popup over your thumb.
+    <button
+      type="button"
+      onClick={onPick}
+      onMouseEnter={() => onPeek(true)}
+      onMouseLeave={() => onPeek(false)}
+      onFocus={() => onPeek(true)}
+      onBlur={() => onPeek(false)}
+      aria-pressed={isActive}
+      aria-label={`${monthLong(m.month)}: ${STATUS_WORD[m.status]}, ${fmtVND(m.total)}`}
+      className="relative rounded-[4px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      style={{ height: PLOT }}
+    >
+      {/* A channel behind the month in progress, and only that one — it marks "you are here"
+          without adding a second scale for the eye to read the others against. */}
+      {isNow && <span className="absolute inset-0 rounded-[4px] bg-secondary/55" aria-hidden />}
+
+      {/* Colour is reserved for months that counted. A missed one keeps its hues — you still
+          put that money somewhere — but drops back, so a run of good months is what the panel
+          reads as from across the room. The column you're pointing at comes fully forward
+          whatever its status, since that's the one being explained below. */}
+      <span
+        className={cn(
+          "absolute inset-0 transition-opacity",
+          dim && !isActive && "opacity-35",
+          !dim && !isActive && "opacity-90",
+        )}
+        aria-hidden
+      >
+        {m.total >= 0 ? (
+          // **The column is the month's NET total**, because that is the figure the
+          // commitment line judges. Segments then take their *share* of it from the gross,
+          // so a month that also sold something shows where the money went while still
+          // standing at the height it actually counts for. Drawing gross-up and gross-down
+          // instead made a net-sell month cross the line it had not cleared.
+          <span
+            className="absolute inset-x-0 flex flex-col-reverse overflow-hidden rounded-[4px]"
+            style={{ bottom: zero, height: px(m.total) }}
+          >
+            {segments.map((l) => (
               <span
-                className="size-[7px] shrink-0 rounded-[2px]"
+                key={l}
+                style={{ height: `${(m.levers[l] / g) * 100}%`, background: LEVER_COLOR[l] }}
+              />
+            ))}
+          </span>
+        ) : (
+          // Sold more than you saved. Below the line, in the app's negative ink — the same
+          // way the transactions chart draws a sell.
+          <span
+            className="absolute inset-x-0 rounded-[4px]"
+            style={{ top: PLOT - zero, height: px(-m.total), background: "var(--chart-negative)" }}
+          />
+        )}
+      </span>
+    </button>
+  );
+}
+
+/** The picked month, spelled out under the plot: what it came to, against what it had to
+ *  clear, and which levers got it there. This is the panel's whole explanation on a phone,
+ *  where there is no hover to put it in. */
+function MonthDetail({ m, bar }: { m: StreakMonth; bar: number }) {
+  const parts = LEVERS.filter((l) => Math.round(m.levers[l]) !== 0);
+
+  return (
+    <div className="mt-3 border-t border-divider pt-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="text-[12.5px]">
+          <span className="font-semibold">{monthLong(m.month)}</span>
+          <span className="text-muted-foreground"> · {STATUS_WORD[m.status]}</span>
+        </span>
+        <span className="font-mono text-[12.5px] tabular-nums">
+          {fmtVND(m.total)}
+          <span className="text-faint"> / {fmtVND(bar)}</span>
+        </span>
+      </div>
+      {parts.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+          {parts.map((l) => (
+            <span key={l} className="flex items-center gap-1.5 font-mono text-[11.5px] tabular-nums">
+              <span
+                className="size-[8px] shrink-0 rounded-[2px]"
                 style={{ background: m.levers[l] < 0 ? "var(--chart-negative)" : LEVER_COLOR[l] }}
               />
-              {LEVER_LABELS[l]} {fmtVND(m.levers[l])}
+              <span className="text-muted-foreground">{LEVER_LABELS[l]}</span>
+              {fmtVND(m.levers[l])}
             </span>
           ))}
-        </span>
-      }
-    >
-      <div
-        tabIndex={0}
-        aria-label={`${monthLong(m.month)}: ${STATUS_WORD[m.status]}`}
-        className="relative cursor-help rounded-[4px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        style={{ height: PLOT }}
-      >
-        {/* A channel behind the month in progress, and only that one — it marks "you are
-            here" without adding a second scale for the eye to read the others against. */}
-        {isNow && <div className="absolute inset-0 rounded-[4px] bg-secondary/55" aria-hidden />}
-
-        {/* Colour is reserved for months that counted. A missed one keeps its hues — you
-            still put that money somewhere — but drops back, so a run of good months is what
-            the panel reads as from across the room. */}
-        <div className={cn("absolute inset-0", dim && "opacity-35")} aria-hidden>
-          {m.total >= 0 ? (
-            // **The column is the month's NET total**, because that is the figure the
-            // commitment line judges. Segments then take their *share* of it from the gross,
-            // so a month that also sold something shows where the money went while still
-            // standing at the height it actually counts for. Drawing gross-up and gross-down
-            // instead made a net-sell month cross the line it had not cleared.
-            <div
-              className="absolute inset-x-0 flex flex-col-reverse overflow-hidden rounded-[4px]"
-              style={{ bottom: zero, height: px(m.total) }}
-            >
-              {segments.map((l) => (
-                <div
-                  key={l}
-                  style={{ height: `${(m.levers[l] / g) * 100}%`, background: LEVER_COLOR[l] }}
-                />
-              ))}
-            </div>
-          ) : (
-            // Sold more than you saved. Below the line, in the app's negative ink — the same
-            // way the transactions chart draws a sell.
-            <div
-              className="absolute inset-x-0 rounded-[4px]"
-              style={{ top: PLOT - zero, height: px(-m.total), background: "var(--chart-negative)" }}
-            />
-          )}
         </div>
-      </div>
-    </IconTooltip>
+      ) : (
+        <div className="mt-2 text-[11.5px] text-faint">Nothing moved this month.</div>
+      )}
+    </div>
   );
 }
 
@@ -156,6 +194,12 @@ function MonthColumn({
  * Read-only and derived — see `lib/score.ts` for why none of it is stored.
  */
 export function StreakCard({ streak }: { streak: Streak | null }) {
+  // What the strip below the plot is explaining. `picked` is a tap — it sticks, because on a
+  // phone that is the only way in; `peek` is a pointer passing over and outranks it while it
+  // lasts. Neither set, and the panel explains the month you're actually in.
+  const [picked, setPicked] = React.useState<MonthKey | null>(null);
+  const [peek, setPeek] = React.useState<MonthKey | null>(null);
+
   // No commitment, nothing to be on a streak of. The empty state is the instruction, which
   // is the honest version — a streak of zero would read as a failure you haven't had the
   // chance to have yet.
@@ -197,6 +241,11 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
   // Only the levers this year actually used. A legend naming four when you used two is four
   // things to read and two of them are noise.
   const used = LEVERS.filter((l) => shown.some((m) => Math.round(m.levers[l]) !== 0));
+
+  // Falls back through peek → tap → this month, and only to a month actually on the plot:
+  // a selection made before a refresh pushed a month off the twelve has to land somewhere.
+  const find = (k: MonthKey | null) => (k ? shown.find((m) => m.month === k) ?? null : null);
+  const active = find(peek) ?? find(picked) ?? now;
 
   return (
     <div className="card-surface panel-body">
@@ -304,10 +353,12 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
                 <MonthColumn
                   key={m?.month ?? `pad-${i}`}
                   m={m}
-                  bar={bar}
                   zero={zero}
                   px={px}
                   isNow={m?.month === now.month}
+                  isActive={m?.month === active.month}
+                  onPick={() => m && setPicked(m.month)}
+                  onPeek={(on) => m && setPeek(on ? m.month : null)}
                 />
               ))}
             </div>
@@ -319,13 +370,19 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
                 key={m?.month ?? `lab-${i}`}
                 className={cn(
                   "truncate text-center font-mono text-[9.5px]",
-                  m?.month === now.month ? "text-muted-foreground" : "text-faint",
+                  m?.month === active.month
+                    ? "font-semibold text-foreground"
+                    : m?.month === now.month
+                      ? "text-muted-foreground"
+                      : "text-faint",
                 )}
               >
                 {m ? monthShort(m.month) : ""}
               </span>
             ))}
           </div>
+
+          <MonthDetail m={active} bar={bar} />
         </div>
       </div>
     </div>

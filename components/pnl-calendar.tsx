@@ -162,6 +162,9 @@ function StatusKey() {
  *  past that is gutter. */
 const GUTTER = 1.72;
 
+/** Shortest bar a non-zero move may draw, in the same units — see `ContribChart`. */
+const MIN_BAR = 0.015;
+
 /**
  * Per-holding breakdown: one diverging bar per holding, growing out from a shared centre
  * axis — losses left, gains right. The sign is then legible from the shape alone, before
@@ -169,11 +172,12 @@ const GUTTER = 1.72;
  * bar rather than just another row in a list. The period is a day in month view and a whole
  * month in year view; the rows are summed accordingly before they get here.
  *
- * The bar's length is a *share of its own side's largest move*, which is why the x scale is
- * a plain [-1, 1] and the axis is hidden: the two halves are deliberately not on a common
- * scale, since the question is "what dominated the gains / the losses", not "did gains
- * outweigh losses" (the total above already answers that). The money itself is printed at
- * the end of every row, in the gutter the domain leaves past the widest bar.
+ * The bar's length is a share of the period's largest move **in either direction**, which is
+ * why the x scale is a plain [-1, 1] and the axis is hidden. One scale for both halves, so a
+ * bar's length always means the same amount of money: each side used to be normalised to its
+ * own largest move, which drew a ₫118k loss exactly as long as a ₫4M gain and made the day's
+ * one bad holding look like its biggest event. The money itself is printed at the end of
+ * every row, in the gutter the domain leaves past the widest bar.
  *
  * Every holding that moved is listed — a portfolio has few enough positions that the whole
  * period fits, and a bar chart you have to page through can't be compared at a glance.
@@ -181,9 +185,17 @@ const GUTTER = 1.72;
  */
 function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
   const data = React.useMemo(() => {
-    const maxUp = Math.max(1, ...rows.map((r) => Math.max(0, r.pnl)));
-    const maxDown = Math.max(1, ...rows.map((r) => Math.max(0, -r.pnl)));
-    return rows.map((r) => ({ ...r, share: r.pnl / (r.pnl < 0 ? maxDown : maxUp) }));
+    const max = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
+    return rows.map((r) => {
+      const share = r.pnl / max;
+      return {
+        ...r,
+        // A holding that moved always gets a bar you can see. Rounding a real ₫25k move to
+        // nothing beside a ₫4M one would read as "didn't move", which is a different claim
+        // — and the figure at the end of the row is there for the exact amount anyway.
+        share: r.pnl === 0 ? 0 : Math.sign(share) * Math.max(Math.abs(share), MIN_BAR),
+      };
+    });
   }, [rows]);
 
   const definition = React.useMemo(
