@@ -124,6 +124,13 @@ The dashboard passes **every** debt (`listDebts(true)`) into the streak and filt
 net-worth figure: a settled debt's old repayments are still history, and dropping them would
 retroactively break the streak you earned by paying it off.
 
+The month breakdown is a **controlled** `<Tooltip open=…>` over a real `<button>` per column,
+and it has to stay both: left to itself a tooltip opens on hover and focus, which a phone has
+neither of — the columns were decoration there, carrying a popup nothing could open. Driving
+`open` from the card's own state means a tap opens the same popup a pointer does, with no
+second mobile-only layout to keep in step. A second tap on the same column closes it, since on
+touch there is no "pointer away".
+
 Each lever is drawn in **the hue of the page it came from** (`LEVER_COLOR`) — the same five-slot
 palette the nav tints its sections with and `GoalStrip` fills its bars from. A column's **height is
 the month's net**, since that is what the commitment line judges, and the segments take their
