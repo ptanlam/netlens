@@ -663,28 +663,29 @@
    dock — the design puts the rail and the page on the same plane and lets the border do
    the work, which is also what lets the header start beside it rather than over it.
 
-   It's revealed by CSS on `html[data-nav]` rather than by a client branch: the preference
-   is stamped before first paint (`lib/nav-layout.ts`), and never touching the markup is
-   what makes that free of a hydration mismatch. Below 900px the drawer takes over. */
+   Unconditional now. It used to be revealed by `html[data-nav="side"]`, the other value
+   being a top bar — which is gone (see `lib/nav-layout.ts`). Below 900px the drawer takes
+   over, and it carries the same grouped links, so the rail is the only navigation the app
+   has at any width. */
 [data-side-rail],
 [data-header-search] {
   display: none;
 }
 
 @media (min-width: 900px) {
-  html[data-nav="side"] {
+  :root {
     --nav-rail: 248px;
   }
-  html[data-nav="side"][data-nav-collapsed] {
+  html[data-nav-collapsed] {
     --nav-rail: 74px;
   }
 
   /* The page is inset by hand to clear the rail — the rail is a fixed sibling of <main>,
      not a flex column, so the header can span the content width and stop at the hairline. */
-  html[data-nav="side"] body {
+  body {
     padding-left: calc(var(--nav-rail) + env(safe-area-inset-left));
   }
-  html[data-nav="side"] [data-side-rail] {
+  [data-side-rail] {
     position: fixed;
     left: 0;
     top: 0;
@@ -692,7 +693,7 @@
     z-index: 41;
     display: flex;
     flex-direction: column;
-    gap: 26px;
+    gap: 22px;
     width: calc(var(--nav-rail) + env(safe-area-inset-left));
     overflow-y: auto;
     padding: calc(22px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
@@ -702,53 +703,63 @@
     transition: width 0.18s ease;
   }
   @media (prefers-reduced-motion: reduce) {
-    html[data-nav="side"] [data-side-rail] {
+    [data-side-rail] {
       transition: none;
     }
   }
 
-  html[data-nav="side"] [data-rail-brand] {
+  [data-rail-brand] {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     padding: 0 4px 0 8px;
   }
-  html[data-nav="side"] [data-rail-nav] {
+  [data-rail-nav] {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  [data-rail-group] {
     display: flex;
     flex-direction: column;
     gap: 4px;
   }
 
-  /* Collapsed: icons only, centred, and the chevron flips to point back out. */
-  html[data-nav="side"][data-nav-collapsed] [data-rail-label] {
+  /* Collapsed: icons only, centred, and the chevron flips to point back out. A group's
+     heading can't survive that width, so the groups fall back to a hairline between them —
+     the grouping is structural, and losing the words mustn't lose the structure. */
+  html[data-nav-collapsed] [data-rail-label] {
     display: none;
   }
-  html[data-nav="side"][data-nav-collapsed] [data-rail-brand] {
+  html[data-nav-collapsed] [data-rail-group-label] {
+    display: none;
+  }
+  html[data-nav-collapsed] [data-rail-nav] {
+    gap: 10px;
+  }
+  html[data-nav-collapsed] [data-rail-group] + [data-rail-group] {
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+  html[data-nav-collapsed] [data-rail-brand] {
     flex-direction: column;
     gap: 14px;
     padding: 0;
   }
-  html[data-nav="side"][data-nav-collapsed] [data-rail-nav] a {
+  html[data-nav-collapsed] [data-rail-nav] a {
     justify-content: center;
     gap: 0;
     padding-left: 0;
     padding-right: 0;
   }
-  html[data-nav="side"][data-nav-collapsed] [data-rail-chevron] {
+  html[data-nav-collapsed] [data-rail-chevron] {
     transform: rotate(180deg);
   }
 
-  /* With the rail on, the links and wordmark live in the rail, so the header gives its
-     left side over to the design's search field instead. */
-  html[data-nav="side"] [data-nav-brand] {
-    display: none;
-  }
-  html[data-nav="side"] [data-header-search] {
+  /* The links and the wordmark live in the rail, so the header gives its left side over to
+     the design's search field instead. */
+  [data-header-search] {
     display: block;
   }
-  /* Nothing to hide on the right any more. The header's Settings and Sign out were two bare
-     circles duplicating the rail's foot, and this rule dropped them in rail mode; they are
-     rows inside the account menu now, which is collapsed until you open it and is the only
-     thing in either layout that names the account they act on. It stays in both. */
 }

@@ -222,13 +222,19 @@ export function RefreshPricesButton() {
   );
 }
 
-/** The nav's price controls: a clock, a Live pill that doubles as the interval picker,
- *  and a manual refresh. This is the single place prices are polled from — mounted once
- *  in the nav, it covers every page. */
-export function LivePrices() {
-  const { pending, run } = useRefreshPrices();
+/**
+ * The polling itself, with no UI of its own.
+ *
+ * Split out from `<LivePrices>` because the controls are now rendered in two places — the
+ * header on a wide screen, the drawer on a narrow one — and the polling must happen in
+ * exactly one. Every timer, catch-up and open-time pull lives here; mount this once, high
+ * in the tree, and render the controls wherever they fit.
+ *
+ * Returns null. It is a behaviour, not a thing on screen.
+ */
+export function PricePoller() {
+  const { run } = useRefreshPrices();
   const intervalMs = React.useSyncExternalStore(subscribeInterval, readInterval, () => 0);
-  const live = intervalMs > 0;
 
   // Whether the page under the nav shows anything a refresh can move. The ref is what the
   // free-running tick timer reads (see below); the value itself drives the catch-up.
@@ -240,17 +246,6 @@ export function LivePrices() {
   React.useEffect(() => {
     pricedRef.current = priced;
   }, [priced]);
-
-  const [now, setNow] = React.useState<Date | null>(null);
-  React.useEffect(() => {
-    const tick = () => setNow(new Date());
-    const first = setTimeout(tick, 0); // async so we don't setState synchronously in the effect
-    const id = setInterval(tick, 1000);
-    return () => {
-      clearTimeout(first);
-      clearInterval(id);
-    };
-  }, []);
 
   // Fresh prices when the app opens — but with live refresh armed they're already being
   // kept current, so a reload, a second tab, or dipping back into the PWA shouldn't spend
@@ -308,6 +303,33 @@ export function LivePrices() {
     if (overdue(intervalMs)) void run({ silent: true });
   }, [intervalMs, priced, run]);
 
+  return null;
+}
+
+/** The price controls: a clock, a Live pill that doubles as the interval picker, and a
+ *  manual refresh. Pure UI — `<PricePoller>` does the polling, so this can be rendered in
+ *  the header and in the drawer at the same time without doubling the API calls.
+ *
+ *  `compact` drops every word and the clock, whatever the viewport. The responsive variants
+ *  below key off the *screen*, which is the right question in the header and the wrong one
+ *  in the drawer: at 768px they spell "Live" and "Refresh" out in full inside a 272px panel,
+ *  and the account button falls off the end of the row. */
+export function LivePrices({ compact = false }: { compact?: boolean }) {
+  const { pending, run } = useRefreshPrices();
+  const intervalMs = React.useSyncExternalStore(subscribeInterval, readInterval, () => 0);
+  const live = intervalMs > 0;
+
+  const [now, setNow] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    const tick = () => setNow(new Date());
+    const first = setTimeout(tick, 0); // async so we don't setState synchronously in the effect
+    const id = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, []);
+
   const onIntervalChange = (ms: number) => {
     writeInterval(ms);
     if (ms) void run({ silent: true }); // refresh straight away so the choice visibly does something
@@ -322,11 +344,14 @@ export function LivePrices() {
 
   // A phone can't hold the full row, so both controls drop their words below `sm`:
   // the pill keeps the dot + interval ("● 1m" / "● Off") and Refresh becomes its icon.
+  // "hidden" outright when compact, rather than at a breakpoint.
+  const word = compact ? "hidden" : "hidden sm:inline";
+
   return (
     <div className="flex shrink-0 items-center gap-2 lg:gap-3.5">
-      {/* The nav pills gained icons and now need the width the clock used to take at lg,
-          so it waits for xl. */}
-      <div className="hidden text-right leading-tight xl:block">
+      {/* The rail carries the links now, but the clock still waits for xl — the header's
+          search field is the thing it shares its row with. */}
+      <div className={cn("hidden text-right leading-tight", !compact && "xl:block")}>
         <div className="text-[11.5px] text-faint">Live prices</div>
         <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
       </div>
@@ -346,14 +371,14 @@ export function LivePrices() {
           )}
         >
           <span className={cn("size-[7px] rounded-full", live ? "animate-pulse-dot bg-accent-brand" : "bg-disabled-foreground")} />
-          <span className="hidden sm:inline">Live</span>
+          <span className={word}>Live</span>
           {live ? (
             <span className="tabular-nums">
-              <span className="hidden sm:inline">· </span>
+              <span className={word}>· </span>
               {label}
             </span>
           ) : (
-            <span className="sm:hidden">Off</span>
+            <span className={compact ? undefined : "sm:hidden"}>Off</span>
           )}
         </SelectTrigger>
         <SelectContent>
@@ -374,7 +399,7 @@ export function LivePrices() {
         className="flex h-7 items-center gap-1.5 rounded-full border border-input bg-transparent px-2 text-[12px] font-semibold text-foreground transition-colors hover:border-brand hover:text-brand disabled:opacity-60 sm:px-3.5"
       >
         <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
-        <span className="hidden sm:inline">Refresh</span>
+        <span className={word}>Refresh</span>
       </button>
     </div>
   );

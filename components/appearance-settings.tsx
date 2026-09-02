@@ -1,11 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { Check, PanelLeft, PanelTop, type LucideIcon } from "lucide-react";
-import { NAV_LAYOUTS, setNavLayout, useNavLayout, type NavLayout } from "@/lib/nav-layout";
+import { Check, PanelLeft, PanelLeftClose, type LucideIcon } from "lucide-react";
+import { setNavCollapsed, useNavCollapsed } from "@/lib/nav-layout";
 import { cn } from "@/lib/utils";
 
-const NAV_ICONS: Record<NavLayout, LucideIcon> = { top: PanelTop, side: PanelLeft };
+/**
+ * How wide the sidebar sits. This card used to choose *where* the navigation lived — the
+ * rail, or a top bar carrying the links across the header. The top bar is gone: below the
+ * rail's breakpoint it was the only layout either choice produced, and there it had to hold
+ * a drawer trigger, the wordmark, the price controls, a theme toggle and the account button
+ * on one row. What is left to choose is a width.
+ */
+const WIDTHS = [
+  { value: "expanded", label: "Expanded", hint: "Icons and labels", icon: PanelLeft },
+  { value: "collapsed", label: "Collapsed", hint: "Icons only", icon: PanelLeftClose },
+] as const;
 
 const emptySubscribe = () => () => {};
 
@@ -65,7 +75,7 @@ function ChoiceGrid({
 }
 
 export function AppearanceSettings() {
-  const navLayout = useNavLayout();
+  const collapsed = useNavCollapsed();
 
   // The layout is only known client-side (it's a localStorage preference). Render the same
   // markup on both passes and let the selection light up after mount, rather than guessing
@@ -76,27 +86,24 @@ export function AppearanceSettings() {
     () => true,
     () => false,
   );
-  const navOptions = React.useMemo(
-    () => NAV_LAYOUTS.map((l) => ({ ...l, icon: NAV_ICONS[l.value] })),
-    [],
-  );
 
   return (
     <div className="flex flex-col gap-5">
       {/* Theme used to be the card above this one. It's the picker in the header now —
           one click from anywhere, instead of two navigations to change how the app looks. */}
       <div className="card-surface panel-body">
-        <div className="text-[16px] font-bold tracking-[-0.01em]">Navigation</div>
+        <div className="text-[16px] font-bold tracking-[-0.01em]">Sidebar</div>
         <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
-          Where the links sit on a wide screen. Narrow screens keep the slide-out drawer
-          either way — there isn&apos;t room for a rail beside the content.
+          How wide the sidebar sits on a screen with room for it. Narrow screens use the
+          slide-out drawer either way — there isn&apos;t room for a rail beside the content,
+          and the drawer carries the same groups.
         </div>
 
         <ChoiceGrid
-          label="Navigation layout"
-          options={navOptions}
-          value={navLayout}
-          onChange={(v) => setNavLayout(v as NavLayout)}
+          label="Sidebar width"
+          options={WIDTHS}
+          value={collapsed ? "collapsed" : "expanded"}
+          onChange={(v) => setNavCollapsed(v === "collapsed")}
           ready={mounted}
         />
       </div>

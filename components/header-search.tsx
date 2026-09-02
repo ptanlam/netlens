@@ -104,7 +104,7 @@ export function HeaderSearch() {
   };
 
   return (
-    // Visibility is CSS's job (`app/globals.css`, `html[data-nav="side"]`), not a class
+    // Visibility is CSS's job (`app/globals.css`, `[data-header-search]`), not a class
     // here: the nav preference is stamped before paint, and the top-bar layout has no room
     // for a search field next to its own link pills.
     <div ref={boxRef} data-header-search className="relative min-w-0 flex-1">

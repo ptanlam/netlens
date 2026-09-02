@@ -6,39 +6,77 @@ import { usePathname } from 'next/navigation';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
   Menu, Settings, ChevronsLeft,
-  LayoutDashboard, TrendingUp, ArrowLeftRight, PiggyBank, CreditCard, CalendarSync, Target,
+  LayoutDashboard, TrendingUp, ArrowLeftRight, PiggyBank, CreditCard, CalendarSync, Target, LineChart,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { UserMenu } from '@/components/user-menu';
-import { LivePrices } from '@/components/live-prices';
+import { LivePrices, PricePoller } from '@/components/live-prices';
 import { HeaderSearch } from '@/components/header-search';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { toggleNavCollapsed } from '@/lib/nav-layout';
 import { cn } from '@/lib/utils';
 
-// Settings isn't here: it's the gear in the right-hand cluster (and a row in the drawer,
-// which is where the gear can't fit).
+// Settings isn't here: it's a row in the drawer and a line in the account menu.
 //
 // `tint` is the section's own hue, from the app's five (see `--color-hue-*`). It only paints
 // the icon, never the label or the row: "here" is still marked by the surface step, so the
 // colour is identity — which section you're looking at — rather than a second, competing
 // signal for which one is current.
 //
-// Six sections, five hues: Debts and Subscriptions share amber, and they sit next to each
-// other so it reads as a pair rather than a collision. That is the honest grouping — both
-// are money leaving, and neither is a thing you own.
-const LINKS: { href: string; label: string; icon: LucideIcon; tint: string }[] = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard, tint: 'text-hue-blue' },
-  { href: '/investments', label: 'Investments', icon: TrendingUp, tint: 'text-hue-cyan' },
-  // Sits next to Investments because it's the other half of the same subject: what you hold,
-  // then what you did. Amber matches the dashboard's own "History" shortcut.
-  { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight, tint: 'text-hue-amber' },
-  { href: '/savings', label: 'Savings', icon: PiggyBank, tint: 'text-hue-green' },
-  { href: '/debts', label: 'Debts', icon: CreditCard, tint: 'text-hue-amber' },
-  { href: '/subscriptions', label: 'Subscriptions', icon: CalendarSync, tint: 'text-hue-amber' },
-  { href: '/goals', label: 'Goals', icon: Target, tint: 'text-hue-violet' },
+// **The groups are the app's own model of your money**, not an alphabet or a usage ranking:
+// net worth is what you own plus what you've saved minus what you owe, and the last group is
+// the part that hasn't happened yet. Eight flat rows made you read all eight to find one;
+// three named groups mean you read one heading and then two or three rows.
+//
+// Subscriptions sit under "Money out" rather than beside Debts under anything owed — they
+// are deliberately outside net worth (see `lib/subscriptions.ts`), being neither a thing you
+// own nor a debt you owe. What they have in common with a loan is only the direction the
+// money travels, and that is exactly what the heading claims.
+interface NavLink {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  tint: string;
+}
+
+interface NavSection {
+  /** Null for the opening group — Dashboard is the whole of it, and a heading over one row
+   *  is a label pretending to be structure. */
+  label: string | null;
+  links: NavLink[];
+}
+
+const SECTIONS: NavSection[] = [
+  {
+    label: null,
+    links: [{ href: '/', label: 'Dashboard', icon: LayoutDashboard, tint: 'text-hue-blue' }],
+  },
+  {
+    label: 'Money in',
+    links: [
+      { href: '/investments', label: 'Investments', icon: TrendingUp, tint: 'text-hue-cyan' },
+      // Next to Investments because it's the other half of the same subject: what you hold,
+      // then what you did. Amber matches the dashboard's own "History" shortcut.
+      { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight, tint: 'text-hue-amber' },
+      { href: '/savings', label: 'Savings', icon: PiggyBank, tint: 'text-hue-green' },
+    ],
+  },
+  {
+    label: 'Money out',
+    links: [
+      { href: '/debts', label: 'Debts', icon: CreditCard, tint: 'text-hue-amber' },
+      { href: '/subscriptions', label: 'Subscriptions', icon: CalendarSync, tint: 'text-hue-amber' },
+    ],
+  },
+  {
+    label: "What's ahead",
+    links: [
+      { href: '/goals', label: 'Goals', icon: Target, tint: 'text-hue-violet' },
+      { href: '/forecast', label: 'Forecast', icon: LineChart, tint: 'text-hue-violet' },
+    ],
+  },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -77,16 +115,29 @@ function BrandMark({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
 
 function Wordmark() {
   return (
-    // Below 360px even the slimmed-down price controls leave no room for the mark; the
-    // drawer trigger and its title carry the brand there, so hide the lot rather than
-    // let the label get squeezed off and strand a bare square.
+    // It used to hide below 360px, because the price controls, a theme toggle and the
+    // account button were on this row and something had to go. They're in the drawer now,
+    // so the narrow header is the trigger and the mark, and both always fit.
     <Link
       href='/'
-      className='hidden shrink-0 items-center gap-2.5 text-foreground min-[360px]:flex'
+      className='flex shrink-0 items-center gap-2.5 text-foreground'
       aria-label='Netlens — home'
     >
       <BrandMark />
     </Link>
+  );
+}
+
+/** A group's heading, in both the rail and the drawer.
+ *
+ *  Sentence case in quiet ink, not a letterspaced small-caps eyebrow — the same call
+ *  `SummaryCards` makes about its tile labels. The heading is there to be skimmed past on
+ *  the way to a row, not to compete with one. */
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div data-rail-group-label className='px-3 pb-0.5 text-[11.5px] text-faint'>
+      {children}
+    </div>
   );
 }
 
@@ -97,9 +148,6 @@ function NavPill({
   tint,
   pathname,
   onClick,
-  /** 'slide' leaves the active background to <DesktopNav>'s shared slider; 'solid' paints
-   *  it on the pill itself (the drawer, where there's nothing to slide). */
-  variant = 'solid',
 }: {
   href: string;
   label: string;
@@ -108,7 +156,6 @@ function NavPill({
   tint: string;
   pathname: string;
   onClick?: () => void;
-  variant?: 'solid' | 'slide';
 }) {
   const active = isActive(pathname, href);
   return (
@@ -122,7 +169,7 @@ function NavPill({
         // — so spending it on the current page would put two meanings on one colour.
         'group/nav relative z-10 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] whitespace-nowrap transition-colors',
         active
-          ? cn('font-semibold text-foreground', variant === 'solid' && 'bg-pane ring-1 ring-input ring-inset')
+          ? 'bg-pane font-semibold text-foreground ring-1 ring-input ring-inset'
           : 'font-medium text-muted-foreground hover:text-foreground',
       )}
     >
@@ -131,93 +178,6 @@ function NavPill({
       <Icon className={cn('size-4 shrink-0 transition-opacity', tint, active ? 'opacity-100' : 'opacity-60 group-hover/nav:opacity-100')} />
       {label}
     </Link>
-  );
-}
-
-/**
- * The desktop links, with a single highlight that slides from the old page's pill to the
- * new one instead of blinking between them.
- *
- * The slider is positioned by writing to its style directly rather than through state:
- * this is a layout measurement, and `react-hooks/set-state-in-effect` (React Compiler)
- * forbids the setState-in-effect version. It's also re-measured on resize, since the pill
- * offsets move with the container.
- */
-function DesktopNav({ pathname }: { pathname: string }) {
-  const navRef = React.useRef<HTMLElement>(null);
-  const sliderRef = React.useRef<HTMLSpanElement>(null);
-  const placed = React.useRef(false);
-
-  React.useLayoutEffect(() => {
-    const nav = navRef.current;
-    const slider = sliderRef.current;
-    if (!nav || !slider) return;
-
-    const place = () => {
-      const active = nav.querySelector<HTMLElement>('[data-active="true"]');
-      if (!active) {
-        slider.style.opacity = '0';
-        return;
-      }
-      const apply = () => {
-        slider.style.opacity = '1';
-        slider.style.left = `${active.offsetLeft}px`;
-        slider.style.width = `${active.offsetWidth}px`;
-      };
-      // On the very first placement there's nothing to slide *from* — animating would
-      // fly the pill in from the left edge on every fresh page load.
-      if (placed.current) {
-        apply();
-      } else {
-        slider.style.transition = 'none';
-        apply();
-        void slider.offsetWidth; // flush, so the transition we restore isn't retroactive
-        slider.style.transition = '';
-        placed.current = true;
-      }
-    };
-
-    place();
-
-    const ro = new ResizeObserver(place);
-    ro.observe(nav);
-    // Every pill is measured, so anything that changes their width has to re-place the
-    // slider — and the web font lands *after* first paint, widening each label. Without
-    // this the slider can stay frozen at the icon-only width it measured pre-font, leaving
-    // the tail of the active label hanging outside its own highlight.
-    let live = true;
-    document.fonts?.ready.then(() => {
-      if (live) place();
-    });
-
-    return () => {
-      live = false;
-      ro.disconnect();
-    };
-  }, [pathname]);
-
-  return (
-    <nav ref={navRef} data-desktop-nav className='relative hidden items-center gap-0.5 lg:flex'>
-      {/* Animates `left`/`width`, not `transform`: a transformed layer whose width changes
-          doesn't reliably re-rasterize, so the pill paints at its stale width. The nav is
-          six items — laying them out is cheap, and it always paints what it measured. */}
-      <span
-        ref={sliderRef}
-        aria-hidden
-        className='absolute inset-y-0 left-0 z-0 w-0 rounded-lg bg-pane opacity-0 ring-1 ring-input ring-inset transition-[left,width,opacity] duration-300 ease-out motion-reduce:transition-none'
-      />
-      {LINKS.map((l) => (
-        <NavPill
-          key={l.href}
-          href={l.href}
-          label={l.label}
-          icon={l.icon}
-          tint={l.tint}
-          pathname={pathname}
-          variant='slide'
-        />
-      ))}
-    </nav>
   );
 }
 
@@ -236,13 +196,15 @@ function MobileNav({ pathname }: { pathname: string }) {
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
-    const lg = window.matchMedia('(min-width: 1024px)');
+    // The same 900px the rail appears at (app/globals.css) — above it there is no drawer
+    // to open, so the gesture must be dead there.
+    const wide = window.matchMedia('(min-width: 900px)');
     let fromEdge = false;
     let startX = 0;
     let startY = 0;
 
     const onStart = (e: TouchEvent) => {
-      if (lg.matches || open) return;
+      if (wide.matches || open) return;
       const t = e.touches[0];
       fromEdge = t.clientX <= EDGE_PX;
       startX = t.clientX;
@@ -292,19 +254,40 @@ function MobileNav({ pathname }: { pathname: string }) {
         <DialogPrimitive.Popup
           onTouchStart={onPopupTouchStart}
           onTouchEnd={onPopupTouchEnd}
-          className='panel-surface fixed inset-y-3 left-3 z-50 flex w-64 max-w-[80%] flex-col gap-1 rounded-3xl p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
-          <DialogPrimitive.Title className='mb-3 flex items-center gap-2.5 px-1.5'>
+          className='panel-surface fixed inset-y-3 left-3 z-50 flex w-[17rem] max-w-[85%] flex-col gap-4 overflow-y-auto rounded-3xl p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
+          <DialogPrimitive.Title className='flex items-center gap-2.5 px-1.5'>
             <BrandMark />
           </DialogPrimitive.Title>
-          <nav className='flex flex-col gap-1'>
-            {LINKS.map((l) => (
-              <NavPill key={l.href} href={l.href} label={l.label} icon={l.icon} tint={l.tint} pathname={pathname} onClick={() => setOpen(false)} />
+
+          {/* The same groups the rail shows, in the same order. The drawer *is* the rail on
+              a narrow screen, so a second arrangement of the same eight links would be a
+              second thing to keep in step. */}
+          <nav className='flex flex-col gap-4'>
+            {SECTIONS.map((section, i) => (
+              <div key={section.label ?? i} className='flex flex-col gap-1'>
+                {section.label && <GroupLabel>{section.label}</GroupLabel>}
+                {section.links.map((l) => (
+                  <NavPill
+                    key={l.href}
+                    href={l.href}
+                    label={l.label}
+                    icon={l.icon}
+                    tint={l.tint}
+                    pathname={pathname}
+                    onClick={() => setOpen(false)}
+                  />
+                ))}
+              </div>
             ))}
           </nav>
-          {/* The header row has no width for the gear on a phone, so settings is reached
-              from here instead. The theme picker is not in here: it kept its place in the
-              header at every width, being narrow enough to. */}
-          <div className='mt-auto border-t border-border pt-3 sm:hidden'>
+
+          {/* Everything that used to be crammed into the narrow header. The price controls
+              are the reason this footer exists: below the rail's breakpoint they were
+              sharing a 70px row with the drawer trigger, the wordmark, a theme toggle and
+              the account button, and each one had a `sm:hidden` variant apologising for it.
+              Polling is unaffected — `<PricePoller>` is mounted in the header and these are
+              only the controls. */}
+          <div className='mt-auto flex flex-col gap-3 border-t border-border pt-3'>
             <Link
               href='/settings'
               onClick={() => setOpen(false)}
@@ -318,6 +301,13 @@ function MobileNav({ pathname }: { pathname: string }) {
               <Settings className='size-4' />
               Settings
             </Link>
+            <div className='flex items-center justify-between gap-2 px-1'>
+              <LivePrices compact />
+              <div className='flex shrink-0 items-center gap-1'>
+                <ThemeToggle />
+                <UserMenu />
+              </div>
+            </div>
           </div>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
@@ -326,7 +316,7 @@ function MobileNav({ pathname }: { pathname: string }) {
 }
 
 
-/** One row of the side rail: same shape for the five sections and for Settings. The label
+/** One row of the side rail. The label
  *  is a sibling of the icon rather than plain text so the collapsed rail can drop it in
  *  CSS — collapsing must not change the markup, or it couldn't be applied before paint. */
 function RailLink({
@@ -360,11 +350,12 @@ function RailLink({
 }
 
 /**
- * The side rail from the design file. It's rendered on every page and revealed by CSS
- * (`html[data-nav="side"]`) rather than by a client branch: the preference is applied
- * before paint, and keeping the markup constant is what lets that work without a
- * hydration mismatch. It costs a handful of static links — the price poller stays in the
- * header, mounted once.
+ * The side rail from the design file. It's rendered on every page and shown by CSS from
+ * 900px up rather than by a client branch, so the markup never depends on a measurement the
+ * server can't take. Below that width the drawer carries the same groups.
+ *
+ * The collapsed/expanded preference is applied before paint (`lib/nav-layout.ts`), which
+ * only works because collapsing changes CSS and never the markup.
  */
 function SideRail({ pathname }: { pathname: string }) {
   return (
@@ -387,8 +378,13 @@ function SideRail({ pathname }: { pathname: string }) {
       </div>
 
       <nav data-rail-nav>
-        {LINKS.map((l) => (
-          <RailLink key={l.href} href={l.href} label={l.label} icon={l.icon} tint={l.tint} pathname={pathname} />
+        {SECTIONS.map((section, i) => (
+          <div data-rail-group key={section.label ?? i}>
+            {section.label && <GroupLabel>{section.label}</GroupLabel>}
+            {section.links.map((l) => (
+              <RailLink key={l.href} href={l.href} label={l.label} icon={l.icon} tint={l.tint} pathname={pathname} />
+            ))}
+          </div>
         ))}
       </nav>
 
@@ -405,6 +401,10 @@ export function Nav() {
   const pathname = usePathname();
   return (
     <>
+      {/* Mounted once, here, and renders nothing. Every price timer in the app lives inside
+          it, so the controls can appear in the header and the drawer at the same time
+          without either one polling. */}
+      <PricePoller />
       <SideRail pathname={pathname} />
       <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
         {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
@@ -412,33 +412,32 @@ export function Nav() {
             the iPhone notch in landscape and, on iPadOS 26, the window-control traffic
             lights overlaid on the top-left of a windowed/split web app — without this they
             sit on top of the drawer's hamburger. */}
-        <div data-app-header-inner className='mx-auto flex h-[70px] w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(1.625rem,env(safe-area-inset-left))] sm:pr-[max(1.625rem,env(safe-area-inset-right))] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
-          {/* The pills only clear the price controls from ~1024px up; below that they
-              collide with them, so the drawer holds the links until lg. With the rail on,
-              this whole group is the rail's job and CSS hides it. */}
-          {/* display:none outside side-rail mode, so it never disturbs the top bar's own
-              spacing. */}
+        {/* Shorter below the rail's breakpoint. It carries two things there — the drawer
+            trigger and the mark — and 70px of sticky chrome for that was most of what made
+            the bar look wrong on a phone. */}
+        <div data-app-header-inner className='mx-auto flex h-14 w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(1.625rem,env(safe-area-inset-left))] sm:pr-[max(1.625rem,env(safe-area-inset-right))] min-[900px]:h-[70px] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+          {/* display:none until 900px, where the rail takes the links and the wordmark and
+              the header's left side is free for the search field. */}
           <HeaderSearch />
-          <div data-nav-brand className='flex min-w-0 items-center gap-3 lg:gap-7'>
-            <div className='lg:hidden'>
-              <MobileNav pathname={pathname} />
-            </div>
+
+          {/* Narrow only: the way into the drawer, and the mark. Everything else that used
+              to sit on this row is inside the drawer now. */}
+          <div className='flex min-w-0 items-center gap-2.5 min-[900px]:hidden'>
+            <MobileNav pathname={pathname} />
             <Wordmark />
-            <DesktopNav pathname={pathname} />
           </div>
-          <div className='flex shrink-0 items-center gap-2'>
+
+          {/* Wide only, for the same reason in reverse: with the rail carrying navigation,
+              this row has the width for the price controls again, and the drawer they'd
+              otherwise live in doesn't exist up here. */}
+          <div className='hidden shrink-0 items-center gap-2 min-[900px]:flex'>
             <LivePrices />
             <ThemeToggle />
             {/* The design's header affordances are bordered circles on the panel surface,
                 not bare glyphs — they have to hold their own against a chart scrolling
-                under the translucent bar.
-
-                Settings and Sign out used to sit here as two more circles, in a
-                `data-nav-icons` group that CSS hid in side-rail mode because the rail's foot
-                carries both. They're inside the account menu now, which changes that
-                calculation: a collapsed menu isn't a visible duplicate of the rail's rows,
-                and it is the only thing in either layout that says whose account they act
-                on. So it stays in both. */}
+                under the translucent bar. The account menu is the only thing in the app
+                that says whose account Settings and Sign out act on, which is why it isn't
+                folded into the rail's rows. */}
             <UserMenu />
           </div>
         </div>

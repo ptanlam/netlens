@@ -1,38 +1,29 @@
-/** Where the chrome sits: the default side rail from the design file
- *  ("Netlens Dashboard - Alpha.dc.html"), or a top bar.
+/** Sidebar preferences.
  *
- *  Device-local like the theme — it's a preference about this screen, not about the data,
- *  so it lives in localStorage and never touches the DB. Both flags are mirrored onto
- *  <html> as `data-nav` / `data-nav-collapsed`, because the rail itself is CSS
- *  (`app/globals.css`): the header renders once and the rail is a sibling that CSS shows
- *  or hides, so <LivePrices> — the app's only price poller — is never mounted twice.
- *  An inline script in `app/layout.tsx` stamps both before first paint, which is what
- *  keeps the rail from flashing in as a top bar on every load.
+ *  There used to be a choice here — the design's side rail, or a top bar carrying the links
+ *  across the header. The top bar is gone: below the rail's breakpoint it was the *only*
+ *  layout either setting produced, and on a phone it had to hold a drawer trigger, the
+ *  wordmark, the price controls, a theme toggle and the account button on one 70px row.
+ *  What is left is the rail, and the drawer it becomes on a narrow screen — one navigation
+ *  surface at every width instead of two that had to be kept in step.
+ *
+ *  The width of that rail is still a preference. Device-local like the theme — it's about
+ *  this screen, not about the data, so it lives in localStorage and never touches the DB.
+ *  It's mirrored onto <html> as `data-nav-collapsed`, because the rail is CSS
+ *  (`app/globals.css`): the header renders once and the rail is a sibling, which is what
+ *  keeps the app's single price poller from being mounted twice. An inline script in
+ *  `app/layout.tsx` stamps it before first paint, so a collapsed rail never flashes open.
  */
 
 import * as React from "react";
 
-export const NAV_LAYOUT_KEY = "pf.nav-layout";
 export const NAV_COLLAPSED_KEY = "pf.nav-collapsed";
 
-export const NAV_LAYOUTS = [
-  { value: "side", label: "Sidebar", hint: "Links down the left edge" },
-  { value: "top", label: "Top bar", hint: "Links across the header" },
-] as const;
-
-export type NavLayout = (typeof NAV_LAYOUTS)[number]["value"];
-
-export function isNavLayout(v: unknown): v is NavLayout {
-  return NAV_LAYOUTS.some((l) => l.value === v);
-}
-
-/** The snippet that runs before paint. Kept next to the readers so the keys and the
- *  fallbacks can't drift apart. */
-export const NAV_LAYOUT_SCRIPT = `try{var d=document.documentElement,s=localStorage;d.dataset.nav=s.getItem(${JSON.stringify(
-  NAV_LAYOUT_KEY,
-)})==='top'?'top':'side';if(s.getItem(${JSON.stringify(
+/** The snippet that runs before paint. Kept next to the readers so the key and the
+ *  fallback can't drift apart. */
+export const NAV_PREF_SCRIPT = `try{if(localStorage.getItem(${JSON.stringify(
   NAV_COLLAPSED_KEY,
-)})==='1')d.dataset.navCollapsed='1'}catch(e){document.documentElement.dataset.nav='side'}`;
+)})==='1')document.documentElement.dataset.navCollapsed='1'}catch(e){}`;
 
 // Same tiny-store shape as the auto-refresh setting in `components/live-prices.tsx`:
 // useSyncExternalStore keeps the SSR snapshot from desyncing against the saved value, and
@@ -48,41 +39,30 @@ function subscribe(cb: () => void) {
   };
 }
 
-function save(key: string, value: string | null) {
+function readCollapsed(): boolean {
+  return document.documentElement.dataset.navCollapsed === "1";
+}
+
+export function setNavCollapsed(next: boolean) {
+  const d = document.documentElement;
+  if (next) d.dataset.navCollapsed = "1";
+  else delete d.dataset.navCollapsed;
   try {
-    if (value == null) window.localStorage.removeItem(key);
-    else window.localStorage.setItem(key, value);
+    if (next) window.localStorage.setItem(NAV_COLLAPSED_KEY, "1");
+    else window.localStorage.removeItem(NAV_COLLAPSED_KEY);
   } catch {
     // Private mode / storage disabled: the choice still applies for this page.
   }
   for (const cb of listeners) cb();
 }
 
-function readLayout(): NavLayout {
-  const v = document.documentElement.dataset.nav;
-  return isNavLayout(v) ? v : "side";
-}
-
-function readCollapsed(): boolean {
-  return document.documentElement.dataset.navCollapsed === "1";
-}
-
-export function setNavLayout(v: NavLayout) {
-  document.documentElement.dataset.nav = v;
-  save(NAV_LAYOUT_KEY, v);
-}
-
 export function toggleNavCollapsed() {
-  const next = !readCollapsed();
-  const d = document.documentElement;
-  if (next) d.dataset.navCollapsed = "1";
-  else delete d.dataset.navCollapsed;
-  save(NAV_COLLAPSED_KEY, next ? "1" : null);
+  setNavCollapsed(!readCollapsed());
 }
 
-/** The current layout. Server (and the first client pass) always sees the default — the
- *  pre-paint script has already applied the real one to the DOM, so this only ever drives
- *  behaviour and labels, never the choice of markup. */
-export function useNavLayout(): NavLayout {
-  return React.useSyncExternalStore(subscribe, readLayout, () => "side" as const);
+/** Whether the rail is showing icons only. Server (and the first client pass) always sees
+ *  the expanded default — the pre-paint script has already applied the real value to the
+ *  DOM, so this only ever drives labels, never the choice of markup. */
+export function useNavCollapsed(): boolean {
+  return React.useSyncExternalStore(subscribe, readCollapsed, () => false);
 }
