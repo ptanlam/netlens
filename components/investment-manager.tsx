@@ -19,6 +19,7 @@ import { SummaryCards, type Stat } from "@/components/stat-card";
 import { AllocationCard, HoldingsListCard, typeColor } from "@/components/portfolio-panels";
 import { usePnlHistory } from "@/components/use-pnl-history";
 import { PageHeader } from "@/components/page-header";
+import { ReturnsCard } from "@/components/returns-card";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { holdingLogo } from "@/lib/logos";
 import { cn } from "@/lib/utils";
@@ -243,8 +244,10 @@ export function InvestmentManager({
   sourceKeys: string[];
 }) {
   // Shared with the dashboard, so arriving here from it costs nothing: the series is
-  // already in the module cache. Only the per-holding breakdown is used — the row sparks.
-  const { holdings: holdingSeries, live } = usePnlHistory(historyStamp);
+  // already in the module cache. The per-holding breakdown draws the row sparks, and both
+  // it and the aggregate series feed the Returns panel — which is why that panel costs
+  // nothing beyond the fetch this page was already making.
+  const { series, holdings: holdingSeries, live } = usePnlHistory(historyStamp);
   const figures = live ?? payload;
 
   // Totals stay over every holding so archiving a sold-out one never moves a KPI — its
@@ -307,6 +310,13 @@ export function InvestmentManager({
         <div className="flex min-w-0 flex-[2_1_320px] flex-col">
           <HoldingsListCard payload={figures} holdingSeries={holdingSeries} />
         </div>
+      </div>
+
+      {/* Under the panels that say what you hold, because it asks the next question: was any
+          of it a good idea. The tiles above quote profit, which ranks holdings by how much
+          money you put in them; this is the rate you actually earned. */}
+      <div className="mt-3 sm:mt-4">
+        <ReturnsCard series={series} holdings={holdingSeries} />
       </div>
 
       <div className="mt-6 mb-3.5">
