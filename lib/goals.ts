@@ -218,8 +218,12 @@ function savingsAt(w: GoalWorld, months: number): number {
  * `debtOwed` can't be asked this directly: at a future date it accrues interest but
  * subtracts only the payments already *recorded*, so it would project every debt as
  * growing forever. We model the repayments instead.
+ *
+ * Exported for `lib/forecast.ts`, which projects the same debts on the same schedule. A
+ * second copy of this would be a second opinion about when a loan is cleared, and the two
+ * screens would eventually disagree about it.
  */
-function projectedOwed(w: GoalWorld, d: GoalDebt, months: number): number {
+export function projectedOwed(w: GoalWorld, d: GoalDebt, months: number): number {
   const owedNow = debtOwed(d, w.paymentsByDebt[d.id] ?? [], new Date(w.nowMs));
   if (owedNow <= 0) return 0;
 
