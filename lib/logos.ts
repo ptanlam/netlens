@@ -26,6 +26,8 @@ const LOGOS: Record<string, string> = {
   // Crypto — keyed by CoinGecko id as well as ticker
   BITCOIN: "bitcoin",
   BTC: "bitcoin",
+  ETHEREUM: "ethereum",
+  ETH: "ethereum",
 };
 
 /** `SSI.VN` → `SSI`, `btc-usd` → `BTC`: drop the venue/quote a feed's symbol carries. */

@@ -225,10 +225,11 @@ export function RefreshPricesButton() {
 /**
  * The polling itself, with no UI of its own.
  *
- * Split out from `<LivePrices>` because the controls are now rendered in two places — the
- * header on a wide screen, the drawer on a narrow one — and the polling must happen in
- * exactly one. Every timer, catch-up and open-time pull lives here; mount this once, high
- * in the tree, and render the controls wherever they fit.
+ * Split out from `<LivePrices>` so that where the controls are drawn and how often prices
+ * are pulled stop being the same decision — every timer, catch-up and open-time pull lives
+ * here, and moving the controls (they have been in the header, then a drawer footer, then
+ * the header again) can no longer double or silence the API calls. Mount this once, high
+ * in the tree.
  *
  * Returns null. It is a behaviour, not a thing on screen.
  */
@@ -307,14 +308,13 @@ export function PricePoller() {
 }
 
 /** The price controls: a clock, a Live pill that doubles as the interval picker, and a
- *  manual refresh. Pure UI — `<PricePoller>` does the polling, so this can be rendered in
- *  the header and in the drawer at the same time without doubling the API calls.
+ *  manual refresh. Pure UI — `<PricePoller>` does the polling.
  *
- *  `compact` drops every word and the clock, whatever the viewport. The responsive variants
- *  below key off the *screen*, which is the right question in the header and the wrong one
- *  in the drawer: at 768px they spell "Live" and "Refresh" out in full inside a 272px panel,
- *  and the account button falls off the end of the row. */
-export function LivePrices({ compact = false }: { compact?: boolean }) {
+ *  Every variant below keys off the *screen*, because the header is the only place these
+ *  are drawn and it spans the viewport at every width. A `compact` prop briefly overrode
+ *  that for a stint inside the 272px nav drawer, where the screen was the wrong question;
+ *  the drawer no longer holds them, so the breakpoints alone are right again. */
+export function LivePrices() {
   const { pending, run } = useRefreshPrices();
   const intervalMs = React.useSyncExternalStore(subscribeInterval, readInterval, () => 0);
   const live = intervalMs > 0;
@@ -344,14 +344,13 @@ export function LivePrices({ compact = false }: { compact?: boolean }) {
 
   // A phone can't hold the full row, so both controls drop their words below `sm`:
   // the pill keeps the dot + interval ("● 1m" / "● Off") and Refresh becomes its icon.
-  // "hidden" outright when compact, rather than at a breakpoint.
-  const word = compact ? "hidden" : "hidden sm:inline";
+  const word = "hidden sm:inline";
 
   return (
     <div className="flex shrink-0 items-center gap-2 lg:gap-3.5">
       {/* The rail carries the links now, but the clock still waits for xl — the header's
           search field is the thing it shares its row with. */}
-      <div className={cn("hidden text-right leading-tight", !compact && "xl:block")}>
+      <div className="hidden text-right leading-tight xl:block">
         <div className="text-[11.5px] text-faint">Live prices</div>
         <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
       </div>
@@ -378,7 +377,7 @@ export function LivePrices({ compact = false }: { compact?: boolean }) {
               {label}
             </span>
           ) : (
-            <span className={compact ? undefined : "sm:hidden"}>Off</span>
+            <span className="sm:hidden">Off</span>
           )}
         </SelectTrigger>
         <SelectContent>

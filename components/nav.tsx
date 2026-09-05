@@ -87,7 +87,15 @@ function isActive(pathname: string, href: string) {
  *  across two weights — "Net" solid, "lens" light and dropped to secondary ink. The glow is
  *  the only luminosity in the theme, which is what fixes the accent in the eye before any
  *  chart uses it. */
-function BrandMark({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
+function BrandMark({
+  size = 'sm',
+  hideWord = false,
+}: {
+  size?: 'sm' | 'lg';
+  /** Drop the word below 420px, keeping the tile. Only the top bar asks for this — see
+   *  `Wordmark`; the rail and the drawer both have the width for it. */
+  hideWord?: boolean;
+}) {
   const lg = size === 'lg';
   return (
     <>
@@ -105,6 +113,7 @@ function BrandMark({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
         className={cn(
           'truncate font-bold whitespace-nowrap tracking-[-0.02em]',
           lg ? 'text-[19px]' : 'text-[17px]',
+          hideWord && 'max-[419px]:hidden',
         )}
       >
         Net<span className='font-normal text-muted-foreground'>lens</span>
@@ -115,15 +124,17 @@ function BrandMark({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
 
 function Wordmark() {
   return (
-    // It used to hide below 360px, because the price controls, a theme toggle and the
-    // account button were on this row and something had to go. They're in the drawer now,
-    // so the narrow header is the trigger and the mark, and both always fit.
+    // The tile always; the word only from 420px up. With the price controls, the theme
+    // toggle and the account button back on this row, the word is the one thing here that
+    // is pure decoration — the tile is the same home link, and the drawer's own title
+    // spells the name out. Losing it below 420px is what buys the controls their space on
+    // a small phone; above it everything fits at once.
     <Link
       href='/'
       className='flex shrink-0 items-center gap-2.5 text-foreground'
       aria-label='Netlens — home'
     >
-      <BrandMark />
+      <BrandMark hideWord />
     </Link>
   );
 }
@@ -281,13 +292,14 @@ function MobileNav({ pathname }: { pathname: string }) {
             ))}
           </nav>
 
-          {/* Everything that used to be crammed into the narrow header. The price controls
-              are the reason this footer exists: below the rail's breakpoint they were
-              sharing a 70px row with the drawer trigger, the wordmark, a theme toggle and
-              the account button, and each one had a `sm:hidden` variant apologising for it.
-              Polling is unaffected — `<PricePoller>` is mounted in the header and these are
-              only the controls. */}
-          <div className='mt-auto flex flex-col gap-3 border-t border-border pt-3'>
+          {/* Only Settings. The price controls, the theme toggle and the account button
+              spent a while down here, on the theory that the narrow header had no width
+              for them — but a drawer you have to open first is a bad home for a control
+              you glance at (the live clock and the refresh state) or reach for in one tap.
+              They're back on the top bar at every width; what made that row impossible
+              before was its 70px height and the full-width wordmark, and neither is there
+              now. */}
+          <div className='mt-auto border-t border-border pt-3'>
             <Link
               href='/settings'
               onClick={() => setOpen(false)}
@@ -301,13 +313,6 @@ function MobileNav({ pathname }: { pathname: string }) {
               <Settings className='size-4' />
               Settings
             </Link>
-            <div className='flex items-center justify-between gap-2 px-1'>
-              <LivePrices compact />
-              <div className='flex shrink-0 items-center gap-1'>
-                <ThemeToggle />
-                <UserMenu />
-              </div>
-            </div>
           </div>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
@@ -420,17 +425,20 @@ export function Nav() {
               the header's left side is free for the search field. */}
           <HeaderSearch />
 
-          {/* Narrow only: the way into the drawer, and the mark. Everything else that used
-              to sit on this row is inside the drawer now. */}
+          {/* Narrow only: the way into the drawer, and the mark. From 900px the rail
+              carries both and the search field takes this side of the row instead. */}
           <div className='flex min-w-0 items-center gap-2.5 min-[900px]:hidden'>
             <MobileNav pathname={pathname} />
             <Wordmark />
           </div>
 
-          {/* Wide only, for the same reason in reverse: with the rail carrying navigation,
-              this row has the width for the price controls again, and the drawer they'd
-              otherwise live in doesn't exist up here. */}
-          <div className='hidden shrink-0 items-center gap-2 min-[900px]:flex'>
+          {/* At every width, which is the point: the price controls are the app's only
+              live thing, and burying them in a drawer meant you had to open the drawer to
+              find out whether the figures on screen were current. `LivePrices` already
+              answers the narrow row on its own — the clock waits for xl, and both controls
+              drop their words below sm to a dot + interval and a bare refresh glyph — so
+              the phone gets the same three controls, spelt shorter. */}
+          <div className='flex shrink-0 items-center gap-1.5 sm:gap-2'>
             <LivePrices />
             <ThemeToggle />
             {/* The design's header affordances are bordered circles on the panel surface,
