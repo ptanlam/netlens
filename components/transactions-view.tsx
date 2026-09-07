@@ -596,36 +596,57 @@ const SERIES_HUES = [
 ];
 
 /**
+ * The strengths a hue is painted at, in the order the slots are handed out: every hue at
+ * full strength first, then every hue again a lap weaker, and so on.
+ *
+ * Both weaker laps mix toward something that reads the same way in Daylight and in Midnight
+ * — *transparent*, which thins the hue against whatever the card is, and *the foreground*,
+ * which is near-black in one theme and near-white in the other and so always lands on the
+ * far side of the full-strength hue from the thinned one. Three paints per hue that no
+ * reader has to hold a key in their head to tell apart.
+ */
+const SERIES_LAPS: ((hue: string) => string)[] = [
+  (hue) => hue,
+  (hue) => `color-mix(in srgb, ${hue} 55%, transparent)`,
+  (hue) => `color-mix(in srgb, ${hue} 62%, var(--foreground))`,
+];
+
+/** How many segments of one column can be given a paint of their own. */
+const PALETTE_SLOTS = SERIES_HUES.length * SERIES_LAPS.length;
+
+/**
  * How many holdings keep a colour of their own before the rest are folded into one segment.
  *
- * The ceiling is the palette, not taste. The theme defines five chart hues; the half-strength
- * lap below stretches those to ten paints that can still be told apart where they meet inside
- * a column, and past that two holdings in the same month would be painted the same. Eight
- * named plus "Other" stays inside that with a slot to spare, and — more to the point — keeps
- * the legend a line you read rather than a wall of chips over a short chart. A portfolio's
- * long tail is a hairline of a segment anyway; "Other" says so in one honest row.
+ * Derived from the palette rather than picked, which is the point: the cap used to be the
+ * literal 8 that the palette happened to afford back when it was five hues over two laps,
+ * so buying into a ninth holding quietly folded the newest (and so usually the smallest)
+ * position into "Other" — the one line on the chart you had just added it to see. A third
+ * lap and a computed cap mean adding a holding widens the legend instead, and the number
+ * here can never drift from the number of paints that actually exist.
+ *
+ * There is still a ceiling, and it is the honest one: past it two holdings in the same
+ * month would be painted alike, and a long tail of hairline segments is better said once in
+ * a row named "Other" than drawn as fourteen slivers nobody can pick apart. `OTHER` is
+ * painted from outside the palette, so it costs no slot — the spare one is legibility
+ * margin for the legend, which is a line you read rather than a wall of chips.
  */
-const TOP_INSTRUMENTS = 8;
+const TOP_INSTRUMENTS = PALETTE_SLOTS - 1;
 
 /** The fold-in row. A name, because it is a series key like any other. */
 const OTHER = "Other";
 
 /**
- * A slot's paint. Same trick as the subscription forecast: every second lap round the five
- * hues comes back at half strength, and the weaker variant mixes toward *transparent* rather
- * than toward the card, so it reads as the same hue in Daylight and in Midnight.
+ * A slot's paint: the hues in order, coming back a lap weaker each time round.
  *
  * Colour follows the stack position here rather than the holding, which is the opposite of
  * `TYPE_COLORS` above and deliberate: the series set is itself derived from the window (the
- * top eight *within the picked range*), so there is no stable list of holdings to hand fixed
- * slots to. What a reader needs instead is the guarantee that no two segments of one column
- * share a paint, and ranking gives exactly that.
+ * top holdings *within the picked range*), so there is no stable list of holdings to hand
+ * fixed slots to. What a reader needs instead is the guarantee that no two segments of one
+ * column share a paint, and ranking gives exactly that.
  */
 function slotFill(i: number): string {
   const hue = SERIES_HUES[i % SERIES_HUES.length];
-  return Math.floor(i / SERIES_HUES.length) % 2 === 0
-    ? hue
-    : `color-mix(in srgb, ${hue} 55%, transparent)`;
+  return SERIES_LAPS[Math.floor(i / SERIES_HUES.length) % SERIES_LAPS.length](hue);
 }
 
 /** Which side of the axis a segment sits on. Buys stack up from zero, sells stack down. */
