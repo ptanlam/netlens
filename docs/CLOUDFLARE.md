@@ -222,6 +222,27 @@ is atomic but can't branch mid-way.
 `setInterval`, so `instrumentation.ts` was replaced by a `scheduled()` handler on the
 schedule in `wrangler.jsonc`.
 
+**The cron trigger is every minute; the refresh cadence is not.** `crons` fires every
+minute and `refreshScheduled()` (`lib/prices.ts`) decides whether that minute is due,
+against an **account-wide setting in `meta`** — `price_refresh_ms`, written by the header
+pill through `setPriceRefresh` — and `meta.prices_refreshed_at`, stamped by every
+`refreshAll()`. So one cron expression serves every cadence on the menu, `Off` really is
+off, and changing how often prices are pulled doesn't need a deploy. A tick that isn't due
+costs one D1 read and logs nothing.
+
+This is *the* price scheduler. Browsers used to run their own — an interval in
+`localStorage` plus a pull on open, each firing the `refreshPrices` server action — which
+meant the schedule was whatever tab happened to be open, two devices ran two of them, and
+merely visiting the app spent a round of upstream API calls. `components/live-prices.tsx`
+now polls `GET /api/price-status` (one `meta` read) to notice the stamp moved and
+re-renders; the only browser path left to an upstream feed is the reader pressing Refresh
+or pulling to refresh.
+
+To exercise it locally, `wrangler dev` exposes the handler:
+```bash
+curl "http://localhost:8787/cdn-cgi/handler/scheduled"   # one tick, as Cloudflare would
+```
+
 **The password gate also lives in `custom-worker.ts`.** It was `proxy.ts`. Next.js 16 runs
 Proxy on the Node.js runtime and rejects a `runtime` override, and the adapter refuses
 Node.js middleware — so no `proxy.ts` can build at all. Doing it in the Worker is arguably

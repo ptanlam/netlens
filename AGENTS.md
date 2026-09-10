@@ -58,6 +58,22 @@ Apply the migration with `pnpm db:migrate` (local). Production is handled by `pn
 
 `lib/savings.ts` holds the shared interest maths over an `Accruing` shape (`{principal, rate, start_date, term_months, interest_type}`). Savings deposits and debts both use `currentValue` / `maturityValue` / `summarize` / `isMatured`. A debt with `term_months <= 0` is **revolving** (credit card): open-ended, never matures. The dashboard **Net worth = investments + savings + fund cash − debts** (`components/net-worth.tsx`).
 
+## Prices refresh on the server, on one clock
+
+**A browser never fetches prices on a timer.** The cron in `custom-worker.ts` is the only
+scheduled refresher; the cadence is one account-wide row in `meta` (`price_refresh_ms`,
+default 5m, `Off` allowed), written by the header pill via `setPriceRefresh` and read by
+`refreshScheduled()` in `lib/prices.ts`. The Cron Trigger fires every minute and that
+function decides whether the minute is due — which is why the cadence is a setting rather
+than a `wrangler.jsonc` edit, and why nothing below a minute is on the menu.
+
+`components/live-prices.tsx` only *watches*: it polls `GET /api/price-status` (one `meta`
+read) and, when `meta.prices_refreshed_at` moves, bumps the refresh count and
+`router.refresh()`es a route that draws prices. The two paths still allowed to fetch from a
+browser are both deliberate acts — the header's Refresh button and the pull-to-refresh
+gesture. **Don't re-add an open-time or interval fetch here**: that made every visit spend a
+round of upstream API calls, and put the schedule in whichever tab happened to be open.
+
 ## Subscriptions
 
 A subscription is a **rate of spend**, and the only tracked entity that deliberately stays

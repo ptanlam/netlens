@@ -16,11 +16,17 @@
  * `refreshHistory` (deep, 12h) and `sweepRecentHistory` (the last few days, 30m) both
  * self-throttle internally, so calling them each tick is cheap — together they are how new
  * daily closes / NAV dates land without someone opening the app.
+ *
+ * Live prices work the same way now. The tick is every minute, but `refreshScheduled`
+ * fetches only when the account's stored cadence says it is due (`meta.price_refresh_ms`,
+ * set from the header pill) — so one cron expression serves every cadence on the menu, and
+ * a browser opening the app no longer spends a round of upstream calls to see fresh
+ * figures. **This is the only thing that fetches prices on a schedule.**
  */
 // Generated at build time by the adapter; typed in types/open-next.d.ts.
 import { default as handler } from "./.open-next/worker.js";
 import { bindD1 } from "./lib/db";
-import { refreshAll, refreshHistory, sweepRecentHistory } from "./lib/prices";
+import { refreshHistory, refreshScheduled, sweepRecentHistory } from "./lib/prices";
 
 export default {
   /**
@@ -51,7 +57,10 @@ export default {
     ctx.waitUntil(
       (async () => {
         try {
-          const [updated, errors] = await refreshAll();
+          // `null` = this minute wasn't due under the account's cadence, and says so by
+          // logging nothing: most ticks are skips now that the trigger runs every minute.
+          const live = await refreshScheduled();
+          const errors = live ? live[1] : [];
           // Deep backfill (12h) plus a narrow sweep (30m) of the last few days, so a
           // close that settles mid-gate lands within the half hour instead of waiting
           // out the backfill. Both self-throttle, so calling them each tick is cheap.
@@ -59,9 +68,9 @@ export default {
           errors.push(...(await sweepRecentHistory())[1]);
           if (errors.length)
             console.error(
-              `[price-cron] updated ${updated}, ${errors.length} failed:\n  - ${errors.join("\n  - ")}`,
+              `[price-cron] updated ${live?.[0] ?? 0}, ${errors.length} failed:\n  - ${errors.join("\n  - ")}`,
             );
-          else console.log(`[price-cron] updated ${updated} price(s)`);
+          else if (live) console.log(`[price-cron] updated ${live[0]} price(s)`);
         } catch (e) {
           console.error("[price-cron] refresh failed:", e);
         }

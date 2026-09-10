@@ -7,7 +7,8 @@ import {
 } from "@/lib/prices";
 import { fmtVND } from "@/lib/format";
 import {
-  BILLING_CYCLES, GOAL_METRICS, SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES,
+  BILLING_CYCLES, GOAL_METRICS, PRICE_REFRESH_INTERVALS, SUBSCRIPTION_CATEGORIES,
+  TARGET_CURRENCIES, normalizePriceRefreshMs,
   type BillingCycle, type GoalMetric, type SubscriptionCategory, type TargetCurrency,
 } from "@/lib/types";
 
@@ -566,20 +567,51 @@ export async function saveHoldings(fd: FormData) {
   return { ok: true, message: "Holdings saved." };
 }
 
-/** `withHistory` also pulls the last couple of days of closes/NAVs — a fund publishes its
- *  NAV a day late, so a live refresh alone can't move it and the day would otherwise sit
- *  unsettled until the 12h backfill. Only a deliberate refresh asks for it; the every-tick
- *  auto-refresh doesn't, since that would hit each upstream history feed every minute. */
-export async function refreshPrices(withHistory = false) {
+/**
+ * Refresh now, on demand — the header button and the pull-to-refresh gesture, and nothing
+ * else. The *schedule* is the cron's (see `setPriceRefresh` and `refreshScheduled`); this
+ * is the reader saying "don't wait for it".
+ *
+ * It also pulls the last couple of days of closes/NAVs: a fund publishes its NAV a day
+ * late, so a live refresh alone can't move it and the day would otherwise sit unsettled
+ * until the 12h backfill. That used to be conditional, because the every-few-seconds
+ * auto-tick called this too and would have hit each upstream history feed every minute.
+ * There is no auto-tick in the browser any more, so every call is a deliberate one and
+ * they all want the full thing.
+ */
+export async function refreshPrices() {
   const [updated, errors] = await refreshAll();
-  if (withHistory) errors.push(...(await refreshRecentHistory())[1]);
+  errors.push(...(await refreshRecentHistory())[1]);
   revalidateAll();
   return {
     ok: errors.length === 0,
     message: `Updated ${updated} price(s).` + (errors.length ? ` ${errors.length} failed.` : ""),
-    // Per-source failure reasons, so the client can log them (a silent auto-refresh shows
-    // no toast but still writes an error log).
+    // Per-source failure reasons, so the client can log which feed was down — the toast
+    // only has room for the count.
     errors,
+  };
+}
+
+/**
+ * Set how often the *server* re-quotes prices, for the whole account.
+ *
+ * One clock, stored once. The cadence used to be a localStorage value per browser, and the
+ * browser that held it did the fetching — so the schedule was whatever tab happened to be
+ * open, two devices ran two of them, and the setting could not be changed from the phone
+ * for the laptop. Writing it here means the cron in `custom-worker.ts` is the only thing
+ * that fetches on a schedule, and every device is merely reading what it wrote.
+ *
+ * No `revalidateAll()`: nothing server-rendered is derived from the cadence. The pill that
+ * sets it reads `/api/price-status`, which is uncached.
+ */
+export async function setPriceRefresh(ms: number) {
+  const value = normalizePriceRefreshMs(ms);
+  await db.setPriceRefreshMs(value);
+  const label = PRICE_REFRESH_INTERVALS.find((i) => i.ms === value)?.label;
+  return {
+    ok: true,
+    ms: value,
+    message: value ? `Prices refresh every ${label}, on every device.` : "Automatic price refresh off.",
   };
 }
 

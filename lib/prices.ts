@@ -10,7 +10,7 @@
  */
 import {
   isDormant, listInstruments, listPriceSources, updatePrice, upsertPriceHistory,
-  metaGet, metaSet, setFxRates, syncFxTargets, todayIso,
+  markPricesRefreshed, metaGet, metaSet, priceStatus, setFxRates, syncFxTargets, todayIso,
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
 import { MANUAL_SOURCE } from "./types";
@@ -274,7 +274,38 @@ export async function refreshAll(): Promise<[number, string[]]> {
   // act that quotes a holding, and there is no second mechanism to remember to run.
   errors.push(...(await refreshFxRates()));
 
+  // Stamped here, at the one place every refresh passes through — the cron, the header
+  // button, the pull-to-refresh — so "when were these prices last pulled" has a single
+  // answer that no caller can forget to write. It is also the schedule's clock (see
+  // `refreshScheduled`) and the client's cue that the figures on screen have moved.
+  await markPricesRefreshed();
+
   return [updated, errors];
+}
+
+/** A tick that lands a hair before the interval is up still counts. The cron fires on the
+ *  minute and the stamp is written when the *previous* run finished, so a 5-minute schedule
+ *  is always a few seconds past 5 minutes by the time the next tick asks — without this
+ *  tolerance every schedule quietly slips a whole minute. */
+const DUE_SKEW_MS = 20_000;
+
+/**
+ * The account's schedule, applied. This is what the cron calls.
+ *
+ * Prices are refreshed **on the server, on one clock**, at the cadence stored in `meta`
+ * (see `db.priceStatus`). The cron ticks every minute and this decides whether the tick is
+ * actually due, which is what lets one cron expression serve every cadence on the menu —
+ * and what lets "Off" mean off, rather than "off in this browser".
+ *
+ * Returns `null` — not `[0, []]` — for a tick that wasn't due, so the caller can stay quiet
+ * about it. Most ticks are skips, and a log line a minute saying nothing happened is how a
+ * log stops being read.
+ */
+export async function refreshScheduled(): Promise<[number, string[]] | null> {
+  const { intervalMs, atMs } = await priceStatus();
+  if (!intervalMs) return null;
+  if (atMs != null && Date.now() - atMs < intervalMs - DUE_SKEW_MS) return null;
+  return refreshAll();
 }
 
 export interface PriceTestResult {

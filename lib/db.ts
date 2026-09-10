@@ -18,7 +18,8 @@
  * The schema lives in `migrations/`, not in a string here — see `migrations/0001_init.sql`.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, RecurringRule, Saving, Subscription, Tx } from "./types";
+import type { Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, PriceStatus, RecurringRule, Saving, Subscription, Tx } from "./types";
+import { normalizePriceRefreshMs } from "./types";
 import { fundCashAt, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
 
@@ -862,6 +863,40 @@ export async function metaGet(key: string): Promise<string | null> {
 
 export async function metaSet(key: string, value: string) {
   await q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").run(key, value);
+}
+
+// ---------- the price refresh schedule ----------
+//
+// One cadence for the account, in `meta` beside the FX stamps rather than in a table:
+// there is exactly one row of it, and it is configuration, not data with a history.
+// `lib/prices.ts` reads it on every cron tick; the header pill writes it.
+
+const PRICE_INTERVAL_KEY = "price_refresh_ms";
+/** When a refresh last *ran*. Stamped even when every feed failed — this is the throttle's
+ *  clock, and a feed that is down must not be retried every single minute. */
+const PRICES_REFRESHED_AT_KEY = "prices_refreshed_at";
+
+/** The schedule and its last run, in one query — the two are never wanted apart, and on D1
+ *  a second `metaGet` is a second network round trip. */
+export async function priceStatus(): Promise<PriceStatus> {
+  const rows = await q("SELECT key, value FROM meta WHERE key IN (?,?)")
+    .all<{ key: string; value: string }>(PRICE_INTERVAL_KEY, PRICES_REFRESHED_AT_KEY);
+  const by = new Map(rows.map((r) => [r.key, r.value]));
+  const at = by.get(PRICES_REFRESHED_AT_KEY);
+  // `nowIso` trims the "Z", so put it back before parsing or this reads as local time.
+  const atMs = at ? Date.parse(at + "Z") : NaN;
+  return {
+    atMs: Number.isFinite(atMs) ? atMs : null,
+    intervalMs: normalizePriceRefreshMs(Number(by.get(PRICE_INTERVAL_KEY))),
+  };
+}
+
+export async function setPriceRefreshMs(ms: number) {
+  await metaSet(PRICE_INTERVAL_KEY, String(normalizePriceRefreshMs(ms)));
+}
+
+export async function markPricesRefreshed() {
+  await metaSet(PRICES_REFRESHED_AT_KEY, nowIso());
 }
 
 // ---------- exchange rates ----------

@@ -4,93 +4,98 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { refreshPrices } from "@/app/actions";
+import { refreshPrices, setPriceRefresh } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { PRICE_REFRESH_INTERVALS, type PriceStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "pf.auto-refresh-ms";
-
-/** When prices were last pulled, in localStorage rather than a ref: a reload — or a second
- *  tab — has to know that live refresh already fetched a moment ago, or every visit pays
- *  for prices it was about to get anyway. */
-const LAST_RUN_KEY = "pf.prices-last-run";
-
-function readLastRun() {
-  const t = Number(window.localStorage.getItem(LAST_RUN_KEY));
-  // A clock change (or a hand-edited value) can leave a timestamp in the future; treat
-  // anything that isn't a sane past instant as "never pulled".
-  return Number.isFinite(t) && t > 0 && t <= Date.now() ? t : 0;
-}
-
-function writeLastRun() {
-  try {
-    window.localStorage.setItem(LAST_RUN_KEY, String(Date.now()));
-  } catch {
-    // Private mode / storage disabled: we just lose the cross-reload memory.
-  }
-}
-
-/** Have prices gone unfetched for longer than the armed interval? */
-function overdue(intervalMs: number) {
-  return Date.now() - readLastRun() >= intervalMs;
-}
-
-/** Live refresh hits CoinGecko / Yahoo / fmarket on every tick. 5s is the fastest — handy
- *  for watching crypto move in near-real-time, but it leans on the free-tier limits, so the
- *  slower steps stay the sensible default for leaving a tab open all day. */
-const INTERVALS = [
-  { ms: 0, label: "Off" },
-  { ms: 5_000, label: "5s" },
-  { ms: 30_000, label: "30s" },
-  { ms: 60_000, label: "1m" },
-  { ms: 300_000, label: "5m" },
-  { ms: 900_000, label: "15m" },
-] as const;
-
-const VALID_MS = new Set<number>(INTERVALS.map((i) => i.ms));
-
-/** Routes that actually render something a price refresh can move: the dashboard, the
- *  holdings themselves, and goals (whose progress is read off the investments total).
- *  Savings, debts and transactions display none of it — `/transactions` only redirects.
+/**
+ * Price controls — and, deliberately, no price fetching on a timer.
  *
- *  This component lives in the nav, so it is mounted everywhere. Without this gate a tick
- *  on `/savings` still fetched every upstream feed and re-rendered a page with no price on
- *  it, which on the dashboard is ~19 D1 queries' worth of work for nothing. */
-const PRICED_ROUTES = ["/", "/investments", "/goals"];
+ * **The server refreshes prices; a browser only watches.** This file used to own the
+ * schedule: an interval in `localStorage`, a pull on open, a `setTimeout` loop, and each
+ * tick calling the `refreshPrices` server action, which went out to CoinGecko / Yahoo /
+ * fmarket. Three things were wrong with that. The cadence was per-browser, so the laptop
+ * and the phone ran two different schedules and neither could see the other's; the pull on
+ * open spent a round of upstream calls every time the app was merely *looked at*; and with
+ * no tab open, nothing refreshed at all beyond the cron's own fixed five minutes.
+ *
+ * Now the cadence is one account-wide setting in `meta` (`price_refresh_ms`), the cron in
+ * `custom-worker.ts` is the only thing that acts on it, and this file does two much smaller
+ * jobs: poll `/api/price-status` to notice that the stamp moved (a `meta` read — it never
+ * reaches an upstream feed), and let the reader change the setting or ask for a refresh now.
+ *
+ * A refresh the reader *asks* for is untouched: the header button and the pull-to-refresh
+ * gesture still fetch immediately. What went away is fetching nobody asked for.
+ */
 
-function showsPrices(pathname: string): boolean {
-  return PRICED_ROUTES.some((r) => (r === "/" ? pathname === "/" : pathname.startsWith(r)));
-}
+// ---------- the shared view of what the server is doing ----------
 
-/** A tiny localStorage-backed store, so the live setting survives a reload and every
- *  mount agrees on it. `useSyncExternalStore` is what keeps the SSR snapshot (0 / off)
- *  from desyncing against the client's saved value — and it lets two open tabs stay in
- *  step via the `storage` event. */
-const listeners = new Set<() => void>();
+/** One answer for the whole page: the header pill, the holdings-form button and the poller
+ *  are three components that must not disagree about when prices were last pulled. Module
+ *  scope rather than context — it outlives a route change, so a client-side nav doesn't
+ *  re-ask, and `useSyncExternalStore` keeps every reader in step. */
+let status: PriceStatus | null = null;
+const statusListeners = new Set<() => void>();
 
-function subscribeInterval(cb: () => void) {
-  listeners.add(cb);
-  window.addEventListener("storage", cb);
+function subscribeStatus(cb: () => void) {
+  statusListeners.add(cb);
   return () => {
-    listeners.delete(cb);
-    window.removeEventListener("storage", cb);
+    statusListeners.delete(cb);
   };
 }
 
-function readInterval() {
-  const ms = Number(window.localStorage.getItem(STORAGE_KEY));
-  return VALID_MS.has(ms) ? ms : 0;
+function setStatus(next: PriceStatus) {
+  status = next;
+  for (const cb of statusListeners) cb();
 }
 
-function writeInterval(ms: number) {
-  window.localStorage.setItem(STORAGE_KEY, String(ms));
-  for (const cb of listeners) cb();
+/** What the server says about prices: the account's cadence, and when it last ran.
+ *  `null` until the first read lands. */
+export function usePriceStatus() {
+  return React.useSyncExternalStore(
+    subscribeStatus,
+    () => status,
+    () => null, // the server render can't know; the pill shows a neutral state for one beat
+  );
 }
 
-/** Bumped after every successful refresh. Anything holding price-derived data that the
- *  server can't revalidate on its own — the client-fetched P&L history behind the chart
- *  and calendar — subscribes to this to know it went stale. */
+/** In-flight guard: several effects (a tick, a return to the tab, a route change) can all
+ *  decide to re-read at the same moment, and they all want the same answer. */
+let statusPending: Promise<void> | null = null;
+
+function fetchStatus(): Promise<void> {
+  if (statusPending) return statusPending;
+  statusPending = (async () => {
+    try {
+      const res = await fetch("/api/price-status", { cache: "no-store" });
+      if (res.ok) setStatus((await res.json()) as PriceStatus);
+    } catch {
+      // Offline, or the Worker blinked. Keep the last answer — a stale stamp is a better
+      // thing to show than a blank one, and the next tick will correct it.
+    } finally {
+      statusPending = null;
+    }
+  })();
+  return statusPending;
+}
+
+/** The stamp the UI has already reacted to. Module-level because two different components
+ *  move it: the poller, when it notices the cron ran, and a manual refresh, which knows it
+ *  just caused one. */
+let seenAt: number | null = null;
+
+function markSeen() {
+  if (status?.atMs != null) seenAt = status.atMs;
+}
+
+// ---------- "prices moved" ----------
+
+/** Bumped after every refresh this page has seen — the cron's, or one asked for here.
+ *  Anything holding price-derived data that the server can't revalidate on its own — the
+ *  client-fetched P&L history behind the chart and calendar — subscribes to know it went
+ *  stale. */
 const refreshListeners = new Set<() => void>();
 let refreshCount = 0;
 
@@ -101,7 +106,12 @@ function subscribeRefresh(cb: () => void) {
   };
 }
 
-/** Counts completed price refreshes. Changes → prices moved → today's P&L moved. */
+function bumpRefreshCount() {
+  refreshCount += 1;
+  for (const cb of refreshListeners) cb();
+}
+
+/** Counts price refreshes seen. Changes → prices moved → today's P&L moved. */
 export function usePriceRefreshCount() {
   return React.useSyncExternalStore(
     subscribeRefresh,
@@ -110,9 +120,26 @@ export function usePriceRefreshCount() {
   );
 }
 
-/** Is a refresh in flight? A module-level flag, not component state: both refresh
- *  buttons should spin for the same fetch, and `run` is called straight out of an effect
- *  on open — where a setState would trip the React Compiler's `set-state-in-effect` rule. */
+/**
+ * Routes that actually render something a price refresh can move: the dashboard, the
+ * holdings themselves, and goals (whose progress is read off the investments total).
+ * Savings, debts and transactions display none of it — `/transactions` only redirects.
+ *
+ * It no longer gates *polling* — a status read is a single `meta` row, and the header
+ * clock is on screen everywhere, so it would be odd for it to stop being true on
+ * `/savings`. What it gates is `router.refresh()`, which on the dashboard is ~19 D1
+ * queries' worth of re-render.
+ */
+const PRICED_ROUTES = ["/", "/investments", "/goals"];
+
+function showsPrices(pathname: string): boolean {
+  return PRICED_ROUTES.some((r) => (r === "/" ? pathname === "/" : pathname.startsWith(r)));
+}
+
+// ---------- refreshing on demand ----------
+
+/** Is a refresh in flight? A module-level flag, not component state: both refresh buttons
+ *  should spin for the same fetch. */
 let busy = false;
 const busyListeners = new Set<() => void>();
 
@@ -129,35 +156,30 @@ function setBusy(v: boolean) {
 }
 
 /**
- * Shared refresh logic, behind one in-flight guard so the header button, the live tick and
- * a pull-to-refresh can't stack requests on each other.
+ * Refresh now, because someone asked — the header button, or the pull-to-refresh gesture.
+ * Behind one in-flight guard so the two can't stack requests on each other.
  *
- * `silent` suppresses the success toast so a refresh every few seconds doesn't spam —
- * failures still surface. `force` re-renders the server tree even on the dashboard, which
- * normally opts out because it updates its own price figures from `?today=1`; a refresh the
- * reader *asked* for should also pick up deposits, debts and goal contributions, which that
- * channel doesn't carry.
+ * This is the only path left that reaches an upstream price feed from a browser, and it is
+ * always a deliberate act. It also pulls recent history, so a fund's just-published NAV
+ * lands now rather than whenever the 12h backfill next runs.
  */
 export function useRefreshPrices() {
   const [, startTransition] = React.useTransition();
-  // The dashboard re-reads its own price-derived figures from `?today=1` (see
-  // `DashboardCharts`), so re-rendering the server tree for it is pure waste — that render
-  // costs ~19 D1 queries, of which only the portfolio ones can have moved. Every other
-  // route still needs the refresh: /investments and /goals render prices server-side and
-  // have no such channel. Kept as a route list rather than a flag so the two places that
-  // decide "does this page show prices" stay next to each other.
-  const selfUpdating = usePathname() === "/";
   const pending = React.useSyncExternalStore(
     subscribeBusy,
     () => busy,
     () => false,
   );
-  const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
   const inFlight = React.useRef(false);
   const router = useRouter();
 
+  // No `silent` and no `force` any more — the two flags existed for the auto-tick, which
+  // wanted no toast and no server re-render on the dashboard. Every caller left is a person
+  // pressing something, and a person gets both: the toast that says what happened, and a
+  // full re-render, which also picks up the deposits, debts and goal contributions that the
+  // dashboard's `?today=1` channel deliberately doesn't carry.
   const run = React.useCallback(
-    async ({ silent = false, force = false }: { silent?: boolean; force?: boolean } = {}) => {
+    async () => {
       if (inFlight.current) return; // never stack requests
       inFlight.current = true;
       setBusy(true);
@@ -167,50 +189,39 @@ export function useRefreshPrices() {
         // transitions — so awaiting a 3-6s price fetch in here made every nav click sit
         // dead until the prices came back. The main thread was idle the whole time; it
         // just looked frozen.
-        //
-        // A hand-triggered refresh also pulls recent history, so a fund's just-published
-        // NAV lands now rather than whenever the 12h backfill next runs; the silent
-        // every-tick refresh stays live-prices-only.
-        const res = await refreshPrices(!silent);
-        writeLastRun();
+        const res = await refreshPrices();
+        // Pick up the stamp we just caused, and claim it: the poller must not treat our own
+        // refresh as a second one and render the tree twice.
+        await fetchStatus();
+        markSeen();
+        bumpRefreshCount();
         // Every server-rendered stat (KPIs, allocation, P&L by holding, net worth) is
-        // computed from the DB at render time, so re-render the tree to pick up the
-        // prices we just wrote. The action's revalidatePath alone leaves the client
-        // sitting on the tree it already has. This one *is* a transition: it's a
-        // background update, and it must never block what the reader is doing.
-        if (force || !selfUpdating)
-          startTransition(() => {
-            router.refresh();
-          });
-        refreshCount += 1;
-        for (const cb of refreshListeners) cb();
-        if (res.ok) {
-          setLastUpdated(new Date());
-          if (!silent) toast.success(res.message);
-        } else {
-          // Failures always go to the console as an error log — including silent
-          // auto-refreshes, which show no toast panel. A manual refresh also gets a toast.
+        // computed from the DB at render time, so re-render the tree to pick up the prices
+        // we just wrote. This one *is* a transition: it's a background update, and it must
+        // never block what the reader is doing.
+        startTransition(() => {
+          router.refresh();
+        });
+        if (res.ok) toast.success(res.message);
+        else {
+          // The per-source reasons go to the console — the toast has room for the count,
+          // not for which feed was down.
           console.error(
             `[price-refresh] ${res.message}` +
               (res.errors.length ? `\n  - ${res.errors.join("\n  - ")}` : ""),
           );
-          if (!silent) toast.warning(res.message);
+          toast.warning(res.message);
         }
       } finally {
         inFlight.current = false;
         setBusy(false);
       }
     },
-    [startTransition, router, selfUpdating],
+    [startTransition, router],
   );
 
-  return { pending, run, lastUpdated };
+  return { pending, run };
 }
-
-/** The open-time pull is considered once per page load. Module-level (not a ref) so
- *  React's double-mount in dev — or a client-side nav that remounts the nav — can't
- *  re-fire it. */
-let refreshedOnOpen = false;
 
 export function RefreshPricesButton() {
   const { pending, run } = useRefreshPrices();
@@ -222,125 +233,128 @@ export function RefreshPricesButton() {
   );
 }
 
+// ---------- watching the server's clock ----------
+
+/** How often to *ask* whether the cron has run — not how often it runs, which is the
+ *  server's business. Half a period, so a refresh shows up about halfway through one,
+ *  clamped so a 1m cadence isn't asked every few seconds and an hourly one doesn't leave
+ *  the header clock an hour wrong. */
+function pollDelay(intervalMs: number): number {
+  return intervalMs ? Math.min(Math.max(intervalMs / 2, 20_000), 60_000) : 0;
+}
+
 /**
- * The polling itself, with no UI of its own.
+ * The watcher, with no UI of its own. Mount this once, high in the tree.
  *
- * Split out from `<LivePrices>` so that where the controls are drawn and how often prices
- * are pulled stop being the same decision — every timer, catch-up and open-time pull lives
- * here, and moving the controls (they have been in the header, then a drawer footer, then
- * the header again) can no longer double or silence the API calls. Mount this once, high
- * in the tree.
+ * Split out from `<LivePrices>` so that where the controls are drawn and how the page
+ * learns prices moved stop being the same decision — moving the controls (they have been
+ * in the header, then a drawer footer, then the header again) can no longer double or
+ * silence the polling.
  *
  * Returns null. It is a behaviour, not a thing on screen.
  */
 export function PricePoller() {
-  const { run } = useRefreshPrices();
-  const intervalMs = React.useSyncExternalStore(subscribeInterval, readInterval, () => 0);
-
-  // Whether the page under the nav shows anything a refresh can move. The ref is what the
-  // free-running tick timer reads (see below); the value itself drives the catch-up.
+  const router = useRouter();
+  const [, startTransition] = React.useTransition();
+  const st = usePriceStatus();
   const pathname = usePathname();
   const priced = showsPrices(pathname);
-  const pricedRef = React.useRef(priced);
-  // Synced in an effect, not during render: `react-hooks/refs` forbids the latter, and a
-  // timer reading it after commit is exactly the case the rule permits.
-  React.useEffect(() => {
-    pricedRef.current = priced;
-  }, [priced]);
 
-  // Fresh prices when the app opens — but with live refresh armed they're already being
-  // kept current, so a reload, a second tab, or dipping back into the PWA shouldn't spend
-  // an API call on prices pulled seconds ago. Only the interval's own overdue rule decides.
-  //
-  // Deliberately not consumed while off a priced route: opening straight onto /savings
-  // should not spend a pull, but walking from there to the dashboard still should — so the
-  // flag is set the first time prices are actually on screen, not the first time we mount.
+  // One read on open. It is a `meta` read, not a price fetch — that distinction is the
+  // whole point of this rewrite. Skipped when a client-side nav has already loaded it.
   React.useEffect(() => {
-    if (refreshedOnOpen || !priced) return;
-    refreshedOnOpen = true;
-    // Read the armed interval from storage rather than taking `intervalMs` from the
-    // render: this effect fires after the *hydration* pass, where useSyncExternalStore
-    // still reports the server snapshot (0 / off) — which would read as "not armed" and
-    // pull on every single visit, exactly what this check exists to prevent.
-    const armed = readInterval();
-    if (armed && !overdue(armed)) return;
-    void run({ silent: true });
-  }, [priced, run]);
+    if (!status) void fetchStatus();
+  }, []);
 
-  // While live is armed, silently re-pull on the chosen interval. The first delay is
-  // whatever is *left* of the current period rather than a full one — otherwise skipping
-  // the pull above would stretch the gap across a reload to nearly two intervals.
+  // Ask again on the poll delay, but never while the tab is hidden — the handler below
+  // catches up on return, and a backgrounded PWA polling all night is the sort of thing
+  // that is invisible until it shows up on a bill.
+  const delay = pollDelay(st?.intervalMs ?? 0);
   React.useEffect(() => {
-    if (!intervalMs) return;
+    if (!delay) return; // the account refreshes nothing on its own; there is no stamp coming
     let id: ReturnType<typeof setTimeout>;
     const tick = () => {
-      // Don't poll a background tab, or a page showing no prices; the handlers below catch
-      // up on return. `priced` is read through a ref rather than closed over so a route
-      // change doesn't restart the timer — navigating often would otherwise keep pushing
-      // the next tick out and starve the refresh entirely.
-      if (!document.hidden && pricedRef.current) void run({ silent: true });
-      id = setTimeout(tick, intervalMs);
+      if (!document.hidden) void fetchStatus();
+      id = setTimeout(tick, delay);
     };
-    id = setTimeout(tick, Math.max(0, intervalMs - (Date.now() - readLastRun())));
+    id = setTimeout(tick, delay);
     return () => clearTimeout(id);
-  }, [intervalMs, run]);
+  }, [delay]);
 
-  // A hidden tab skips its ticks; refresh on return if we're already overdue.
+  // A hidden tab skips its polls; catch up the moment it comes back, so the figures you
+  // return to are the ones the server already has.
   React.useEffect(() => {
-    if (!intervalMs) return;
     const onVisible = () => {
-      if (document.hidden) return;
-      if (overdue(intervalMs)) void run({ silent: true });
+      if (!document.hidden) void fetchStatus();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [intervalMs, run]);
+  }, []);
 
-  // The same catch-up for the other reason ticks get skipped: landing back on a page that
-  // shows prices after time spent on one that doesn't. Without it you'd wait out up to a
-  // full interval looking at figures the gate above deliberately let go stale.
+  // The stamp moved: the cron re-quoted while this page was open. Everything price-derived
+  // on screen is now one refresh behind.
+  //
+  // `router.refresh()` only where prices are actually drawn, and never on the dashboard,
+  // which updates its own price figures from `?today=1` off the count below. The first
+  // stamp we ever see is not a move — it is what the page was rendered from.
+  const at = st?.atMs ?? null;
   React.useEffect(() => {
-    if (!intervalMs || !priced) return;
-    if (overdue(intervalMs)) void run({ silent: true });
-  }, [intervalMs, priced, run]);
+    if (at == null || at === seenAt) return;
+    const first = seenAt === null;
+    seenAt = at;
+    if (first) return;
+    bumpRefreshCount();
+    if (priced && pathname !== "/")
+      startTransition(() => {
+        router.refresh();
+      });
+  }, [at, priced, pathname, router, startTransition]);
 
   return null;
 }
 
-/** The price controls: a clock, a Live pill that doubles as the interval picker, and a
- *  manual refresh. Pure UI — `<PricePoller>` does the polling.
+// ---------- the controls ----------
+
+const p2 = (n: number) => String(n).padStart(2, "0");
+
+/** The stamp, in the reader's own timezone. Not a live clock: it changes when prices do,
+ *  which is the only thing it is there to say. (It used to tick once a second showing the
+ *  current time — a clock that was always right and never informative.) */
+function stampOf(atMs: number | null): string {
+  if (atMs == null) return "—";
+  const d = new Date(atMs);
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+}
+
+/**
+ * The price controls: when prices were last pulled, the cadence the *server* pulls them at,
+ * and a refresh-now button.
  *
- *  Every variant below keys off the *screen*, because the header is the only place these
- *  are drawn and it spans the viewport at every width. A `compact` prop briefly overrode
- *  that for a stint inside the 272px nav drawer, where the screen was the wrong question;
- *  the drawer no longer holds them, so the breakpoints alone are right again. */
+ * The picker writes an account-wide setting, not a preference for this browser — change it
+ * on the phone and the laptop is already following it, because neither of them is doing the
+ * refreshing. Pure UI: `<PricePoller>` does the watching.
+ *
+ * Every variant below keys off the *screen*, because the header is the only place these are
+ * drawn and it spans the viewport at every width.
+ */
 export function LivePrices() {
   const { pending, run } = useRefreshPrices();
-  const intervalMs = React.useSyncExternalStore(subscribeInterval, readInterval, () => 0);
+  const st = usePriceStatus();
+  const intervalMs = st?.intervalMs ?? 0;
   const live = intervalMs > 0;
 
-  const [now, setNow] = React.useState<Date | null>(null);
-  React.useEffect(() => {
-    const tick = () => setNow(new Date());
-    const first = setTimeout(tick, 0); // async so we don't setState synchronously in the effect
-    const id = setInterval(tick, 1000);
-    return () => {
-      clearTimeout(first);
-      clearInterval(id);
-    };
-  }, []);
-
   const onIntervalChange = (ms: number) => {
-    writeInterval(ms);
-    if (ms) void run({ silent: true }); // refresh straight away so the choice visibly does something
+    if (!st || ms === st.intervalMs) return;
+    // Optimistic: the select is a preference control and must answer the click, not the
+    // round trip. A failed write is corrected by the next poll.
+    setStatus({ ...st, intervalMs: ms });
+    void setPriceRefresh(ms).then((res) => {
+      if (res.ms !== ms) setStatus({ ...st, intervalMs: res.ms });
+      toast.success(res.message);
+    });
   };
 
-  const p2 = (n: number) => String(n).padStart(2, "0");
-  const stamp = now
-    ? `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`
-    : "—";
-
-  const label = INTERVALS.find((i) => i.ms === intervalMs)?.label;
+  const label = PRICE_REFRESH_INTERVALS.find((i) => i.ms === intervalMs)?.label;
 
   // A phone can't hold the full row, so both controls drop their words below `sm`:
   // the pill keeps the dot + interval ("● 1m" / "● Off") and Refresh becomes its icon.
@@ -351,8 +365,10 @@ export function LivePrices() {
       {/* The rail carries the links now, but the clock still waits for xl — the header's
           search field is the thing it shares its row with. */}
       <div className="hidden text-right leading-tight xl:block">
-        <div className="text-[11.5px] text-faint">Live prices</div>
-        <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">{stamp}</div>
+        <div className="text-[11.5px] text-faint">Prices as of</div>
+        <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+          {stampOf(st?.atMs ?? null)}
+        </div>
       </div>
 
       <Select
@@ -361,7 +377,10 @@ export function LivePrices() {
       >
         <SelectTrigger
           size="sm"
-          aria-label={live ? `Live refresh every ${label}` : "Live refresh off"}
+          disabled={!st}
+          aria-label={
+            live ? `Server refreshes prices every ${label}` : "Server price refresh off"
+          }
           className={cn(
             "h-7 gap-1.5 rounded-full px-3 text-[12px] font-semibold sm:px-3.5",
             live
@@ -381,7 +400,7 @@ export function LivePrices() {
           )}
         </SelectTrigger>
         <SelectContent>
-          {INTERVALS.map((i) => (
+          {PRICE_REFRESH_INTERVALS.map((i) => (
             <SelectItem key={i.ms} value={String(i.ms)}>
               {i.ms === 0 ? "Off" : `Every ${i.label}`}
             </SelectItem>
@@ -393,8 +412,8 @@ export function LivePrices() {
         type="button"
         onClick={() => run()}
         disabled={pending}
-        aria-label="Refresh prices"
-        title="Refresh prices"
+        aria-label="Refresh prices now"
+        title="Refresh prices now"
         className="flex h-7 items-center gap-1.5 rounded-full border border-input bg-transparent px-2 text-[12px] font-semibold text-foreground transition-colors hover:border-brand hover:text-brand disabled:opacity-60 sm:px-3.5"
       >
         <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />

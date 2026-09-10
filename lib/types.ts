@@ -317,3 +317,45 @@ export interface HoldingPnlPoint {
   date: string;
   holdings: HoldingDayPnl[];
 }
+
+// ---------- price refresh schedule ----------
+//
+// How often prices are re-quoted is **one setting for the whole account**, kept in `meta`
+// and acted on by the cron in custom-worker.ts. It used to be a per-browser localStorage
+// value that made the browser itself do the fetching, which meant the schedule was
+// whatever the tab that happened to be open said it was — two devices ran two schedules,
+// a phone that had never set one ran none, and merely opening the app spent a round of
+// upstream API calls. The server keeps one clock now; a client only reads what it wrote.
+
+/** The pickable cadences. Nothing below a minute: the schedule is a Cloudflare Cron
+ *  Trigger, whose finest granularity is one minute, so a "5s" option would have been a
+ *  promise the runtime cannot keep. */
+export const PRICE_REFRESH_INTERVALS = [
+  { ms: 0, label: "Off" },
+  { ms: 60_000, label: "1m" },
+  { ms: 300_000, label: "5m" },
+  { ms: 900_000, label: "15m" },
+  { ms: 1_800_000, label: "30m" },
+  { ms: 3_600_000, label: "1h" },
+] as const;
+
+/** What an account refreshes at until it says otherwise — the cadence the cron ran at
+ *  before this was configurable, so an existing database keeps its old behaviour. */
+export const DEFAULT_PRICE_REFRESH_MS = 300_000;
+
+/** Anything unknown (an unset key, a hand-edited row, an interval that has since been
+ *  dropped from the list) falls back to the default rather than to "off": a stored value
+ *  no longer on the menu should not silently stop the schedule. */
+export function normalizePriceRefreshMs(ms: number): number {
+  return PRICE_REFRESH_INTERVALS.some((i) => i.ms === ms) ? ms : DEFAULT_PRICE_REFRESH_MS;
+}
+
+/** What the server is doing about prices, as the client sees it. `atMs` is epoch
+ *  milliseconds rather than the stored string because `meta` holds UTC with the "Z"
+ *  trimmed off — parsed in the browser that reads as local time and lands hours out. */
+export interface PriceStatus {
+  /** When the last refresh *ran* (success or not), or null if none ever has. */
+  atMs: number | null;
+  /** The account's cadence. 0 = the server refreshes nothing on its own. */
+  intervalMs: number;
+}

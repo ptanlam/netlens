@@ -116,7 +116,7 @@ export function PullToRefresh() {
       // Held at the threshold while it runs, so the spinner has somewhere to sit.
       setPhase("busy");
       draw(THRESHOLD, true);
-      void run({ force: true }).finally(() => {
+      void run().finally(() => {
         draw(0, true);
         setPhase("idle");
       });
