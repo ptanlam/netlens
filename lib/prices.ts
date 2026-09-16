@@ -9,8 +9,9 @@
  * Failures are collected, never thrown, so one bad ticker can't break a refresh.
  */
 import {
-  isDormant, listInstruments, listPriceSources, updatePrice, upsertPriceHistory,
-  markPricesRefreshed, metaGet, metaSet, priceStatus, setFxRates, syncFxTargets, todayIso,
+  deletePriceHistory, isDormant, listInstruments, listPriceSources, markPricesRefreshed,
+  metaGet, metaSet, priceStatus, setFxRates, syncFxTargets, todayIso, updatePrice,
+  upsertPriceHistory,
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
 import { MANUAL_SOURCE } from "./types";
@@ -49,6 +50,23 @@ function isoFromEpoch(seconds: number, gmtOffsetSeconds = 0): string {
  *  DNSE states no offset at all, so its bars — stamped 09:00 ICT, i.e. 02:00Z — need it
  *  supplied to land on the right calendar day. */
 const HOSE_GMT_OFFSET = 7 * 3600;
+
+/** How recent a DNSE bar has to be to be worth cross-checking against Yahoo's volume.
+ *
+ *  Wider than the 4 days `sweepRecentHistory` re-fetches, so every bar gets several
+ *  chances to be judged (and to be restored once the feed settles it), and wide enough to
+ *  clear a weekend. Not wider: past a week a bar has certainly settled, and the cost of a
+ *  wrong veto — a hole in stored history — grows with every day it can reach. */
+const ENTRADE_SETTLE_WINDOW_DAYS = 7;
+
+/** Share of Yahoo's volume DNSE's own must reach for its close to count as settled.
+ *
+ *  On a settled day the two feeds agree exactly, so almost any threshold would do; the
+ *  stubs that prompted this were at 7–11%. Set near the top of the range rather than in
+ *  the middle because the gap between "settled" and "stub" is an order of magnitude, and
+ *  the failure mode of rejecting is mild (the day carries forward and reads `partial`)
+ *  while accepting a stub silently moves money between two days. */
+const ENTRADE_VOLUME_QUORUM = 0.9;
 
 /** Add `days` to a YYYY-MM-DD string (UTC math, no timezone drift). */
 function isoAddDays(iso: string, days: number): string {
@@ -375,8 +393,17 @@ async function fmarketRows(): Promise<FmarketRow[]> {
   return data.data?.rows ?? [];
 }
 
+/** One settled daily bar, keyed to the venue's own calendar day. */
+interface DailyBar {
+  date: string;
+  close: number;
+  /** Shares traded. 0 where the feed reported none — i.e. "unknown", not "none traded":
+   *  a bar with a genuine zero never gets this far (see the filters below). */
+  volume: number;
+}
+
 /**
- * Daily closes from Yahoo, *excluding the session in progress*.
+ * Yahoo's daily bars, *excluding the session in progress*.
  *
  * Yahoo's newest daily bar is the current session, and its "close" is only the last
  * print — at the open it is still yesterday's close carried forward. Storing that as a
@@ -384,10 +411,12 @@ async function fmarketRows(): Promise<FmarketRow[]> {
  * goes missing from the day it belongs to and is double-counted into the next one.
  * `meta.currentTradingPeriod.regular` says when the session runs, so any bar at or after
  * its start is dropped until that session has ended.
+ *
+ * Carries the volume as well as the close because for VN tickers Yahoo is not the history
+ * source but *is* the only second opinion on whether DNSE's bar for a day has settled —
+ * see `fetchEntradeHistory`.
  */
-export async function fetchYahooHistory(
-  symbol: string, range = "2y",
-): Promise<Record<string, number>> {
+async function fetchYahooBars(symbol: string, range: string): Promise<DailyBar[]> {
   const data = await getJson<{
     chart: {
       result?: {
@@ -414,7 +443,7 @@ export async function fetchYahooHistory(
   const unsettledFrom =
     regular?.start != null && regular.end != null && now < regular.end ? regular.start : Infinity;
 
-  const out: Record<string, number> = {};
+  const out: DailyBar[] = [];
   stamps.forEach((ts, i) => {
     const c = closes[i];
     // A zero-volume bar is a day the venue never traded — a holiday Yahoo pads out rather
@@ -422,8 +451,19 @@ export async function fetchYahooHistory(
     // it would invent a settled close for a day that never had one, and the next real
     // session's move would then read as a one-day move measured from a price two sessions
     // old. Dropped, so the day resolves back to the last close that was actually struck.
-    if (c && volumes[i] !== 0 && ts < unsettledFrom) out[isoFromEpoch(ts, gmtOffset)] = c;
+    // `!== 0` and not a truthiness test: a null volume is Yahoo declining to say, which is
+    // not the same claim as zero and must not cost us the close.
+    if (c && volumes[i] !== 0 && ts < unsettledFrom)
+      out.push({ date: isoFromEpoch(ts, gmtOffset), close: c, volume: volumes[i] ?? 0 });
   });
+  return out;
+}
+
+export async function fetchYahooHistory(
+  symbol: string, range = "2y",
+): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const b of await fetchYahooBars(symbol, range)) out[b.date] = b.close;
   return out;
 }
 
@@ -440,10 +480,39 @@ export async function fetchYahooHistory(
  * DNSE is a licensed VN broker and reports the session; SSI's iBoard API returns numbers
  * identical to it, so two independent brokers corroborate. Note this covers **VN tickers
  * only** — a non-VN symbol on this strategy returns nothing rather than erroring.
+ *
+ * ## Bars DNSE publishes but never settles
+ *
+ * DNSE can also freeze a day's bar mid-session and never finish it: on 2026-09-15 FPT,
+ * SSI and HPG were each left at roughly a tenth of the day's real volume, with a close
+ * from mid-morning, while MBB settled normally. Nothing *inside* the payload says so —
+ * the bar looks like any other — and the calendar's `partial` status can only see a day
+ * with no close at all, so the stub read as a settled close. Today's P&L is then
+ * `live − yesterday's close` across two different pictures of yesterday, which is how
+ * three stocks came to show a move before HOSE had opened.
+ *
+ * So the day is checked against Yahoo's volume for the same date, and the close is kept
+ * only if DNSE's own volume reaches `ENTRADE_VOLUME_QUORUM` of it. **Volume, not price:**
+ * Yahoo's closes are dividend/split-adjusted where DNSE's are raw, so the two prices
+ * disagree on a perfectly settled day and can't referee each other — the share counts are
+ * unadjusted on both sides and matched to the share on every settled day tested. Yahoo is
+ * only ever a veto here; its own number is never stored, so the series stays on one basis.
+ *
+ * The veto is one-directional and narrow on purpose. DNSE legitimately reports volume Yahoo
+ * doesn't (Yahoo pads a live HOSE session as `volume: 0` — 2026-08-03, and FPT's own
+ * 2026-09-09), so a missing or zero reference abstains rather than rejects; and only bars
+ * inside `ENTRADE_SETTLE_WINDOW_DAYS` are eligible, since an older bar has settled and a
+ * false veto there would punch a hole in deep history. Today's own bar is exempt: it is
+ * *meant* to be partial, and today is priced live rather than from it.
  */
 export async function fetchEntradeHistory(
   symbol: string, fromIso?: string,
-): Promise<Record<string, number>> {
+): Promise<{
+  closes: Record<string, number>;
+  /** Dates whose bar failed the cross-check. The caller deletes these: a stored stub is
+   *  worse than no row, which resolves the day back to the last close actually struck. */
+  unsettled: string[];
+}> {
   // Yahoo's suffix, which DNSE doesn't use: our instruments store "FPT.VN", it wants "FPT".
   const ticker = symbol.replace(/\.VN$/i, "");
   // A full backfill reaches 3y, comfortably past the 2y Yahoo used to store, so no stretch
@@ -462,12 +531,44 @@ export async function fetchEntradeHistory(
   const closes = data.c ?? [];
   const volumes = data.v ?? [];
   const out: Record<string, number> = {};
+  const vol: Record<string, number> = {};
   stamps.forEach((ts, i) => {
     const c = closes[i];
     // DNSE quotes in thousands of VND (67.1 → ₫67,100); the rest of the app is whole VND.
-    if (c && volumes[i] !== 0) out[isoFromEpoch(ts, HOSE_GMT_OFFSET)] = Math.round(c * 1000);
+    if (c && volumes[i] !== 0) {
+      const date = isoFromEpoch(ts, HOSE_GMT_OFFSET);
+      out[date] = Math.round(c * 1000);
+      vol[date] = volumes[i] ?? 0;
+    }
   });
-  return out;
+
+  const today = todayIso();
+  const oldest = isoAddDays(today, -ENTRADE_SETTLE_WINDOW_DAYS);
+  const young = Object.keys(out).filter((d) => d > oldest && d < today);
+  if (!young.length) return { closes: out, unsettled: [] };
+
+  // A 1-month range covers the window with room to spare. The suffix is rebuilt from
+  // `ticker` rather than reusing `symbol` as-is, so a holding stored bare ("FPT") asks
+  // Yahoo about the same company DNSE just answered for — bare, Yahoo hands back a
+  // different exchange's FPT and its volumes would veto every day.
+  let reference: Map<string, number>;
+  try {
+    reference = new Map((await fetchYahooBars(`${ticker}.VN`, "1mo")).map((b) => [b.date, b.volume]));
+  } catch {
+    // No second opinion available. Trusting DNSE is the status quo, and a feed being down
+    // must not start deleting stored closes.
+    return { closes: out, unsettled: [] };
+  }
+
+  const unsettled: string[] = [];
+  for (const date of young) {
+    const ref = reference.get(date) ?? 0;
+    if (ref > 0 && vol[date] < ref * ENTRADE_VOLUME_QUORUM) {
+      unsettled.push(date);
+      delete out[date];
+    }
+  }
+  return { closes: out, unsettled };
 }
 
 export async function fetchCoingeckoHistory(
@@ -569,10 +670,12 @@ async function fetchHistoryInto(lookbackDays: number | null): Promise<[number, s
     if (strat === "none") continue;
     try {
       let history: Record<string, number> | null = null;
+      /** Stored days this feed has just disowned — see `fetchEntradeHistory`. */
+      let unsettled: string[] = [];
       if (strat === "yahoo" && row.symbol)
         history = await fetchYahooHistory(row.symbol, yahooRange(lookbackDays));
       else if (strat === "entrade" && row.symbol)
-        history = await fetchEntradeHistory(row.symbol, fromIso);
+        ({ closes: history, unsettled } = await fetchEntradeHistory(row.symbol, fromIso));
       else if (strat === "coingecko" && row.symbol)
         history = await fetchCoingeckoHistory(row.symbol, lookbackDays ?? 365);
       else if (strat === "fmarket") {
@@ -590,10 +693,18 @@ async function fetchHistoryInto(lookbackDays: number | null): Promise<[number, s
           history = await fetchDcvfmNavHistory(codes.fundCode, codes.fundReportCode, fromIso);
         else errors.push(`${row.name}: cannot read DCVFM fund codes from source URL`);
       }
+      // Removal first: a stub and its replacement never coexist, and if the upsert throws
+      // the bad close is already gone rather than still driving the calendar.
+      let changed = false;
+      if (unsettled.length) {
+        await deletePriceHistory(row.name, unsettled);
+        changed = true;
+      }
       if (history && Object.keys(history).length) {
         await upsertPriceHistory(row.name, history);
-        updated += 1;
+        changed = true;
       }
+      if (changed) updated += 1;
     } catch (e) {
       errors.push(`${row.name}: ${(e as Error).message}`);
     }

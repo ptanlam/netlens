@@ -683,6 +683,24 @@ export async function upsertPriceHistory(instrument: string, map: Record<string,
   if (rows.some(([date]) => date < todayIso())) await bumpHistory();
 }
 
+/**
+ * Drop stored closes for specific dates.
+ *
+ * For a day whose bar a feed published but never settled — see the volume cross-check in
+ * `fetchEntradeHistory`. There is no honest price to replace it with (the *other* feed's
+ * figure is on another basis), and leaving the bad one in place is worse than having no
+ * row at all: with no row the day resolves back to the last close actually struck, reads
+ * as `partial` in the calendar, and the move lands on the day it belongs to once the feed
+ * catches up. Always bumps the series cache — every date here is a settled day by
+ * construction, so removing one always changes the reconstruction.
+ */
+export async function deletePriceHistory(instrument: string, dates: string[]) {
+  if (!dates.length) return;
+  const stmt = q("DELETE FROM price_history WHERE instrument=? AND date=?");
+  await db().batch(dates.map((date) => stmt.bound(instrument, date)));
+  await bumpHistory();
+}
+
 /** The transaction columns `lib/pnl.ts` reconstructs the daily series from. Exists because
  *  that module used to reach for the raw handle via `getDb()`, which no longer exists — the
  *  D1 binding is private to this file so every query stays somewhere it can be found. */
