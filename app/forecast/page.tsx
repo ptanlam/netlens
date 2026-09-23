@@ -4,6 +4,8 @@ import { ForecastView } from "@/components/forecast-view";
 import {
   forecast, forecastEvents, forecastPace, MAX_HORIZON_MONTHS,
 } from "@/lib/forecast";
+import { addMonths } from "@/lib/savings";
+import { buildPortfolioReturns, LOOKBACK_MONTHS } from "@/lib/volatility";
 
 export default async function ForecastPage() {
   await connection();
@@ -21,7 +23,18 @@ export default async function ForecastPage() {
     db.listSavings(),
     db.listDebts(),
   ]);
-  const world = await db.buildGoalWorld(payload.portfolioTotal);
+  // The current month is left out: its "close" is mid-month and would read as a short month.
+  const monthStart = `${db.todayIso().slice(0, 7)}-01`;
+  const [world, closes] = await Promise.all([
+    db.buildGoalWorld(payload.portfolioTotal),
+    db.monthEndCloses(
+      payload.portfolio.map((h) => h.name),
+      addMonths(monthStart, -LOOKBACK_MONTHS),
+      monthStart,
+    ),
+  ]);
+  // Only the derived monthly returns cross to the client, never the closes themselves.
+  const portfolioReturns = buildPortfolioReturns(payload.portfolio, closes);
 
   const { pace, source } = forecastPace(world, goals);
 
@@ -39,6 +52,7 @@ export default async function ForecastPage() {
       pace={pace}
       paceSource={source}
       today={world.today}
+      portfolioReturns={portfolioReturns}
     />
   );
 }

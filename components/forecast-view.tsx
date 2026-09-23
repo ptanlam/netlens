@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { areaY, defineChart, differenceY } from "@tanstack/charts";
+import { areaY, defineChart, differenceY, lineY } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
 import { Chart } from "@tanstack/charts/react";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
@@ -10,6 +10,7 @@ import { scaleUtc } from "d3-scale";
 import { fmtMil, fmtVND, MONTHS } from "@/lib/format";
 import { applyGrowth, type ForecastEvent, type ForecastEventKind, type ForecastPoint, type GrownPoint } from "@/lib/forecast";
 import type { BarSource } from "@/lib/score";
+import { MIN_MONTHS, PATHS, simulateBand, type PortfolioReturns } from "@/lib/volatility";
 import { PageHeader } from "@/components/page-header";
 import { PanelHead } from "@/components/panel-head";
 import { SummaryCards } from "@/components/stat-card";
@@ -72,6 +73,10 @@ interface Point extends GrownPoint {
   /** The month as a `Date`, because the x axis is a real time scale. */
   at: Date;
   label: string;
+  /** Set only in historical mode — the bootstrapped band's percentiles. */
+  p10?: number;
+  p50?: number;
+  p90?: number;
 }
 
 function tip(datum: unknown) {
@@ -81,6 +86,13 @@ function tip(datum: unknown) {
     { label: "Net worth", value: fmtVND(p.grown), color: "var(--chart-ink)" },
     { label: "Locked in", value: fmtVND(p.floor), color: "var(--chart-gold)" },
   ];
+  // Named by where a path landed, not "best/worst case": a tenth of paths still fell outside.
+  if (p.p10 !== undefined && p.p50 !== undefined && p.p90 !== undefined)
+    rows.push(
+      { label: "Top 10% of paths", value: fmtVND(p.p90), color: "var(--color-hue-violet)" },
+      { label: "Median path", value: fmtVND(p.p50), color: "var(--color-hue-violet)" },
+      { label: "Bottom 10% of paths", value: fmtVND(p.p10), color: "var(--color-hue-violet)" },
+    );
   if (p.contributed > 0)
     rows.push({ label: "You add", value: fmtVND(p.contributed), color: "var(--chart-positive)" });
   // Named "assumed", never "growth" or "gains": it is the only row here that isn't derived
@@ -116,6 +128,7 @@ export function ForecastView({
   pace,
   paceSource,
   today,
+  portfolioReturns,
 }: {
   /** The full 60-month walk. The picker slices it rather than asking for another one — the
    *  maths is pure and the payload is a few dozen rows either way. */
@@ -124,24 +137,35 @@ export function ForecastView({
   pace: number;
   paceSource: BarSource;
   today: string;
+  portfolioReturns: PortfolioReturns;
 }) {
   const [horizon, setHorizon] = React.useState<number>(24);
   // Opt-in every visit, and never remembered. A rate left switched on from last week would
   // quietly become the number you think the app is telling you.
   const [rate, setRate] = React.useState<number>(0);
+  // Mutually exclusive with the rate: one assumption on screen at a time.
+  const [mode, setMode] = React.useState<"rate" | "historical">("rate");
+  const canBand = portfolioReturns.coverage > 0;
+  const historical = mode === "historical" && canBand;
+  const effectiveRate = historical ? 0 : rate;
 
   const shown = React.useMemo(
-    () => applyGrowth(points.slice(0, horizon + 1), pace, rate),
-    [points, horizon, pace, rate],
+    () => applyGrowth(points.slice(0, horizon + 1), pace, effectiveRate),
+    [points, horizon, pace, effectiveRate],
+  );
+  const band = React.useMemo(
+    () => (historical ? simulateBand(points.slice(0, horizon + 1), pace, portfolioReturns) : null),
+    [historical, points, horizon, pace, portfolioReturns],
   );
   const pts = React.useMemo<Point[]>(
     () =>
-      shown.map((p) => ({
+      shown.map((p, i) => ({
         ...p,
         at: new Date(Date.parse(p.date + "T00:00:00Z")),
         label: fmtMonth(p.date),
+        ...(band ? { p10: band[i].p10, p50: band[i].p50, p90: band[i].p90 } : {}),
       })),
-    [shown],
+    [shown, band],
   );
 
   const now = points[0];
@@ -207,7 +231,28 @@ export function ForecastView({
           // reading one line down. Dashed, because a dashed edge is what the rest of the app
           // uses for a number that isn't settled, and its comparison edge is suppressed —
           // the band below already draws that line.
-          ...(rate !== 0
+          // The historical range: where 80% of bootstrapped paths landed, and the median.
+          // Violet is this page's own nav tint — it isn't a gain or a loss, so it borrows
+          // neither of those colours.
+          ...(historical
+            ? [
+                areaY(pts, {
+                  x: "at",
+                  y1: "p10",
+                  y2: "p90",
+                  fill: "var(--color-hue-violet)",
+                  fillOpacity: 0.16,
+                }),
+                lineY(pts, {
+                  x: "at",
+                  y: "p50",
+                  stroke: "var(--color-hue-violet)",
+                  strokeWidth: 2,
+                  strokeDasharray: "4 3",
+                }),
+              ]
+            : []),
+          ...(effectiveRate !== 0
             ? [
                 differenceY(pts, {
                   x: "at",
@@ -240,21 +285,32 @@ export function ForecastView({
         maxFocusDistance: Number.POSITIVE_INFINITY,
         tooltip: { use: tooltip, content: (focused) => tip(focused[0]?.datum) },
       }),
-    [pts, rate],
+    [pts, effectiveRate, historical],
   );
 
   if (!now || !end) return null;
 
   const added = end.net - end.floor;
-  const change = end.grown - now.net;
-  const assumed = rate !== 0;
+  const endBand = band?.[band.length - 1];
+  const headline = endBand ? endBand.p50 : end.grown;
+  const change = headline - now.net;
+  const assumed = effectiveRate !== 0;
+  const excludedShare = 1 - portfolioReturns.coverage;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Forecast">
         Where the decisions you&apos;ve already made leave you. Deposits accrue, loans amortise,
         and money you&apos;ve committed to saving keeps arriving —{" "}
-        {assumed ? (
+        {historical ? (
+          <>
+            on top of which this page is showing{" "}
+            <strong className="font-semibold">
+              the range your current holdings&apos; own past returns would give
+            </strong>
+            . That&apos;s how volatile they have been, not a prediction of what they&apos;ll do.
+          </>
+        ) : assumed ? (
           <>
             on top of which this page is currently{" "}
             <strong className="font-semibold">assuming {rate}%/yr on investments</strong>, which is
@@ -273,13 +329,16 @@ export function ForecastView({
           { label: "Net worth today", value: fmtVND(now.net), sub: "The dashboard's figure" },
           {
             label: `In ${horizon} months`,
-            value: fmtVND(end.grown),
+            value: fmtVND(headline),
             // With a rate on, the tile names both figures. Showing only the grown one would
             // let an assumption occupy the page's headline without saying so, and showing
-            // only the flat one would make the dial look broken.
-            sub: assumed
-              ? `${fmtVND(end.net)} at 0% · assumes ${rate}%/yr`
-              : `${change >= 0 ? "+" : "−"}${fmtVND(Math.abs(change))} from today`,
+            // only the flat one would make the dial look broken. The historical median gets
+            // its spread for the same reason.
+            sub: endBand
+              ? `Median · 80% of paths ${fmtMil(endBand.p10)}–${fmtMil(endBand.p90)}`
+              : assumed
+                ? `${fmtVND(end.net)} at 0% · assumes ${rate}%/yr`
+                : `${change >= 0 ? "+" : "−"}${fmtVND(Math.abs(change))} from today`,
             tone: change >= 0 ? "gain" : "loss",
           },
           {
@@ -304,7 +363,9 @@ export function ForecastView({
         <PanelHead
           title="Net worth, projected"
           info={
-            assumed
+            historical
+              ? `Two lines as usual — what you hold adding nothing more (dashed gold), and the same plus your committed pace (solid) — plus a violet band: ${PATHS.toLocaleString("en-US")} simulated paths, each month drawing a return at random from what each holding actually did in a past month, weighted by today's mix. The band holds the middle 80% of paths; the dashed violet line is the median. Holdings move independently in the simulation, so it understates how much they fall together in a crash.`
+              : assumed
               ? `Three bands: what you hold adding nothing more (dashed gold), the same plus the pace you've committed to (solid), and on top of that ${rate}%/yr assumed on investments. Only the top band is an assumption — read one line down to see the figure without it.`
               : "Two lines: what you hold if you add nothing more from today (dashed), and the same plus the monthly pace you've committed to (solid). Investments are held flat — no market return is assumed either way."
           }
@@ -333,28 +394,63 @@ export function ForecastView({
             while this one changes what the walk claims. Two controls of such different
             weight shouldn't sit side by side looking alike. */}
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-[12px] text-muted-foreground">Assumed return on investments</span>
+          <span className="text-[12px] text-muted-foreground">Investments</span>
           <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
-            {RATES.map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRate(r)}
-                className={cn(
-                  "cursor-pointer rounded-full border-0 px-2.5 py-[5px] font-mono text-[12px] font-semibold transition-colors",
-                  rate === r
-                    ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {r > 0 ? `+${r}%` : `${r}%`}
-              </button>
-            ))}
+            {(
+              [
+                ["rate", "Fixed rate"],
+                ["historical", "Historical range"],
+              ] as const
+            ).map(([m, label]) => {
+              const disabled = m === "historical" && !canBand;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setMode(m)}
+                  title={
+                    disabled
+                      ? `No holding has ${MIN_MONTHS} months of price history yet — nothing to draw a range from.`
+                      : undefined
+                  }
+                  className={cn(
+                    "cursor-pointer rounded-full border-0 px-2.5 py-[5px] text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                    (m === "historical") === historical
+                      ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
+          {!historical && (
+            <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+              {RATES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRate(r)}
+                  className={cn(
+                    "cursor-pointer rounded-full border-0 px-2.5 py-[5px] font-mono text-[12px] font-semibold transition-colors",
+                    rate === r
+                      ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {r > 0 ? `+${r}%` : `${r}%`}
+                </button>
+              ))}
+            </div>
+          )}
           <span className="text-[11.5px] text-faint">
-            {assumed
-              ? "Everything above the solid line is this assumption — nothing else on the page uses it."
-              : "Nothing is assumed. The rest of the app reads 0% too."}
+            {historical
+              ? "Everything in violet comes from your holdings' past — it's a spread, not a promise."
+              : assumed
+                ? "Everything above the solid line is this assumption — nothing else on the page uses it."
+                : "Nothing is assumed. The rest of the app reads 0% too."}
           </span>
         </div>
 
@@ -368,6 +464,14 @@ export function ForecastView({
             ariaLabel="Net worth projected forward"
           />
         </div>
+        {historical && portfolioReturns.excluded.length > 0 && (
+          <p className="mt-2 text-[11.5px] text-faint">
+            Held flat in the range, with under {MIN_MONTHS} months of price history to sample
+            from: {portfolioReturns.excluded.map((e) => e.name).join(", ")} (
+            {Math.round(excludedShare * 100)}% of your portfolio). They still count in the total
+            — they just don&apos;t swing.
+          </p>
+        )}
         {/* The composition, at the far end of the window. A single line hides which half of
             it is a deposit maturing and which is a loan going away. */}
         <div

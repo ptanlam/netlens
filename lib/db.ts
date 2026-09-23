@@ -754,6 +754,31 @@ export async function priceHistoryByInstrument(): Promise<Record<string, [string
   return out;
 }
 
+/** Last close of each whole calendar month in `[sinceIso, beforeIso)`, per named instrument.
+ *
+ *  Not `priceHistoryByInstrument`: that one starts each series at your first purchase, which is
+ *  right for P&L but throws away the years of prices an instrument had before you bought it —
+ *  and how volatile something is doesn't depend on when you bought it.
+ *
+ *  `price` rides along with `MAX(date)` as a bare column, which SQLite documents as taking the
+ *  row the max came from. */
+export async function monthEndCloses(
+  instruments: string[], sinceIso: string, beforeIso: string,
+): Promise<Record<string, [string, number][]>> {
+  if (!instruments.length) return {};
+  const holes = instruments.map(() => "?").join(",");
+  const rows = await q(
+    `SELECT instrument, MAX(date) AS date, price
+       FROM price_history
+      WHERE instrument IN (${holes}) AND date >= ? AND date < ?
+      GROUP BY instrument, substr(date, 1, 7)
+      ORDER BY instrument, date`,
+  ).all<{ instrument: string; date: string; price: number }>(...instruments, sinceIso, beforeIso);
+  const out: Record<string, [string, number][]> = {};
+  for (const r of rows) (out[r.instrument] ??= []).push([r.date, r.price]);
+  return out;
+}
+
 // ---------- the live point (see `buildLatest` in lib/pnl.ts) ----------
 //
 // The three queries below exist so today's P&L point can be computed without reading the
