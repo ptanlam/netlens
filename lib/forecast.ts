@@ -34,10 +34,10 @@ import { chargesBetween } from "./subscriptions";
 import { commitment, type BarSource } from "./score";
 import type { Debt, Goal, Saving, Subscription } from "./types";
 
-/** The furthest out the page will project. Past five years the contracted half has run out
- *  (every deposit matured, every loan cleared) and the line is nothing but the pace
- *  extrapolated — which is arithmetic, not a forecast. */
-export const MAX_HORIZON_MONTHS = 60;
+/** The furthest out the page will project. Past about five years the contracted half has run
+ *  out (every deposit matured, every loan cleared) and the line is mostly the pace
+ *  extrapolated — arithmetic rather than a forecast, which the long horizons are read as. */
+export const MAX_HORIZON_MONTHS = 240;
 
 export interface ForecastPoint {
   /** Whole months from today. 0 is today, and its `net` is the dashboard's net worth. */

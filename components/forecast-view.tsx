@@ -17,9 +17,9 @@ import { SummaryCards } from "@/components/stat-card";
 import { bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
-/** The horizons the picker offers. Five years is the cap: past it every deposit has matured
- *  and every loan cleared, so the line is the pace extrapolated and nothing else. */
-const HORIZONS = [12, 24, 36, 60] as const;
+/** The horizons the picker offers. Past five years nearly every deposit has matured and every
+ *  loan cleared, so 10Y and 20Y are mostly the pace extrapolated — useful for scale, not detail. */
+const HORIZONS = [12, 24, 36, 60, 120, 240] as const;
 
 /**
  * The assumed annual return on investments, in %/yr.
@@ -328,7 +328,7 @@ export function ForecastView({
         stats={[
           { label: "Net worth today", value: fmtVND(now.net), sub: "The dashboard's figure" },
           {
-            label: `In ${horizon} months`,
+            label: horizon > 60 ? `In ${horizon / 12} years` : `In ${horizon} months`,
             value: fmtVND(headline),
             // With a rate on, the tile names both figures. Showing only the grown one would
             // let an assumption occupy the page's headline without saying so, and showing
@@ -383,7 +383,7 @@ export function ForecastView({
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {h === 60 ? "5Y" : `${h / 12}Y`}
+                  {`${h / 12}Y`}
                 </button>
               ))}
             </div>
@@ -528,7 +528,7 @@ export function ForecastView({
         />
         {byMonth.length === 0 ? (
           <p className="py-6 text-[13px] text-muted-foreground">
-            Nothing scheduled in the next {horizon} months — no deposit matures, no debt clears
+            Nothing scheduled in the next {horizon > 60 ? `${horizon / 12} years` : `${horizon} months`} —no deposit matures, no debt clears
             and no goal falls due.
           </p>
         ) : (

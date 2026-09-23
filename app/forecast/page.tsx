@@ -38,7 +38,7 @@ export default async function ForecastPage() {
 
   const { pace, source } = forecastPace(world, goals);
 
-  // The whole five years, computed once and sliced by the picker on the client. The walk is
+  // The whole twenty years, computed once and sliced by the picker on the client. The walk is
   // pure and the payload is sixty rows either way, so a horizon change costs no round trip.
   const points = forecast(world, pace, MAX_HORIZON_MONTHS);
   const events = forecastEvents({
