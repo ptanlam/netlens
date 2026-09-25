@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Plus } from "lucide-react";
+import { ImageIcon, Pencil, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { ASSET_TYPES, MANUAL_SOURCE, type Instrument } from "@/lib/types";
 import { addHolding, updateHolding } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
+import { instrumentLogo } from "@/lib/logos";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import {
@@ -19,6 +20,108 @@ import {
 } from "@/components/ui/select";
 
 type ActionResult = { ok: boolean; message: string };
+
+/** The bundled marks' size (`lib/logos.ts`): 3× the largest avatar. */
+const LOGO_PX = 96;
+
+/** A picked image, drawn into a 96px square and letterboxed — the size and shape of the
+ *  bundled marks — so what's uploaded is a few KB however big the file was. WebP where the
+ *  browser can encode it, PNG where it can't (Safari hands back PNG when asked for WebP). */
+async function shrinkLogo(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    // An SVG with no width/height has no natural size; treat it as square.
+    const w = img.naturalWidth || LOGO_PX;
+    const h = img.naturalHeight || LOGO_PX;
+    const k = LOGO_PX / Math.max(w, h);
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = LOGO_PX;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no canvas");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, (LOGO_PX - w * k) / 2, (LOGO_PX - h * k) / 2, w * k, h * k);
+    const webp = canvas.toDataURL("image/webp", 0.9);
+    return webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/png");
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * The holding's logo: a preview, a picker, and a way back out. What it submits, as the
+ * hidden `logo` field: "" leaves the logo as it is, "remove" drops an upload, and a data:
+ * URL is a new one. Only an *upload* can be removed — a bundled mark isn't the holding's to
+ * lose, and it's what shows again once the upload is gone.
+ */
+function LogoField({
+  holding,
+  value,
+  onChange,
+}: {
+  holding?: Instrument;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const bundled = holding ? instrumentLogo({ name: holding.name, symbol: holding.symbol }) : undefined;
+  const current = holding ? instrumentLogo(holding) : undefined;
+  const preview = value.startsWith("data:") ? value : value === "remove" ? bundled : current;
+  const removable = value.startsWith("data:") || (holding?.logo_at != null && value !== "remove");
+
+  return (
+    <div className="grid gap-2 sm:col-span-2">
+      <Label htmlFor="h-logo">Logo (optional)</Label>
+      <div className="flex items-center gap-3">
+        <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full border border-divider bg-white">
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview} alt="" className="size-full object-contain p-1" />
+          ) : (
+            <ImageIcon className="size-5 text-faint" />
+          )}
+        </span>
+        <input
+          ref={fileRef}
+          id="h-logo"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+          className="sr-only"
+          onChange={async (e) => {
+            const file = e.currentTarget.files?.[0];
+            e.currentTarget.value = "";
+            if (!file) return;
+            try {
+              onChange(await shrinkLogo(file));
+            } catch {
+              toast.error("Couldn't read that image. Try a PNG or JPEG.");
+            }
+          }}
+        />
+        <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+          <Upload className="size-3.5" />
+          {preview ? "Replace" : "Upload logo"}
+        </Button>
+        {removable && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onChange(value.startsWith("data:") ? "" : "remove")}
+          >
+            {value.startsWith("data:") ? "Undo" : "Remove"}
+          </Button>
+        )}
+      </div>
+      <input type="hidden" name="logo" value={value} />
+      <p className="text-caption text-muted-foreground">
+        PNG, JPEG, WebP or SVG. It&apos;s shrunk to a small square before it&apos;s saved.
+      </p>
+    </div>
+  );
+}
 
 /** Shared fields for adding or editing a holding. On edit the name is fixed
  *  (renaming would orphan its transactions), so it's shown read-only. */
@@ -37,6 +140,7 @@ function HoldingForm({
 }) {
   const [pending, startTransition] = React.useTransition();
   const [source, setSource] = React.useState(holding?.price_source ?? MANUAL_SOURCE);
+  const [logo, setLogo] = React.useState("");
   const formRef = React.useRef<HTMLFormElement>(null);
   const priced = source !== MANUAL_SOURCE;
   // Same condition as db.holdingValue(): manual_value is only consulted when one of
@@ -58,6 +162,7 @@ function HoldingForm({
               formRef.current?.reset();
               setSource(MANUAL_SOURCE);
             }
+            setLogo("");
             onDone?.();
           } else toast.error(res.message);
         })
@@ -74,6 +179,7 @@ function HoldingForm({
           <Input id="h-name" name="name" placeholder="e.g. VCBF-TBF" required />
         )}
       </div>
+      <LogoField holding={holding} value={logo} onChange={setLogo} />
       <div className="grid gap-2">
         <Label htmlFor="h-type">Asset type</Label>
         <Select name="asset_type" defaultValue={holding?.asset_type ?? "Funds"}>

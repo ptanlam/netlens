@@ -35,8 +35,20 @@ function normalize(key: string): string {
   return key.trim().toUpperCase().replace(/\.[A-Z]{2,4}$/, "").replace(/-(USD|USDT|VND)$/, "");
 }
 
+/** Where an uploaded logo is served (`app/api/logo/[name]`). `at` is `logo_at`: a new
+ *  upload is a new URL, so the image can be cached forever. */
+export function uploadedLogoUrl(name: string, at: string): string {
+  return `/api/logo/${encodeURIComponent(name)}?v=${encodeURIComponent(at)}`;
+}
+
+/** A holding's logo: the one you uploaded, else a bundled mark, else `undefined` (the
+ *  letter tile). Use this wherever the instrument row is in hand. */
+export function instrumentLogo(i: { name: string; symbol?: string | null; logo_at?: string | null }): string | undefined {
+  return i.logo_at ? uploadedLogoUrl(i.name, i.logo_at) : holdingLogo(i.name, i.symbol);
+}
+
 /**
- * The logo URL for a holding, or `undefined` when we don't have one (leaving the
+ * The bundled logo URL for a holding, or `undefined` when we don't have one (leaving the
  * letter tile). Pass every identifier the caller has — name first, then symbol; the
  * first that matches wins.
  */

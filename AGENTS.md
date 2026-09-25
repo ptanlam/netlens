@@ -204,6 +204,20 @@ the month's total and each segment takes its share of it, so the top edge is exa
 commitment line judges. Missed months keep their hues but drop back — you still put that money
 somewhere.
 
+## Holding logos
+
+A row's avatar shows, in order: a logo you **uploaded** in the holding form, a **bundled** mark
+(`public/logos/`, keyed in `lib/logos.ts`), else the tinted letter tile. Always resolve it with
+`instrumentLogo(inst)` — not `holdingLogo`, which only knows the bundled ones.
+
+- The browser shrinks the pick to a 96px letterboxed square (WebP, PNG on Safari) before it's
+  sent, so a stored logo is a few KB. The server only accepts a PNG/WebP/JPEG data: URL.
+- The image is in `instrument_logos` (migration `0012`), **not** on `instruments`, which every
+  page reads. `instruments.logo_at` marks that one exists and is the `?v=` in its URL
+  (`/api/logo/<name>?v=…`), so the image is cached forever and a new upload is a new URL.
+- Where no `Instrument` is in hand, pass the URL down: `LivePayload.portfolio[].logo`, and the
+  `logos` map `app/transactions/page.tsx` hands `TransactionsView`.
+
 ## Where the portfolio panels live
 
 **Allocation and Top holdings are on `/investments`**, not the dashboard: the dashboard's job is net

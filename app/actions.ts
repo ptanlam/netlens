@@ -763,6 +763,25 @@ async function recordManualEdit(before: Instrument | undefined, assetType: strin
 
 // ---------- holdings ----------
 
+/** A logo the browser drew is a 96px PNG/WebP/JPEG of a few KB; this is generous headroom
+ *  for that, and a hard stop for anything that skipped the resize. */
+const MAX_LOGO_CHARS = 200_000;
+const LOGO_DATA_URL = /^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/]+=*$/;
+
+/** The form's `logo` field: blank = leave it, "remove" = drop the upload, else a data: URL. */
+async function applyLogo(name: string, fd: FormData): Promise<string | null> {
+  const logo = str(fd.get("logo"));
+  if (!logo) return null;
+  if (logo === "remove") {
+    await db.setInstrumentLogo(name, null);
+    return null;
+  }
+  if (logo.length > MAX_LOGO_CHARS || !LOGO_DATA_URL.test(logo))
+    return "The logo must be a PNG, WebP or JPEG image.";
+  await db.setInstrumentLogo(name, logo);
+  return null;
+}
+
 export async function addHolding(fd: FormData) {
   const name = str(fd.get("name"));
   if (!name) return { ok: false, message: "A holding name is required." };
@@ -775,7 +794,9 @@ export async function addHolding(fd: FormData) {
     num(fd.get("quantity")),
     num(fd.get("manual_value")),
   );
+  const logoError = await applyLogo(name, fd);
   revalidateAll();
+  if (logoError) return { ok: true, message: `Holding added, but not its logo. ${logoError}` };
   return { ok: true, message: "Holding added." };
 }
 
@@ -793,7 +814,9 @@ export async function updateHolding(name: string, fd: FormData) {
     manual,
   );
   await recordManualEdit(before, assetType, manual);
+  const logoError = await applyLogo(name, fd);
   revalidateAll();
+  if (logoError) return { ok: true, message: `Holding updated, but not its logo. ${logoError}` };
   return { ok: true, message: "Holding updated." };
 }
 

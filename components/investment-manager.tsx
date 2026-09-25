@@ -20,7 +20,7 @@ import { AllocationCard, HoldingsListCard, typeColor } from "@/components/portfo
 import { usePnlHistory } from "@/components/use-pnl-history";
 import { PageHeader } from "@/components/page-header";
 import { EntityAvatar } from "@/components/entity-avatar";
-import { holdingLogo } from "@/lib/logos";
+import { instrumentLogo } from "@/lib/logos";
 import { cn } from "@/lib/utils";
 import { estateHref, predictionDelta, type PredictedHolding } from "@/lib/realestate";
 
@@ -135,7 +135,7 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
           <span className={cn("inline-block font-mono text-caption text-faint transition-transform", open && "rotate-90")}>▸</span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <EntityAvatar name={inst.name} color={typeColor(inst.asset_type)} logo={holdingLogo(inst.name, inst.symbol)} />
+              <EntityAvatar name={inst.name} color={typeColor(inst.asset_type)} logo={instrumentLogo(inst)} />
               <span className="truncate text-body-sm font-semibold">{inst.name}</span>
               <Badge variant="tag">{inst.asset_type}</Badge>
               {estate && (

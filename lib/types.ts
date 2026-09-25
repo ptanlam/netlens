@@ -71,6 +71,8 @@ export interface Instrument {
   updated_at: string | null;
   /** 1 once fully sold and tidied away — kept for its transaction and P&L history. */
   archived: number;
+  /** When a logo was uploaded for it (the image is in `instrument_logos`); null = none. */
+  logo_at: string | null;
 }
 
 export interface RecurringRule {
@@ -361,7 +363,11 @@ export interface GoalContribution {
  * so the tick and a hard reload cannot disagree.
  */
 export interface LivePayload {
-  portfolio: { name: string; value: number; type: string; live: boolean; cost: number; pnl: number }[];
+  portfolio: {
+    name: string; value: number; type: string; live: boolean; cost: number; pnl: number;
+    /** `instrumentLogo` — an uploaded or bundled mark; absent for the letter tile. */
+    logo?: string;
+  }[];
   portfolioTotal: number;
   investedTotal: number;
   pnl: number;

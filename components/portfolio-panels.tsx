@@ -11,7 +11,6 @@ import type { HoldingPnlPoint, LivePayload } from "@/lib/types";
 import { fmtMilVND, fmtSigned } from "@/lib/format";
 import { sparkPaths } from "@/components/net-worth";
 import { EntityAvatar } from "@/components/entity-avatar";
-import { holdingLogo } from "@/lib/logos";
 import { PanelHead } from "@/components/panel-head";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -399,7 +398,7 @@ export function HoldingsListCard({
           const paths = sparkPaths(sparks.get(h.name) ?? []);
           return (
             <div key={h.name} className="flex items-center gap-3 border-t border-divider py-3 first:border-t-0">
-              <EntityAvatar name={h.name} color={typeColor(h.type)} logo={holdingLogo(h.name)} size="lg" />
+              <EntityAvatar name={h.name} color={typeColor(h.type)} logo={h.logo} size="lg" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-body-sm font-semibold" title={h.name}>{h.name}</div>
                 <div className="truncate text-caption text-faint">{h.type}</div>

@@ -3,6 +3,7 @@ import * as db from "@/lib/db";
 import { PendingUnitsCard } from "@/components/pending-units";
 import { TransactionsView } from "@/components/transactions-view";
 import type { InstrumentOption } from "@/components/tx-form";
+import { instrumentLogo } from "@/lib/logos";
 
 export default async function TransactionsPage({
   searchParams,
@@ -28,6 +29,12 @@ export default async function TransactionsPage({
   const options: InstrumentOption[] = instruments
     .filter((i) => i.archived !== 1)
     .map((i) => ({ name: i.name, asset_type: i.asset_type }));
+
+  const logos: Record<string, string> = {};
+  for (const i of instruments) {
+    const logo = instrumentLogo(i);
+    if (logo) logos[i.name] = logo;
+  }
 
   // A `?holding=` naming something that no longer exists (a renamed or deleted holding, a
   // hand-edited URL) falls back to everything rather than to an empty page with a filter
@@ -55,6 +62,7 @@ export default async function TransactionsPage({
     <TransactionsView
       txs={txs}
       options={options}
+      logos={logos}
       initialHolding={initialHolding}
       banner={pending.length > 0 ? <PendingUnitsCard pending={pending} /> : null}
     />

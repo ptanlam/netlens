@@ -22,7 +22,7 @@ export function EntityAvatar({
   name: string;
   /** A CSS colour — pass `typeColor(assetType)`. Omit for the neutral tile. */
   color?: string;
-  /** A bundled brand mark — pass `holdingLogo(name, symbol)`. Omit for the letter. */
+  /** A brand mark — pass `instrumentLogo(inst)` (an upload, else a bundled one). Omit for the letter. */
   logo?: string;
   size?: "sm" | "md" | "lg";
   className?: string;

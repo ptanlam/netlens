@@ -23,6 +23,7 @@ import { normalizePriceRefreshMs } from "./types";
 import { fundCashAt, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
 import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
+import { instrumentLogo } from "./logos";
 
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
 export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, Property, PropertyComp, PropertyIndexPoint, RecurringRule, Saving, Subscription, Tx } from "./types";
@@ -671,7 +672,32 @@ export async function instrumentInUse(name: string): Promise<boolean> {
 }
 
 export async function deleteInstrument(name: string) {
-  await q("DELETE FROM instruments WHERE name=?").run(name);
+  await db().batch([
+    q("DELETE FROM instruments WHERE name=?").bound(name),
+    q("DELETE FROM instrument_logos WHERE instrument=?").bound(name),
+  ]);
+}
+
+/** An uploaded logo, as the data: URL it was stored as. */
+export async function getInstrumentLogo(name: string): Promise<string | undefined> {
+  const row = await q("SELECT data FROM instrument_logos WHERE instrument=?").get<{ data: string }>(name);
+  return row?.data;
+}
+
+/** Store (a data: URL) or, with null, remove a holding's uploaded logo. `logo_at` moves
+ *  either way, which is what changes the image's URL and so drops any cached copy. */
+export async function setInstrumentLogo(name: string, data: string | null) {
+  await db().batch(
+    data == null
+      ? [
+          q("DELETE FROM instrument_logos WHERE instrument=?").bound(name),
+          q("UPDATE instruments SET logo_at=NULL WHERE name=?").bound(name),
+        ]
+      : [
+          q("INSERT INTO instrument_logos(instrument, data) VALUES (?,?) ON CONFLICT(instrument) DO UPDATE SET data=excluded.data").bound(name, data),
+          q("UPDATE instruments SET logo_at=? WHERE name=?").bound(nowIso(), name),
+        ],
+  );
 }
 
 // ---------- recurring rules (auto-DCA) ----------
@@ -1531,7 +1557,7 @@ export function livePayload(
     if (!value) continue;
     const cost = costByInstrument[row.name] ?? 0;
     portfolio.push({
-      name: row.name, value, type: row.asset_type,
+      name: row.name, value, type: row.asset_type, logo: instrumentLogo(row),
       live: row.quantity != null && row.last_price != null,
       cost, pnl: value - cost,
     });

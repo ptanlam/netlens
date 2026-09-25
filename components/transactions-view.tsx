@@ -31,7 +31,6 @@ import {
   INITIAL_PANEL_WIDTH, legendChartMetrics, legendItemWidth, useLegendBand, usePanelWidth,
 } from "@/components/ui/chart";
 import { EntityAvatar } from "@/components/entity-avatar";
-import { holdingLogo } from "@/lib/logos";
 import { DateRange, defaultWindow } from "@/components/date-range";
 import { cn } from "@/lib/utils";
 
@@ -70,11 +69,14 @@ function milVND(n: number): string {
 export function TransactionsView({
   txs,
   options,
+  logos,
   initialHolding = "All",
   banner,
 }: {
   txs: Tx[];
   options: InstrumentOption[];
+  /** Holding name → `instrumentLogo`, for every holding (archived too — their rows show). */
+  logos: Record<string, string>;
   /** Page-level alert — the awaiting-fund-units panel. Rendered under the heading, because
    *  the design opens every view with its <h1> and a banner above it pushes the page title
    *  off the top of the screen. */
@@ -187,7 +189,7 @@ export function TransactionsView({
             <EntityAvatar
               name={row.original.instrument}
               color={typeColor(row.original.asset_type)}
-              logo={holdingLogo(row.original.instrument)}
+              logo={logos[row.original.instrument]}
             />
             <span className="truncate text-body-sm font-semibold">{row.original.instrument}</span>
           </div>
@@ -253,7 +255,7 @@ export function TransactionsView({
         cell: ({ row }) => <TxRowActions tx={row.original} instruments={options} />,
       },
     ],
-    [options],
+    [options, logos],
   );
 
   // Fixed height, not padding: a <select> derives a different intrinsic height from the
