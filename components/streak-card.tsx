@@ -282,7 +282,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
                   line, which landed on top of the newest column — and the figure is already
                   spelled out two lines above this. */}
               <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
-                <span className="w-3.5 border-t border-dashed border-muted-foreground/70" />
+                <span className="w-3.5 border-t-2 border-dashed border-(--chart-5) dark:border-[#ff8a3d]" />
                 Commitment
               </span>
             </div>
@@ -292,9 +292,11 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
         <div className="min-w-0 flex-[2_1_320px]">
           <div className="relative" style={{ height: PLOT }}>
             {/* The commitment. A dashed rule rather than a coloured band: it's the line the
-                columns are measured against, not a region of its own. */}
+                columns are measured against, not a region of its own. It crosses columns
+                drawn in the foreground ink, so no grey stays visible on both them and the
+                card; a hue the card uses nowhere else does. */}
             <div
-              className="pointer-events-none absolute inset-x-0 z-10 border-t border-dashed border-muted-foreground/45"
+              className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-dashed border-(--chart-5) dark:border-[#ff8a3d]"
               style={{ bottom: px(bar) }}
               aria-hidden
             />
