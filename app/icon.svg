@@ -1,13 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!--
-    The brand mark as the side rail draws it (`BrandMark` in `components/nav.tsx`): a Wise
-    Green disc with a Figtree 900 "N" in the deep green that sits on primary everywhere else.
+    "Allocation ring" (direction 1c of the Netlens app icon, claude.ai/design): the
+    dashboard's allocation donut — ink, Wise Green, grey — with an upward trend inside it.
 
-    The N is an outline rather than a <text> element: a favicon is rendered outside the page,
-    so Figtree isn't loaded and <text> would fall back to whatever sans the OS has. The path
-    is Figtree Black's own N, traced with fontTools and set at 0.6 of the tile so it still
-    reads at 16px, then centred on its ink box rather than its advance width.
+    The ring is one r=140 circle drawn three times, each stroke dashed to its own arc
+    (circumference ≈ 879.6, 24-unit gaps), rotated so the first arc starts at twelve o'clock.
+    `apple-icon.png` is this same drawing, full-bleed: see the note in `app/manifest.ts`.
   -->
-  <circle cx="32" cy="32" r="32" fill="#9fe870" />
-  <path fill="#163300" d="M19.46 45.44V18.56H26.95L37.43 33.34V18.56H44.54V45.44H37.43L26.57 30.12V45.44Z" />
+  <rect width="512" height="512" rx="116" fill="#ffffff" />
+  <g transform="rotate(-90 256 256)" fill="none" stroke-width="64">
+    <circle cx="256" cy="256" r="140" stroke="#0e0f0c" stroke-dasharray="310 569.6" stroke-dashoffset="0" />
+    <circle cx="256" cy="256" r="140" stroke="#9fe870" stroke-dasharray="266 613.6" stroke-dashoffset="-334" />
+    <circle cx="256" cy="256" r="140" stroke="#868685" stroke-dasharray="231 648.6" stroke-dashoffset="-624" />
+  </g>
+  <g fill="none" stroke="#0e0f0c" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M204 300 L244 260 L270 280 L310 232" />
+    <path d="M280 228 L314 228 L314 262" />
+  </g>
 </svg>

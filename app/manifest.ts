@@ -20,11 +20,12 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/svg+xml',
       },
       {
-        // Deliberately a full-bleed opaque square, unlike the round `icon.svg` disc:
+        // Deliberately a full-bleed opaque square, unlike the rounded `icon.svg` tile:
         // iOS masks the touch icon into its own squircle, so corners we round ourselves
         // fall outside that mask and flatten to white wedges along the edges. Declaring
         // it `maskable` says the same to Android, which otherwise shows a bare square.
-        // The N spans the middle ~30%, well within the maskable safe zone.
+        // The ring's outer edge is a circle ~67% of the tile across, inside the 80%
+        // maskable safe zone.
         src: '/apple-icon.png',
         sizes: '180x180',
         type: 'image/png',
