@@ -49,7 +49,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         // Matches the Settings gear: a bordered circle on the panel surface, so it holds
         // its own against a chart scrolling under the translucent bar.
         className={cn(
-          "size-9 items-center justify-center rounded-full border-input bg-card p-0 text-muted-foreground transition-colors hover:text-foreground dark:bg-card dark:hover:bg-card",
+          "size-9 items-center justify-center rounded-full data-[size=default]:h-9 border-input bg-card p-0 text-muted-foreground transition-colors hover:text-foreground dark:bg-card dark:hover:bg-card",
           className,
         )}
         aria-label={`Theme: ${THEMES.find((t) => t.value === current)!.label}`}

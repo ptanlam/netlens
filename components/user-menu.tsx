@@ -107,7 +107,7 @@ export function UserMenu() {
             // The name is on the popup, not the button: a trigger that changes width when
             // the identity lands would shift the whole header cluster a beat after paint.
             aria-label={identity ? `Account — ${identity.email}` : "Account"}
-            className="rounded-full bg-card text-muted-foreground data-popup-open:text-foreground"
+            className="size-9 rounded-full bg-card text-muted-foreground data-popup-open:text-foreground"
           />
         }
       >

@@ -382,7 +382,7 @@ export function LivePrices() {
             live ? `Server refreshes prices every ${label}` : "Server price refresh off"
           }
           className={cn(
-            "h-7 gap-1.5 rounded-full px-3 text-caption font-semibold sm:px-3.5",
+            "gap-1.5 rounded-full px-3 text-caption font-semibold data-[size=sm]:h-9 sm:px-3.5",
             live
               ? "border-transparent bg-accent text-accent-foreground"
               : "border-input bg-pane text-muted-foreground hover:bg-muted",
@@ -414,7 +414,7 @@ export function LivePrices() {
         disabled={pending}
         aria-label="Refresh prices now"
         title="Refresh prices now"
-        className="flex h-7 items-center gap-1.5 rounded-full border border-input bg-transparent px-2 text-caption font-semibold text-foreground transition-colors hover:bg-pane disabled:opacity-60 sm:px-3.5"
+        className="flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-full border border-input bg-transparent px-2.5 text-caption font-semibold text-foreground transition-colors hover:bg-pane disabled:opacity-60 sm:px-3.5"
       >
         <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
         <span className={word}>Refresh</span>

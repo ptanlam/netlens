@@ -244,7 +244,7 @@ function MobileNav({ pathname }: { pathname: string }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <IconTooltip label='Open menu'>
-        <DialogPrimitive.Trigger render={<Button variant='ghost' size='icon' aria-label='Open menu' className='rounded-full' />}>
+        <DialogPrimitive.Trigger render={<Button variant='ghost' size='icon' aria-label='Open menu' className='size-9 rounded-full' />}>
           <Menu className='size-5' />
         </DialogPrimitive.Trigger>
       </IconTooltip>
