@@ -23,7 +23,7 @@
  *    total, so the pace is added to the net figure rather than to a particular line.
  *
  * So each month has two heights: `floor`, what you'd hold having added nothing more from
- * today, and `net`, the floor plus the pace you've committed to. The gap between them is the
+ * today, and `net`, the floor plus your monthly pace. The gap between them is the
  * part that depends on you, and drawing it as a gap rather than as one line is the point —
  * it separates what is contracted from what is merely intended.
  */
@@ -62,21 +62,33 @@ export interface ForecastPoint {
   net: number;
 }
 
+/** Where the forecast's pace came from: your own trailing average, or — with no buying
+ *  history to average — the streak's bar. */
+export type ForecastPaceSource = "average" | BarSource;
+
 /**
  * The pace to project at, and where it came from.
  *
- * The same bar the streak judges you against (`commitment` in `lib/score.ts`) — your
- * recurring rules, else your goals' monthly plans, else none. Reused rather than restated so
- * the number the dashboard says you must clear each month is the same number this page
- * assumes you will: a forecast built on a pace the streak doesn't recognise would be quietly
- * grading you against two different commitments.
+ * What you've actually been buying: the trailing monthly average (`actualMonthly`), the
+ * figure a net-worth goal also projects on. Recurring rules materialize into those same
+ * transactions, so the average already carries every rule that has run — plus whatever you
+ * bought on top, which a forecast built on the rules alone never saw.
  *
- * Debt goals are dropped first. Repaying a loan moves money from one side of net worth to
- * the other and leaves the total where it was, so counting a repayment plan as a pace would
- * grow the line by money that isn't new. It is the same reason the streak doesn't count
- * repayments as a lever.
+ * With no buying in the window there is nothing to average, and the pace falls back to the
+ * bar the streak judges you against (`commitment` in `lib/score.ts`): your recurring rules,
+ * else your goals' monthly plans, else none. That is what gives a rule you set up yesterday
+ * a forecast before it has run once.
+ *
+ * Debt goals are dropped from that fallback. Repaying a loan moves money from one side of
+ * net worth to the other and leaves the total where it was, so counting a repayment plan as
+ * a pace would grow the line by money that isn't new. It is the same reason the streak
+ * doesn't count repayments as a lever.
  */
-export function forecastPace(w: GoalWorld, goals: Goal[]): { pace: number; source: BarSource } {
+export function forecastPace(
+  w: GoalWorld,
+  goals: Goal[],
+): { pace: number; source: ForecastPaceSource } {
+  if (w.actualMonthly > 0) return { pace: w.actualMonthly, source: "average" };
   const { bar, barSource } = commitment(
     w.plannedMonthly,
     goals.filter((g) => g.metric !== "debts"),
@@ -148,7 +160,7 @@ export interface GrownPoint extends ForecastPoint {
  *    of 7% would be a house view dressed up as arithmetic, and every figure downstream would
  *    inherit it without ever having been agreed to.
  *  - **It never touches `floor` or `net`.** Those keep their meaning exactly — what's
- *    contracted, and what's contracted plus money you've committed to adding, both at zero
+ *    contracted, and what's contracted plus your monthly pace, both at zero
  *    return. The assumption lives entirely in `growth`, so a chart can draw it as a separate
  *    band and a reader can always subtract it back out by eye.
  *  - **It applies only to investments.** Deposits have their own contractual rates and debts

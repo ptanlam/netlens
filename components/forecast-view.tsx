@@ -8,8 +8,7 @@ import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { scaleUtc } from "d3-scale";
 import { fmtMil, fmtVND, MONTHS } from "@/lib/format";
-import { applyGrowth, type ForecastEvent, type ForecastEventKind, type ForecastPoint, type GrownPoint } from "@/lib/forecast";
-import type { BarSource } from "@/lib/score";
+import { applyGrowth, type ForecastEvent, type ForecastEventKind, type ForecastPaceSource, type ForecastPoint, type GrownPoint } from "@/lib/forecast";
 import { MIN_MONTHS, PATHS, simulateBand, type PortfolioReturns } from "@/lib/volatility";
 import { PageHeader } from "@/components/page-header";
 import { PanelHead } from "@/components/panel-head";
@@ -36,8 +35,9 @@ const HORIZONS = [12, 24, 36, 60, 120, 240] as const;
 const RATES = [-5, 0, 5, 8, 12] as const;
 
 /** Where the assumed pace came from, said plainly. The forecast never quotes a number
- *  without saying who committed to it. */
-const PACE_LABEL: Record<BarSource, string> = {
+ *  without saying where it came from. */
+const PACE_LABEL: Record<ForecastPaceSource, string> = {
+  average: "Your 6-month average",
   recurring: "From your recurring rules",
   goals: "From your goals' monthly plans",
   none: "No commitment set",
@@ -135,7 +135,7 @@ export function ForecastView({
   points: ForecastPoint[];
   events: ForecastEvent[];
   pace: number;
-  paceSource: BarSource;
+  paceSource: ForecastPaceSource;
   today: string;
   portfolioReturns: PortfolioReturns;
 }) {
@@ -301,7 +301,7 @@ export function ForecastView({
     <div className="flex flex-col gap-4">
       <PageHeader title="Forecast">
         Where the decisions you&apos;ve already made leave you. Deposits accrue, loans amortise,
-        and money you&apos;ve committed to saving keeps arriving —{" "}
+        and money keeps arriving at the pace you&apos;ve been adding it —{" "}
         {historical ? (
           <>
             on top of which this page is showing{" "}
@@ -364,10 +364,10 @@ export function ForecastView({
           title="Net worth, projected"
           info={
             historical
-              ? `Two lines as usual — what you hold adding nothing more (dashed gold), and the same plus your committed pace (solid) — plus a violet band: ${PATHS.toLocaleString("en-US")} simulated paths, each month drawing a return at random from what each holding actually did in a past month, weighted by today's mix. The band holds the middle 80% of paths; the dashed violet line is the median. Holdings move independently in the simulation, so it understates how much they fall together in a crash.`
+              ? `Two lines as usual — what you hold adding nothing more (dashed gold), and the same plus your monthly pace (solid) — plus a violet band: ${PATHS.toLocaleString("en-US")} simulated paths, each month drawing a return at random from what each holding actually did in a past month, weighted by today's mix. The band holds the middle 80% of paths; the dashed violet line is the median. Holdings move independently in the simulation, so it understates how much they fall together in a crash.`
               : assumed
-              ? `Three bands: what you hold adding nothing more (dashed gold), the same plus the pace you've committed to (solid), and on top of that ${rate}%/yr assumed on investments. Only the top band is an assumption — read one line down to see the figure without it.`
-              : "Two lines: what you hold if you add nothing more from today (dashed), and the same plus the monthly pace you've committed to (solid). Investments are held flat — no market return is assumed either way."
+              ? `Three bands: what you hold adding nothing more (dashed gold), the same plus your monthly pace (solid), and on top of that ${rate}%/yr assumed on investments. Only the top band is an assumption — read one line down to see the figure without it.`
+              : "Two lines: what you hold if you add nothing more from today (dashed), and the same plus your monthly pace (solid). Investments are held flat — no market return is assumed either way."
           }
           actions={
             <div className="flex gap-0.5 rounded-full bg-pane p-1">
@@ -512,11 +512,11 @@ export function ForecastView({
 
       {pace === 0 && (
         <div className="rounded-xl border border-warning-border bg-warning-bg px-5 py-4 text-body-sm">
-          <span className="font-semibold">Nothing committed, so nothing is projected.</span>{" "}
+          <span className="font-semibold">No pace, so nothing is projected.</span>{" "}
           <span className="text-muted-foreground">
-            The line above is only what you already hold. Set a recurring rule, or a monthly plan
-            on a goal, and the forecast has a pace to work from — the same bar the saving streak
-            judges a month by.
+            You haven&apos;t bought anything in the last 6 months, and nothing is committed. The
+            line above is only what you already hold. Record a purchase, set a recurring rule, or
+            put a monthly plan on a goal, and the forecast has a pace to work from.
           </span>
         </div>
       )}
