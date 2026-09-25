@@ -7,13 +7,50 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-grotesk);
-  --font-mono: var(--font-jetbrains);
-  /* Single-family: Space Grotesk carries headings too, so `font-heading` and `font-serif`
-     (used across the app) resolve to it rather than a second face. Every figure is
-     JetBrains Mono — the design sets numerals in mono without exception. */
-  --font-heading: var(--font-grotesk);
-  --font-serif: var(--font-grotesk);
+  --font-sans: var(--font-inter);
+  /* Wise sets figures in Inter with tabular numerals, not in a monospace face. `font-mono`
+     is kept as the name every figure already carries, but it now resolves to Inter, and the
+     rule below this block turns tabular numerals on for it, so columns still line up. */
+  --font-mono: var(--font-inter);
+  /* The display face (Figtree 900, standing in for Wise Sans) is for page titles, the
+     wordmark and the net-worth figure, and nothing else. Everything else is Inter. */
+  --font-display: var(--font-wise), var(--font-inter);
+  --font-heading: var(--font-inter);
+  --font-serif: var(--font-inter);
+  /* The Wise type scale (DESIGN.md), as utilities: `text-caption`, `text-body-sm`, `text-body`,
+     `text-body-lg`, `text-display-xs`, `text-display-sm`. Panel text sits on these steps and
+     nothing between them — the half-pixel sizes the old theme used (11.5, 12.5, 13.5) are
+     what made the panels read as a different, denser face next to the Wise headings.
+     Weight is 400 or 600 only; 900 belongs to the display face. */
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+  --text-body: 16px;
+  --text-body--line-height: 24px;
+  --text-body-lg: 20px;
+  --text-body-lg--line-height: 28px;
+  --text-display-xs: 24px;
+  --text-display-xs--line-height: 31px;
+  --text-display-xs--letter-spacing: -0.02em;
+  --text-display-sm: 32px;
+  --text-display-sm--line-height: 38px;
+  --text-display-sm--letter-spacing: -0.03em;
+  --color-primary-hover: var(--primary-hover);
+  --color-field-border: var(--field-border);
+  --color-hero: var(--hero);
+  --color-hero-foreground: var(--hero-foreground);
+  --color-hero-strong: var(--hero-strong);
+  --color-hero-accent: var(--hero-accent);
+  --color-hero-divider: var(--hero-divider);
+  --color-negative-pill: var(--negative-pill);
+  --color-negative-pill-foreground: var(--negative-pill-foreground);
+  --color-warning-pill: var(--warning-pill);
+  --color-warning-pill-foreground: var(--warning-pill-foreground);
+  --color-hero-pos-bg: var(--hero-pos-bg);
+  --color-hero-pos-fg: var(--hero-pos-fg);
+  --color-hero-neg-bg: var(--hero-neg-bg);
+  --color-hero-neg-fg: var(--hero-neg-fg);
   --color-accent-brand: var(--accent-brand);
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
@@ -78,216 +115,236 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* ---- The corner ladder ----
-     Read off the design file rather than derived from one base, because the design's
-     rungs aren't a geometric series — it uses 7 / 9 / 12 / 16 / 18 and nothing between.
-     Deriving them from `--radius` was what let call sites drift onto `rounded-[5px]`,
-     `rounded-[7px]` and `rounded-[10px]` for what is the same object three times over.
-
-       sm  7px   micro tag ("Funds", "live", an asset-type chip)
-       md  9px   small icon button, pagination arrow
-       lg  12px  button, nav row, table column bar   ← `--radius`, the control corner
-       xl  16px  strip / alert / inset block inside a panel
-       2xl 18px  a panel — `card-surface` hard-codes this, so they can't diverge
-       3xl 22px  the mobile drawer
-       4xl        badges, which are pills at their own height */
-  --radius-sm: 7px;
-  --radius-md: 9px;
+  /* ---- The corner ladder (Wise) ----
+       sm  8px   micro tag ("Funds", an asset-type chip)
+       md  12px  small icon button, table column bar
+       lg  12px  inputs and selects   ← `--radius`
+       xl  16px  strip / alert / inset block inside a panel, menus, tooltips
+       2xl 24px  a card: Wise's signature corner (`card-surface` uses it)
+       3xl 24px  dialogs and the mobile drawer
+       4xl       pills: buttons and badges */
+  --radius-sm: 8px;
+  --radius-md: 12px;
   --radius-lg: var(--radius);
   --radius-xl: 16px;
-  --radius-2xl: 18px;
-  --radius-3xl: 22px;
-  --radius-4xl: 30px;
+  --radius-2xl: 24px;
+  --radius-3xl: 24px;
+  --radius-4xl: 9999px;
 }
 
-/* ---- "Daylight" — the Alpha palette on paper. ----
-   The dark theme below is the design's home turf; this is its counterpart, built by
-   inverting the *surface stack* (field → panel → in-panel chip) rather than by tinting the
-   dark one. The brand blue is deepened and gain/loss pulled well off their mid-tones:
-   #26d07c and #ff5a52 measure ~1.9:1 on white, which is fine as a line on a chart and
-   hopeless as 11px chip text. */
+/* ---- Wise, light ("Daylight") ----
+   Taken from the Netlens Dashboard design, which is built on the Wise design system
+   (`DESIGN.md`). The whole look comes from three surfaces and one accent:
+   pale sage `#e8ebe6` for the page, white `#ffffff` for the cards on it, near-black olive
+   ink `#0e0f0c` for text and the one inverse surface (the net-worth hero), and Wise Green
+   `#9fe870` as the only accent, used for the primary action and the active nav row.
+
+   Wise is flat. Depth comes from white-on-sage (or sage-on-white) contrast, never from a
+   border or a shadow. Only floating layers (menus, dialogs, toasts) get a shadow.
+   Gain and loss use muted semantic families (`--accent-brand` / `--destructive` for text), never the
+   brand green. Green means "act here", and a green profit would blur the two. */
 :root {
   color-scheme: light;
-  --background: #f4f5f8;      /* the field the panels sit on */
-  --foreground: #0d1018;
-  --card: #ffffff;            /* panel */
-  --card-foreground: #0d1018;
+  --background: #e8ebe6;      /* sage: the page */
+  --foreground: #0e0f0c;      /* ink */
+  --card: #ffffff;
+  --card-foreground: #0e0f0c;
   --popover: #ffffff;
-  --popover-foreground: #0d1018;
-  /* Blue is the *action* colour — primary buttons, the active nav row, the brand mark.
-     `--brand` is the design's #2b7fff, kept for anything that tints or glows; `--primary`
-     is deepened so white label text on a filled button clears AA. */
-  --brand: #2b7fff;
-  --brand-soft: rgb(43 127 255 / 0.11);
-  /* The design fills its avatar tile with a blue→violet rake rather than flat brand blue.
-     It's the one place two hues meet, which is what stops the mark reading as a swatch. */
-  --brand-gradient: linear-gradient(150deg, #2b7fff, #7c5cff);
-  --primary: #1e63e0;
-  --primary-foreground: #ffffff;
-  --secondary: rgb(13 16 24 / 0.06);
-  --secondary-foreground: #0d1018;
-  --muted: #eef0f5;
-  --muted-foreground: #565d70;
-  --accent: rgb(8 119 74 / 0.11);
-  --accent-foreground: #076241;
-  --accent-brand: #076241;     /* positive / gains */
-  --destructive: #c02d24;      /* losses */
-  --border: rgb(13 16 24 / 0.09);      /* the design's --line */
-  --input: rgb(13 16 24 / 0.16);       /* the design's --line-2 */
-  --ring: #2b7fff;
-  /* Asset-type series palette — fixed slot order (Funds/Stocks/Crypto/Real Estate),
-     taken from the design's allocation bar (blue / amber / cyan / green). */
-  --chart-1: #2b7fff;         /* Funds */
-  --chart-2: #b8790c;         /* Stocks */
-  --chart-3: #1391b5;         /* Crypto */
-  --chart-4: #0e8f57;         /* Real Estate */
-  --chart-5: #7c5cff;
-  --chart-positive: #076241;
-  --chart-negative: #c02d24;
-  /* Bare RGB triples: chart area fills and tinted calendar cells composite these
-     at a computed alpha, so they can't be plain hex. Use rgb(var(--x) / <alpha>). */
-  --positive-rgb: 7 98 65;
-  --negative-rgb: 192 45 36;
-  --ink-rgb: 7 98 65;
-  --gold-rgb: 154 106 8;
-  --header-bg: rgb(244 245 248 / 0.82);
-  --faint: #7c8395;           /* lowest-contrast ink — column labels, axis ticks */
-  --divider: rgb(13 16 24 / 0.09);      /* hairline between rows */
-  --divider-soft: rgb(13 16 24 / 0.05); /* fainter hairline inside dense tables */
-  --grid: rgb(13 16 24 / 0.08);         /* chart gridline */
-  --grid-strong: rgb(13 16 24 / 0.16);  /* chart zero line */
-  /* The design draws its portfolio value in gain-green rather than in the brand blue —
-     blue is spent on actions here, and a value line is the one series that never means
-     "click me". */
-  --chart-ink: #076241;       /* the value line */
-  /* Amber, NOT the design's loss-coral. The design pairs a green Value line against a coral
-     Invested one, so the gap between them reads as P&L — but this app's capital-deployed
-     chart runs solo, and a lone coral area with nothing to be measured against just reads
-     as "you are losing money". */
-  --chart-gold: #9a6a08;
-  --warning: #9a6a08;
-  --warning-border: rgb(154 106 8 / 0.3);
-  --warning-bg: rgb(240 180 41 / 0.13);
-  --positive-wash: rgb(7 98 65 / 0.09);
-  --positive-border: rgb(7 98 65 / 0.26);
-  --positive-strong: #076241; /* gain text sitting on a tinted cell */
-  --negative-wash: rgb(192 45 36 / 0.08);
-  --negative-wash-strong: rgb(192 45 36 / 0.14);
-  --negative-border: rgb(192 45 36 / 0.26);
-  --negative-strong: #c02d24; /* loss text sitting on a tinted cell */
-  --disabled-foreground: #9aa0b0;
-  /* The chart tooltip is `bg-foreground`, so its surface INVERTS with the theme:
-     ink here, paper in `.dark`. These read against ink; `.dark` flips them. */
-  --tooltip-neutral: #b9bdc9;
-  --tooltip-positive: #5fdca4;
-  --tooltip-negative: #ff938a;
-  --tooltip-gold: #f0c15e;
-  --selection: rgb(43 127 255 / 0.16);
-  --radius: 0.75rem;
-  /* ---- In-panel surfaces ----
-     Anything sitting ON a panel — a filter <select>, a segmented pill, a table's header
-     bar — is the next step of the same stack, never a floating slab. `--pane` is the
-     design's `--card-2`, `--pane-2` its "on" state, `--pane-sunk` a recessed track. */
-  --pane: #f2f4f8;
-  --pane-2: #e7eaf1;
-  --pane-sunk: rgb(13 16 24 / 0.05);
-  /* The one surface that must fully mask: a pinned table column with rows sliding under it. */
+  --popover-foreground: #0e0f0c;
+  /* Wise Green is the action colour, and its label is forest ink (`#163300`), never white. */
+  --brand: #9fe870;
+  --brand-soft: #e2f6d5;
+  --primary: #9fe870;
+  --primary-hover: #cdffad;
+  --primary-foreground: #163300;
+  --secondary: #e8ebe6;
+  --secondary-foreground: #0e0f0c;
+  --muted: #e8ebe6;
+  --muted-foreground: #454745;
+  --accent: #e2f6d5;          /* the positive badge's pale green */
+  --accent-foreground: #054d28;
+  /* Gain and loss text: Wise's negative red as-is, and its positive green taken just deep
+     enough to clear 4.5:1 on white (the brand's #2ead4b is a fill colour, ~2.7:1 as text). */
+  --accent-brand: #1a873c;    /* positive / gains (text) */
+  --destructive: #d03238;     /* losses (text) */
+  --border: rgb(14 15 12 / 0.12);      /* Wise's hairline: 12% ink */
+  --input: rgb(14 15 12 / 0.16);
+  /* Wise gives a form field a full ink edge: an input is a thing you type into, not a
+     region of the card. */
+  --field-border: rgb(14 15 12 / 0.55);
+  --ring: #0e0f0c;
+  /* Asset-type slots (Funds / Stocks / Crypto / Real Estate / spare), in fixed order.
+     Funds=ink, Stocks=green and Crypto=grey come straight from the design's allocation
+     donut. The last two borrow Wise's illustration accents, deepened enough to hold up
+     as a thin line. */
+  --chart-1: #0e0f0c;         /* Funds */
+  --chart-2: #6cc23a;         /* Stocks */
+  --chart-3: #868685;         /* Crypto */
+  --chart-4: #1d9bd1;         /* Real Estate */
+  --chart-5: #e08a4c;
+  --chart-positive: #1f8a3f;
+  --chart-negative: #d03238;
+  /* Bare RGB triples for computed alphas: rgb(var(--x) / <alpha>). */
+  --positive-rgb: 46 173 75;
+  --negative-rgb: 208 50 56;
+  --ink-rgb: 14 15 12;
+  --gold-rgb: 134 134 133;
+  --header-bg: rgb(232 235 230 / 0.86);
+  --faint: #868685;           /* Wise "mute" ink: axis ticks, captions */
+  --divider: rgb(14 15 12 / 0.12);
+  --divider-soft: rgb(14 15 12 / 0.06);
+  --grid: rgb(14 15 12 / 0.09);
+  --grid-strong: rgb(14 15 12 / 0.28);
+  /* The design draws portfolio value in ink over a pale-green wash, with "invested" as a
+     dashed grey line under it. Ink is neutral: value is not a gain. */
+  --chart-ink: #0e0f0c;
+  --chart-gold: #868685;
+  --warning: #b86700;
+  --warning-border: rgb(184 103 0 / 0.32);
+  --warning-bg: rgb(255 209 26 / 0.18);
+  --positive-wash: #e2f6d5;
+  --positive-border: rgb(5 77 40 / 0.22);
+  /* The same pair a step deeper, for figures printed *on* a gain/loss wash (the calendar
+     squares): bright red on the darkest pink tint falls to ~2.4:1. */
+  --positive-strong: #157534;
+  --negative-wash: rgb(208 50 56 / 0.09);
+  --negative-wash-strong: rgb(208 50 56 / 0.16);
+  --negative-border: rgb(208 50 56 / 0.28);
+  --negative-strong: #a72027;
+  --disabled-foreground: #b3b6b1;
+  /* The chart tooltip is `bg-foreground`, so it inverts with the theme: ink here, sage in
+     `.dark`. These colours are read against ink; `.dark` flips them. */
+  --tooltip-neutral: #c3c7bf;
+  --tooltip-positive: #9fe870;
+  --tooltip-negative: #ff9a9d;
+  --tooltip-gold: #c3c7bf;
+  --selection: rgb(159 232 112 / 0.45);
+  --radius: 0.75rem;          /* 12px: inputs and small controls */
+  /* In-panel surfaces. On a white card the next step is sage (sage-on-white), which is
+     exactly what the design uses for a table's column bar and a segmented control. */
+  --pane: #e8ebe6;
+  --pane-2: #dce0d9;
+  --pane-sunk: rgb(14 15 12 / 0.05);
   --pane-strong: #ffffff;
   --menu-surface: #ffffff;
-  /* Panels separate by an edge, not a lift — but on paper a hairline alone leaves them
-     floating, so they carry the faintest drop. Near-nothing in `.dark`, where the edge
-     against a near-black field is enough on its own. */
-  --card-shadow: 0 1px 2px rgb(13 16 24 / 0.04), 0 8px 24px rgb(13 16 24 / 0.05);
-  --card-shadow-hover: 0 1px 2px rgb(13 16 24 / 0.05), 0 12px 32px rgb(13 16 24 / 0.08);
-  --menu-shadow: 0 18px 48px rgb(13 16 24 / 0.16);
-  /* The glow under a primary button and the brand mark — the design's one piece of
-     luminosity, and the thing that fixes the accent in the eye. */
-  --brand-glow: 0 6px 20px rgb(43 127 255 / 0.24);
-}
-
-/* ---- "Netlens Alpha" — the design's home turf. ----
-   Three flat surface steps stacked on a cool dark field (field → panel → in-panel chip),
-   with borders faint enough to read as an edge rather than a drawn line. Nothing here is
-   frosted or lifted: depth is the surface step and the hairline, and the only glow in the
-   whole theme is the brand's.
-
-   The ramp is the design file's own: #050608 → #0c0e13 → #13161d. It was raised once and
-   put back deliberately — near the black floor sRGB is compressed, so those steps measure
-   only L* +2.3 and +3.3, and the separation between field, panel and chip is meant to be
-   quiet. Read this in a lit room and the panels will sit close to the field; that is the
-   design, not a bug, and the hairline `--border` is what carries the edge. Don't lighten
-   the ramp without changing the design file first. */
-.dark {
-  color-scheme: dark;         /* so native controls (month picker, scrollbars) go dark too */
-  --background: #050608;      /* the field the panels sit on */
-  --foreground: #f2f4f8;
-  --card: #0c0e13;            /* panel */
-  --card-foreground: #f2f4f8;
-  --popover: #0e1117;
-  --popover-foreground: #f2f4f8;
-  --brand: #2b7fff;
-  --brand-soft: rgb(43 127 255 / 0.16);
-  --brand-gradient: linear-gradient(150deg, #2b7fff, #7c5cff);
-  --primary: #2b7fff;
-  --primary-foreground: #ffffff;
-  --secondary: rgb(255 255 255 / 0.07);
-  --secondary-foreground: #f2f4f8;
-  --muted: #13161d;
-  --muted-foreground: #9aa0ae;
-  --accent: rgb(38 208 124 / 0.13);
-  --accent-foreground: #26d07c;
-  --accent-brand: #26d07c;
-  --destructive: #ff5a52;
-  --border: rgb(255 255 255 / 0.07);
-  --input: rgb(255 255 255 / 0.13);
-  --ring: #2b7fff;
-  --chart-1: #2b7fff;         /* Funds */
-  --chart-2: #f0b429;         /* Stocks */
-  --chart-3: #35c8f0;         /* Crypto */
-  --chart-4: #26d07c;         /* Real Estate */
-  --chart-5: #7c5cff;
-  --chart-positive: #26d07c;
-  --chart-negative: #ff5a52;
-  --positive-rgb: 38 208 124;
-  --negative-rgb: 255 90 82;
-  --ink-rgb: 38 208 124;
-  --gold-rgb: 240 180 41;
-  --header-bg: rgb(5 6 8 / 0.82);
-  --faint: #5f6472;
-  --divider: rgb(255 255 255 / 0.07);
-  --divider-soft: rgb(255 255 255 / 0.045);
-  --grid: rgb(255 255 255 / 0.055);
-  --grid-strong: rgb(255 255 255 / 0.1);
-  --chart-ink: #26d07c;
-  --chart-gold: #f0b429;
-  --warning: #f0b429;
-  --warning-border: rgb(240 180 41 / 0.28);
-  --warning-bg: rgb(240 180 41 / 0.09);
-  --positive-wash: rgb(38 208 124 / 0.12);
-  --positive-border: rgb(38 208 124 / 0.28);
-  --positive-strong: #26d07c;
-  --negative-wash: rgb(255 90 82 / 0.13);
-  --negative-wash-strong: rgb(255 90 82 / 0.2);
-  --negative-border: rgb(255 90 82 / 0.28);
-  --negative-strong: #ff5a52;
-  --disabled-foreground: #3d414d;
-  /* Tooltip surface is paper here (bg-foreground), so tooltip ink goes dark. */
-  --tooltip-neutral: #55575f;
-  --tooltip-positive: #0f7a4d;
-  --tooltip-negative: #a8362b;
-  --tooltip-gold: #8a5d06;
-  --selection: rgb(43 127 255 / 0.3);
-  --pane: #13161d;
-  --pane-2: #1b1f28;
-  --pane-sunk: rgb(255 255 255 / 0.05);
-  --pane-strong: #0c0e13;
-  --menu-surface: #0e1117;
-  /* On a near-black field the hairline carries the whole edge; a lift would only read as
-     another dark rectangle. Kept as a token so the two themes share one card rule. */
+  /* Flat: white on sage is enough to lift a card. */
+  --card-edge: transparent;
   --card-shadow: none;
   --card-shadow-hover: none;
-  --menu-shadow: 0 24px 60px rgb(0 0 0 / 0.6);
-  --brand-glow: 0 6px 20px rgb(43 127 255 / 0.32);
+  --menu-shadow: 0 8px 24px rgb(14 15 12 / 0.12);
+  --modal-shadow: 0 16px 48px rgb(14 15 12 / 0.18);
+  --scrim: rgb(14 15 12 / 0.48);
+  --brand-glow: none;
+  /* The net-worth hero: ink with a green figure, the design's one inverse surface. */
+  --hero: #0e0f0c;
+  --hero-foreground: #e8ebe6;
+  --hero-strong: #ffffff;
+  --hero-accent: #9fe870;
+  --hero-divider: rgb(232 235 230 / 0.18);
+  /* Wise's status pills: negative is maroon with white text, warning is the solid yellow
+     with its own dark content colour. */
+  --negative-pill: #320707;
+  --negative-pill-foreground: #ffffff;
+  --warning-pill: #ffd11a;
+  --warning-pill-foreground: #4a3b1c;
+  --hero-pos-bg: #e2f6d5;
+  --hero-pos-fg: #054d28;
+  --hero-neg-bg: #ffd9da;
+  --hero-neg-fg: #a72027;
+}
+
+/* ---- Wise, dark ("Midnight") ----
+   The design ships light only. Its dark counterpart follows the rule Wise uses for its own
+   dark promo bands: turn the ink into the field and keep the olive warmth in every step,
+   then flip the hero the other way to a green card with ink figures, so it stays the one
+   inverse surface on the page. */
+.dark {
+  color-scheme: dark;
+  --background: #0e0f0c;
+  --foreground: #e8ebe6;
+  --card: #1a1c17;
+  --card-foreground: #e8ebe6;
+  --popover: #1f221c;
+  --popover-foreground: #e8ebe6;
+  --brand: #9fe870;
+  --brand-soft: rgb(159 232 112 / 0.14);
+  --primary: #9fe870;
+  --primary-hover: #cdffad;
+  --primary-foreground: #163300;
+  --secondary: #262922;
+  --secondary-foreground: #e8ebe6;
+  --muted: #262922;
+  --muted-foreground: #b2b6ae;
+  --accent: rgb(159 232 112 / 0.14);
+  --accent-foreground: #9fe870;
+  --accent-brand: #5fd17a;
+  --destructive: #ff7075;
+  --border: rgb(232 235 230 / 0.09);
+  --input: rgb(232 235 230 / 0.16);
+  --field-border: rgb(232 235 230 / 0.38);
+  --ring: #e8ebe6;
+  --chart-1: #e8ebe6;         /* Funds */
+  --chart-2: #9fe870;         /* Stocks */
+  --chart-3: #8d918a;         /* Crypto */
+  --chart-4: #38c8ff;         /* Real Estate */
+  --chart-5: #ffc091;
+  --chart-positive: #5fd17a;
+  --chart-negative: #ff7075;
+  --positive-rgb: 95 209 122;
+  --negative-rgb: 255 112 117;
+  --ink-rgb: 232 235 230;
+  --gold-rgb: 141 145 138;
+  --header-bg: rgb(14 15 12 / 0.86);
+  --faint: #7d8179;
+  --divider: rgb(232 235 230 / 0.09);
+  --divider-soft: rgb(232 235 230 / 0.05);
+  --grid: rgb(232 235 230 / 0.07);
+  --grid-strong: rgb(232 235 230 / 0.22);
+  --chart-ink: #e8ebe6;
+  --chart-gold: #8d918a;
+  --warning: #ffd11a;
+  --warning-border: rgb(255 209 26 / 0.3);
+  --warning-bg: rgb(255 209 26 / 0.1);
+  --positive-wash: rgb(95 209 122 / 0.13);
+  --positive-border: rgb(95 209 122 / 0.3);
+  --positive-strong: #5fd17a;
+  --negative-wash: rgb(255 112 117 / 0.13);
+  --negative-wash-strong: rgb(255 112 117 / 0.2);
+  --negative-border: rgb(255 112 117 / 0.3);
+  --negative-strong: #ff7075;
+  --disabled-foreground: #4a4d46;
+  /* Tooltip surface is sage here (bg-foreground), so its ink goes dark. */
+  --tooltip-neutral: #454745;
+  --tooltip-positive: #054d28;
+  --tooltip-negative: #a72027;
+  --tooltip-gold: #454745;
+  --selection: rgb(159 232 112 / 0.3);
+  --pane: #262922;
+  --pane-2: #30342c;
+  --pane-sunk: rgb(232 235 230 / 0.05);
+  --pane-strong: #1a1c17;
+  --menu-surface: #1f221c;
+  /* Against a near-black field the card step alone is too quiet, so dark gets a hairline. */
+  --card-edge: rgb(232 235 230 / 0.06);
+  --card-shadow: none;
+  --card-shadow-hover: none;
+  --menu-shadow: 0 16px 40px rgb(0 0 0 / 0.55);
+  --modal-shadow: 0 24px 64px rgb(0 0 0 / 0.6);
+  --scrim: rgb(0 0 0 / 0.6);
+  --brand-glow: none;
+  --hero: #9fe870;
+  --hero-foreground: #163300;
+  --hero-strong: #0e0f0c;
+  --hero-accent: #0e0f0c;
+  --hero-divider: rgb(22 51 0 / 0.2);
+  --negative-pill: #5a1418;
+  --negative-pill-foreground: #ffd9da;
+  --warning-pill: #ffd11a;
+  --warning-pill-foreground: #4a3b1c;
+  --hero-pos-bg: #163300;
+  --hero-pos-fg: #9fe870;
+  --hero-neg-bg: #320707;
+  --hero-neg-fg: #ffb3b5;
 }
 
 @layer base {
@@ -302,8 +359,9 @@
     overscroll-behavior-y: contain;
     /* The design runs at 13.5px/1.45 — denser than a browser default, which is what lets a
        table row and a stat tile sit in the same column without either looking loose. */
-    font-size: 13.5px;
-    line-height: 1.45;
+    font-size: 14px;
+    line-height: 1.5;
+    font-feature-settings: "calt" 1;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -328,8 +386,7 @@
      focus gesture, so the ring reads as a stuck selection on a picture you were only
      reading. Drop it, and restore the ring on `:focus-visible` alone — verified to match
      when the chart is reached by Tab and not when it is clicked, so the keyboard path keeps
-     its indicator. Descendants too: the brush strip and the zoom handles are separately
-     focusable inside the host. */
+     its indicator. Descendants too: a legend chip is separately focusable inside the host. */
   [aria-roledescription="chart"]:focus,
   [aria-roledescription="chart"] :focus {
     outline: none;
@@ -364,21 +421,21 @@
   }
 }
 
-/* Every panel in the app is the same object: an opaque surface one step up from the field,
-   an 18px corner, and a hairline edge. One utility rather than a repeated class trio so
-   the radius and the edge stay in lockstep across two dozen call sites.
+/* Every panel in the app is the same object: a white card on the sage page with Wise's
+   24px corner. One utility rather than a repeated class trio so the radius and the surface
+   stay in lockstep across two dozen call sites.
 
-   Deliberately flat. The design gets its depth from the surface *stack* — field, panel,
-   in-panel chip, each a measured step lighter — so a card that also blurred or floated
-   would break the one thing holding the hierarchy together. */
+   Deliberately flat. Wise gets depth from surface contrast (white on sage, sage on
+   white), so a card that also had a shadow or a border would fight it. Dark mode alone
+   adds a faint edge (`--card-edge`), because there the card step is too quiet on its own. */
 @utility card-surface {
   position: relative;
-  border-radius: 18px;
+  border-radius: 24px;
   /* `background-color`, not the `background` shorthand: the tinted summary tiles lay a
      `linear-gradient` wash over this as a background-IMAGE, and the shorthand would reset
      it depending on which utility Tailwind happened to sort last. */
   background-color: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--card-edge);
   box-shadow: var(--card-shadow);
   transition:
     border-color 0.25s ease,
@@ -399,21 +456,21 @@
    padding by name instead of re-deriving it and going stale. */
 @utility panel-body {
   --panel-px: 18px;
-  --panel-py: 18px;
+  --panel-py: 20px;
   padding: var(--panel-py) var(--panel-px);
   @media (width >= 40rem) {
-    --panel-px: 22px;
-    --panel-py: 20px;
+    --panel-px: 24px;
+    --panel-py: 24px;
   }
 }
 
 @utility panel-body-sm {
-  --panel-px: 16px;
-  --panel-py: 16px;
+  --panel-px: 18px;
+  --panel-py: 18px;
   padding: var(--panel-py) var(--panel-px);
   @media (width >= 40rem) {
-    --panel-px: 20px;
-    --panel-py: 18px;
+    --panel-px: 24px;
+    --panel-py: 22px;
   }
 }
 
@@ -425,7 +482,7 @@
   --panel-px: 18px;
   padding-inline: var(--panel-px);
   @media (width >= 40rem) {
-    --panel-px: 22px;
+    --panel-px: 24px;
   }
 }
 
@@ -434,8 +491,8 @@
 @utility panel-surface {
   position: relative;
   background-color: var(--popover);
-  border: 1px solid var(--input);
-  box-shadow: var(--menu-shadow);
+  border: 1px solid var(--card-edge);
+  box-shadow: var(--modal-shadow);
 }
 
 /* A pinned table column has rows sliding under it, so it has to mask them outright. */
@@ -446,8 +503,41 @@
 /* Floating menus (select popups, column menus) — the panel surface at menu scale. */
 @utility floating-menu {
   background-color: var(--menu-surface);
-  border-color: var(--input);
+  border-color: var(--card-edge);
   box-shadow: var(--menu-shadow);
+}
+
+/* The chart tooltip is an inverse card (see CHART_HOST_STYLE). Its title is the caption and
+   its figures are the strong line, as in the design's hover card. */
+.ts-chart-tooltip__title { font-weight: 600; }
+.ts-chart-tooltip__row > span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---- Hide amounts (`lib/mask.ts`) ----
+   Keyed off what every figure already carries: `font-mono` (the figure class), `data-amount`
+   for the one figure set in the display face, the value cell of a chart tooltip (which the
+   library builds in JS), and a chart's numeric tick labels. Dates and names stay readable,
+   so the page still makes sense with the mask on. A figure that isn't money but wears
+   `font-mono` anyway (a clock, a month count, a keyboard hint) opts out with `data-unmask`.
+   `-webkit-text-security` swaps each glyph for a dot, as the design does. Chrome, Safari and
+   current Firefox all support it on ordinary elements. SVG text ignores it, so tick labels
+   are blurred instead, and so is everything on an engine without it. */
+html[data-mask] :is(.font-mono, [data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
+  -webkit-text-security: disc;
+}
+@supports not (-webkit-text-security: disc) {
+  html[data-mask] :is(.font-mono, [data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
+    filter: blur(7px);
+  }
+}
+html[data-mask] [data-ts-key*="tick-label:number"] {
+  filter: blur(4px);
+}
+
+/* Figures: Inter with tabular numerals, so a column of amounts lines up the way the old
+   monospace face did. Unlayered on purpose. It sets only the numeral feature, which no
+   utility touches, so it can't fight one. */
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
 /* The header bar above a table: the in-panel step, uppercase and letterspaced, so the
@@ -512,15 +602,8 @@
 
 .goal-fill {
   --goal-fill-color: var(--color-accent-brand);
+  /* Flat, like every other Wise surface: a solid bar on a sage track, no lit edge. */
   background-color: var(--goal-fill-color);
-  /* A flat bar with a lit top edge, matching the design's allocation bar — the sheen is a
-     single vertical step, not a travelling highlight. */
-  background-image: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--goal-fill-color), white 22%) 0%,
-    var(--goal-fill-color) 62%,
-    color-mix(in oklab, var(--goal-fill-color), black 10%) 100%
-  );
 }
 .goal-fill-muted {
   --goal-fill-color: var(--color-disabled-foreground);
@@ -587,36 +670,39 @@
 
 /* The net-worth hero ticks green (up) / red (down) and nudges into place whenever a price
  * refresh moves the total — colour + motion make a refresh legible without reading digits. */
+/* A host can override the colours it flashes through and comes to rest on (`--nw-up`,
+   `--nw-down`, `--nw-rest`). The ink hero needs that, since the defaults are picked for
+   text on a card. */
 @keyframes nw-flash-up {
   0% {
-    color: var(--accent-brand);
+    color: var(--nw-up, var(--accent-brand));
     transform: translateY(0.16em);
   }
   28% {
     transform: translateY(0);
   }
   65% {
-    color: var(--accent-brand);
+    color: var(--nw-up, var(--accent-brand));
   }
   100% {
-    color: var(--foreground);
+    color: var(--nw-rest, var(--foreground));
     transform: translateY(0);
   }
 }
 
 @keyframes nw-flash-down {
   0% {
-    color: var(--chart-negative);
+    color: var(--nw-down, var(--chart-negative));
     transform: translateY(-0.16em);
   }
   28% {
     transform: translateY(0);
   }
   65% {
-    color: var(--chart-negative);
+    color: var(--nw-down, var(--chart-negative));
   }
   100% {
-    color: var(--foreground);
+    color: var(--nw-rest, var(--foreground));
     transform: translateY(0);
   }
 }
@@ -677,7 +763,7 @@
     --nav-rail: 248px;
   }
   html[data-nav-collapsed] {
-    --nav-rail: 74px;
+    --nav-rail: 84px;
   }
 
   /* The page is inset by hand to clear the rail — the rail is a fixed sibling of <main>,
@@ -698,8 +784,10 @@
     overflow-y: auto;
     padding: calc(22px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
     padding-left: calc(16px + env(safe-area-inset-left));
-    background: var(--background);
-    border-right: 1px solid var(--border);
+    /* The design's sidebar is a white column against the sage page. Like every other Wise
+       surface it's flat: the colour change is the edge. */
+    background: var(--card);
+    border-right: 1px solid var(--card-edge);
     transition: width 0.18s ease;
   }
   @media (prefers-reduced-motion: reduce) {
@@ -713,7 +801,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 0 4px 0 8px;
+    padding: 4px 4px 0 12px;
   }
   [data-rail-nav] {
     display: flex;
@@ -752,6 +840,13 @@
     gap: 0;
     padding-left: 0;
     padding-right: 0;
+  }
+  html[data-nav-collapsed] [data-rail-wordmark] {
+    display: none;
+  }
+  /* The rail spells the name out; the disc stands in for it only once collapsed. */
+  html:not([data-nav-collapsed]) [data-side-rail] [data-rail-disc] {
+    display: none;
   }
   html[data-nav-collapsed] [data-rail-chevron] {
     transform: rotate(180deg);

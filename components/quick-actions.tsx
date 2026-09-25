@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowDownToLine, ArrowUpRight, History, LayoutGrid } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 /**
  * The design's 4-up tile row in the dashboard rail. Every tile here goes somewhere real —
@@ -8,30 +7,25 @@ import { cn } from "@/lib/utils";
  * they're mapped onto the four things this app actually does from the dashboard.
  */
 const ACTIONS = [
-  { href: "/investments", label: "Add", icon: ArrowUpRight, tint: "text-hue-cyan" },
-  { href: "/savings", label: "Deposit", icon: ArrowDownToLine, tint: "text-hue-green" },
-  { href: "/transactions", label: "History", icon: History, tint: "text-hue-amber" },
-  { href: "/settings", label: "More", icon: LayoutGrid, tint: "text-hue-violet" },
+  { href: "/investments", label: "Add", icon: ArrowUpRight },
+  { href: "/savings", label: "Deposit", icon: ArrowDownToLine },
+  { href: "/transactions", label: "History", icon: History },
+  { href: "/settings", label: "More", icon: LayoutGrid },
 ];
 
 export function QuickActions() {
   return (
-    <section className="card-surface grid grid-cols-4 px-2.5 py-4">
-      {ACTIONS.map(({ href, label, icon: Icon, tint }) => (
+    <section className="card-surface grid grid-cols-4 content-center px-2.5 py-4">
+      {ACTIONS.map(({ href, label, icon: Icon }) => (
         <Link
           key={label}
           href={href}
-          className="group/qa flex flex-col items-center gap-2 py-1 text-[11.5px] font-medium transition-colors hover:text-foreground"
+          className="group/qa flex flex-col items-center gap-2 py-1 text-body-sm font-semibold text-foreground"
         >
-          {/* The icon sits in its own tinted disc — four hues in a row is what makes this
-              strip read as a set of doors rather than four grey glyphs. */}
-          <span
-            className={cn(
-              "grid size-8 place-items-center rounded-full bg-current/12 transition-transform group-hover/qa:scale-110",
-              tint,
-            )}
-          >
-            <Icon className="size-[17px]" />
+          {/* Wise's circular icon container: sage on a white card, filling Wise Green on
+              hover, the same way the nav's current row does. */}
+          <span className="grid size-11 place-items-center rounded-full bg-pane transition-colors duration-[120ms] group-hover/qa:bg-primary group-hover/qa:text-primary-foreground">
+            <Icon className="size-5" />
           </span>
           {label}
         </Link>

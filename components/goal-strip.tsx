@@ -18,9 +18,9 @@ const STATUS_TONE: Record<GoalStatus, "accent" | "destructive" | "secondary"> = 
   open: "secondary",
 };
 
-/** The bar's fill takes the colour of the thing it tracks — the same hue that section wears
- *  in the rail, so a row of goals reads as which parts of your money they're about before
- *  you read a single label. A stalled goal drops to the disabled grey instead. */
+/** The bar's fill takes the colour of the thing it tracks, from the fixed chart palette, so
+ *  a row of goals reads as which parts of your money they're about before you read a single
+ *  label. A stalled goal drops to the disabled grey instead. */
 const METRIC_FILL: Record<GoalMetric, string> = {
   net_worth: "var(--chart-1)",
   investments: "var(--chart-3)",
@@ -29,8 +29,8 @@ const METRIC_FILL: Record<GoalMetric, string> = {
   fund: "var(--chart-5)",
 };
 
-/** The channel is empty glass; `.goal-fill` (see globals.css) is the liquid in it — it pours
- *  out to the target on load, then keeps a crest of light moving through. */
+/** A sage track with a flat bar in it. `.goal-fill` (see globals.css) pours out to the
+ *  target on load. */
 export function GoalBar({
   progress,
   muted,
@@ -103,7 +103,7 @@ function ictStamp(iso: string): string {
  */
 export function FxNote({ fx, className }: { fx: GoalFx; className?: string }) {
   return (
-    <div className={cn("mt-0.5 font-mono text-[11px] text-faint tabular-nums", className)}>
+    <div className={cn("mt-0.5 font-mono text-caption text-faint tabular-nums", className)}>
       {fmtCcy(fx.amount, fx.ccy)} @ {fmtVND(fx.rate)}
       {fx.stale
         ? " · no live rate yet — last known"
@@ -122,10 +122,10 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
     // this panel's own width, not the window's. That is what lets the strip be moved between
     // the dashboard's analysis column and its rail — it has lived in both — and reflow to a
     // row per line in the narrow one without a prop or a breakpoint.
-    <div className="@container card-surface">
-      <div className="flex items-center justify-between px-5 pt-4 pb-3">
-        <span className="text-[16px] font-bold tracking-[-0.01em]">Goals</span>
-        <Link href="/goals" className="text-[12px] text-muted-foreground hover:text-foreground">
+    <div className="@container card-surface flex flex-col">
+      <div className="flex items-center justify-between px-6 pt-5 pb-3.5">
+        <span className="text-body-lg font-semibold tracking-[-0.01em]">Goals</span>
+        <Link href="/goals" className="text-body-sm font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
           Manage →
         </Link>
       </div>
@@ -140,13 +140,13 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
           <Link
             key={goal.id}
             href="/goals"
-            className="flex flex-col gap-2 border-t border-divider px-5 py-3.5 transition-colors hover:bg-muted/40 @2xl:col-span-4 @2xl:grid @2xl:grid-cols-subgrid @2xl:items-center"
+            className="flex flex-col gap-2 border-t border-divider px-6 py-4 transition-colors hover:bg-pane/60 @2xl:col-span-4 @2xl:grid @2xl:grid-cols-subgrid @2xl:items-center"
           >
             <div className="flex min-w-0 items-center gap-2">
               {/* The rank you set on /goals — the rail is ordered by it, so showing the
                   number is what makes that order legible rather than arbitrary. */}
-              <span className="shrink-0 font-mono text-[11px] text-faint tabular-nums">{i + 1}</span>
-              <span className="truncate text-[13.5px] font-medium">{goal.name}</span>
+              <span data-unmask className="shrink-0 font-mono text-caption text-faint tabular-nums">{i + 1}</span>
+              <span className="truncate text-body font-semibold">{goal.name}</span>
               {/* First thing to go when the row gets tight: the bar below already carries
                   this goal's metric as its colour, so the tag is the redundant copy. */}
               <GoalMetricTag metric={goal.metric} className="hidden @3xl:inline-flex" />
@@ -156,7 +156,7 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
               <GoalBar progress={proj.progress} muted={proj.status === "stalled"} metric={goal.metric} />
               {/* A fixed slot: "0%" and "100%" must not move where the bar ends, or the
                   bars stop lining up down the column again. */}
-              <span className="w-10 shrink-0 text-right font-mono text-[11.5px] text-muted-foreground tabular-nums">
+              <span className="w-10 shrink-0 text-right font-mono text-body-sm font-semibold text-muted-foreground tabular-nums">
                 {Math.round(proj.progress * 100)}%
               </span>
             </div>
@@ -167,9 +167,9 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
               {/* Only once it has a column of its own does this refuse to break: on a phone
                   the figures need to be able to wrap under themselves, or a foreign amount
                   shoves the status chip off the card. */}
-              <span className="font-mono text-[12px] tabular-nums @2xl:text-right @2xl:whitespace-nowrap">
+              <span className="font-mono text-body-sm font-semibold tabular-nums @2xl:text-right @2xl:whitespace-nowrap">
                 {fmtVND(proj.current)}{" "}
-                <span className="text-faint">
+                <span className="font-normal text-muted-foreground">
                   <span className="whitespace-nowrap">/ {fmtVND(proj.target)}</span>
                   {/* The dong figure is the one that compares to what you have; the amount
                       you actually committed to is what explains it moving. The full
@@ -185,7 +185,7 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
           </Link>
         ))}
       </div>
-      <div className="border-t border-divider px-5 py-2.5 font-mono text-[11px] text-faint">
+      <div className="mt-auto border-t border-divider px-6 py-3.5 text-caption text-faint">
         {goals.length === 1
           ? verdict(goals[0].goal, goals[0].proj)
           : "Projected at your committed pace · market growth counted as zero"}

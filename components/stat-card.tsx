@@ -10,6 +10,8 @@ export interface Stat {
   value: React.ReactNode;
   sub?: React.ReactNode;
   tone?: StatTone;
+  /** A count rather than an amount, so "Hide amounts" leaves it readable. */
+  unmask?: boolean;
 }
 
 /**
@@ -34,47 +36,36 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
       )}
     >
       {stats.map((s, i) => {
+        // Wise cards are flat white. The sign colours the figure and the line under it, and
+        // there's no background wash: on this palette a tinted card reads as an alert.
         const tone =
           s.tone === "gain"
             ? "text-accent-brand"
             : s.tone === "loss"
-              ? "text-(--chart-negative)"
-              : null;
-        const wash =
-          s.tone === "gain"
-            ? "bg-[linear-gradient(160deg,var(--positive-wash),transparent)]"
-            : s.tone === "loss"
-              ? "bg-[linear-gradient(160deg,var(--negative-wash),transparent)]"
+              ? "text-destructive"
               : null;
         return (
           <div
             key={s.label}
             className={cn(
-              "card-surface panel-body-sm",
-              wash,
+              "card-surface panel-body-sm flex flex-col gap-2",
               odd && i === stats.length - 1 && "sm:col-span-2 lg:col-span-1",
             )}
           >
-            {/* Sentence case at reading size, not a small-caps eyebrow: on this palette the
-                tile's job is done by the wash and the mono figure, so a letterspaced label
-                would just add a third thing competing for the top-left corner. */}
-            <div className={cn("text-[12.5px]", tone ?? "text-muted-foreground")}>
-              {s.label}
-            </div>
-            {/* A full-width row on a phone fits the figure at nearly full size; from `sm`
-                two share the row and it steps up to the design's 22px. `whitespace-nowrap`
-                stays either way — a signed VND amount that wraps strands its minus sign on
-                a line of its own. */}
+            <div className="text-body-sm text-muted-foreground">{s.label}</div>
+            {/* Wise's 24px sub-display: Inter 600 with tight tracking. `whitespace-nowrap`
+                keeps a signed VND amount from stranding its minus sign on a line of its own. */}
             <div
+              data-unmask={s.unmask || undefined}
               className={cn(
-                "mt-2.5 font-mono text-[19px] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-[22px]",
+                "font-mono text-body-lg leading-[1.3] font-semibold tracking-[-0.02em] whitespace-nowrap sm:text-display-xs",
                 tone,
               )}
             >
               {s.value}
             </div>
             {s.sub && (
-              <div className={cn("mt-1.5 text-[11.5px]", tone ?? "text-faint")}>{s.sub}</div>
+              <div className={cn("text-body-sm font-semibold", tone ?? "text-muted-foreground")}>{s.sub}</div>
             )}
           </div>
         );

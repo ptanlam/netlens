@@ -58,7 +58,7 @@ export function RebuildHistoryButton({ onDone }: { onDone?: () => void }) {
       onClick={() => void run()}
       disabled={pending}
       title="Refetch every holding's daily price history"
-      className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-transparent px-3 text-[12px] font-semibold text-muted-foreground transition-colors hover:border-brand hover:text-brand disabled:cursor-default disabled:opacity-60"
+      className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-foreground bg-card px-3.5 text-body-sm font-semibold text-foreground transition-colors hover:bg-pane disabled:cursor-default disabled:opacity-60"
     >
       <History className={cn("size-3.5", pending && "animate-spin")} />
       {pending ? "Rebuilding…" : "Rebuild history"}

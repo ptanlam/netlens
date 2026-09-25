@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
-import { SeriesBrush, useDateWindow } from "@/components/chart-brush";
 import { cn } from "@/lib/utils";
 
 export const BUCKETS = ["Daily", "Weekly", "Monthly", "Yearly"] as const;
@@ -59,14 +58,10 @@ export function PnlChart({
     return out;
   }, [series, bucket, from, to]);
 
-  const view = useDateWindow(data);
-
   // Fraction of the chart height above the zero line — used to split the
   // gradient so gains render green and losses red (matches the Flask chart).
-  // Measured against the *visible* rows: brush into a stretch that never went under and
-  // the whole band should be green, however red the year as a whole was.
   const zeroOffset = React.useMemo(() => {
-    const rows = view.rows;
+    const rows = data;
     if (!rows.length) return 1;
     const vals = rows.map((d) => d.pnl);
     const max = Math.max(...vals, 0);
@@ -74,7 +69,7 @@ export function PnlChart({
     if (max <= 0) return 0;
     if (min >= 0) return 1;
     return max / (max - min);
-  }, [view.rows]);
+  }, [data]);
 
   const definition = React.useMemo(
     () =>
@@ -83,7 +78,7 @@ export function PnlChart({
           crosshair({ x: true, y: false }),
           // Explicit endpoints — the band is what the P&L is *against zero*, so the
           // baseline is the number 0 and not wherever the axis happens to start.
-          areaY(view.rows, {
+          areaY(data, {
             x: "date",
             y1: 0,
             y2: "pnl",
@@ -91,7 +86,7 @@ export function PnlChart({
             fillOpacity: 1,
           }),
           ruleY([0], { stroke: "var(--border)", strokeWidth: 1 }),
-          lineY(view.rows, { x: "date", y: "pnl", stroke: "url(#pnlStroke)", strokeWidth: 2 }),
+          lineY(data, { x: "date", y: "pnl", stroke: "url(#pnlStroke)", strokeWidth: 2 }),
         ],
         // Both gradients are two stops at the same offset: a hard switch from green to red
         // exactly where the shape crosses zero, rather than a blend through the middle.
@@ -155,7 +150,7 @@ export function PnlChart({
           },
         },
       }),
-    [view.rows, zeroOffset],
+    [data, zeroOffset],
   );
 
   return (
@@ -168,18 +163,6 @@ export function PnlChart({
           </CardDescription>
         </div>
         <div className="flex items-center gap-1">
-          {/* Only offered once it means something — a reset button on an unbrushed chart
-              is a control that does nothing, which is worse than no control. */}
-          {view.zoomed && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="mr-1 text-muted-foreground"
-              onClick={() => view.setRange(null)}
-            >
-              Reset zoom
-            </Button>
-          )}
           {BUCKETS.map((b) => (
             <Button
               key={b}
@@ -195,7 +178,7 @@ export function PnlChart({
       </CardHeader>
       <CardContent>
         {error ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">
+          <p className="py-10 text-center text-body-sm text-muted-foreground">
             Couldn&apos;t load P&L history: {error}
           </p>
         ) : (
@@ -208,18 +191,6 @@ export function PnlChart({
               style={{ ...CHART_HOST_STYLE, minHeight: "12rem" }}
               ariaLabel="Profit and loss over time"
             />
-            {view.range && data.length > 1 && (
-              <div className="mt-1.5">
-                <SeriesBrush
-                  data={data}
-                  field="pnl"
-                  color="var(--chart-positive)"
-                  range={view.range}
-                  onRange={view.setRange}
-                  label="Drag to narrow the P&L date range"
-                />
-              </div>
-            )}
           </div>
         )}
       </CardContent>

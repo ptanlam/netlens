@@ -166,7 +166,7 @@ function SubscriptionForm({
         <Label htmlFor="sub-note">Note (optional)</Label>
         <Input id="sub-note" name="note" defaultValue={sub?.note ?? undefined} />
       </div>
-      <p className="text-[12.5px] text-muted-foreground sm:col-span-2">
+      <p className="text-caption text-muted-foreground sm:col-span-2">
         A subscription is spending, not an asset — it never touches net worth. What it buys
         you here is the ₫/month it commits you to, and the renewal before it lands.
       </p>
@@ -287,8 +287,8 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
         <div className="flex items-center gap-2.5">
           <EntityAvatar name={s.name} color={CATEGORY_COLORS[s.category]} />
           <div className="min-w-0">
-            <div className="truncate font-medium">{s.name}</div>
-            <div className="truncate text-xs text-muted-foreground">
+            <div className="truncate font-semibold">{s.name}</div>
+            <div className="truncate text-caption text-muted-foreground">
               {fmtVND(s.amount)} / {BILLING_CYCLE_UNITS[s.cycle]}
               {s.payment_method ? ` · ${s.payment_method}` : ""}
             </div>
@@ -320,7 +320,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
       return (
         <div>
           <div className="tabular-nums">{r.next}</div>
-          <div className={cn("text-xs", r.days <= SOON_DAYS ? "text-warning" : "text-muted-foreground")}>
+          <div className={cn("text-caption", r.days <= SOON_DAYS ? "text-warning" : "text-muted-foreground")}>
             {r.days === 0 ? "today" : r.days === 1 ? "tomorrow" : `in ${r.days} days`}
           </div>
         </div>
@@ -338,8 +338,8 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
       // stays visible as what it *used* to commit you to.
       <span
         className={cn(
-          "font-mono font-medium tabular-nums",
-          row.original.cancelled ? "text-muted-foreground line-through" : "text-(--chart-negative)",
+          "font-mono font-semibold tabular-nums",
+          row.original.cancelled ? "text-muted-foreground line-through" : "text-destructive",
         )}
       >
         {fmtVND(row.original.monthly)}
@@ -721,11 +721,11 @@ export function SubscriptionsManager({
         <div className="flex items-start gap-2.5 rounded-xl border border-warning-border bg-warning-bg px-5 py-4">
           <CalendarClock className="mt-0.5 size-4 text-warning" />
           <div>
-            <div className="text-[13.5px] font-semibold">
+            <div className="text-body-sm font-semibold">
               {soon.length} renewal{soon.length > 1 ? "s" : ""} in the next {SOON_DAYS} days ·{" "}
               {fmtVND(soonTotal)}
             </div>
-            <div className="mt-0.5 text-[12.5px] text-muted-foreground">
+            <div className="mt-0.5 text-caption text-muted-foreground">
               {soon
                 .map((r) => `${r.sub.name} ${r.days === 0 ? "today" : r.days === 1 ? "tomorrow" : `in ${r.days}d`}`)
                 .join(" · ")}
@@ -765,7 +765,7 @@ export function SubscriptionsManager({
         />
       )}
 
-      <p className="text-[12.5px] text-muted-foreground">
+      <p className="text-caption text-muted-foreground">
         Sorted by what each costs a month — the top of this list is where cancelling one
         actually changes something.
       </p>
@@ -786,7 +786,7 @@ export function SubscriptionsManager({
           one rather than delete it. Sorted by that figure, and folded away by default. */}
       {cancelled.length > 0 && (
         <details className="overflow-hidden card-surface">
-          <summary className="cursor-pointer list-none px-[18px] py-3.5 text-[13px] font-semibold">
+          <summary className="cursor-pointer list-none px-[18px] py-3.5 text-body-sm font-semibold">
             Cancelled · {cancelled.length} subscription{cancelled.length > 1 ? "s" : ""} ·{" "}
             <span className="font-normal text-muted-foreground">
               {fmtVND(cancelled.reduce((a, r) => a + r.spent, 0))} spent · {fmtVND(cancelled.reduce((a, r) => a + r.monthly, 0))}/mo saved

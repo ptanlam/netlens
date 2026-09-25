@@ -11,8 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Net-worth tracking and visualization',
     start_url: '/',
     display: 'standalone',
-    background_color: '#f4f2ee',
-    theme_color: '#f4f2ee',
+    background_color: '#e8ebe6',
+    theme_color: '#e8ebe6',
     icons: [
       {
         src: '/icon.svg',
@@ -20,11 +20,11 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/svg+xml',
       },
       {
-        // Deliberately a full-bleed opaque square, unlike the rounded `icon.svg` tile:
+        // Deliberately a full-bleed opaque square, unlike the round `icon.svg` disc:
         // iOS masks the touch icon into its own squircle, so corners we round ourselves
         // fall outside that mask and flatten to white wedges along the edges. Declaring
         // it `maskable` says the same to Android, which otherwise shows a bare square.
-        // The N sits inside the middle ~25%, well within the maskable safe zone.
+        // The N spans the middle ~30%, well within the maskable safe zone.
         src: '/apple-icon.png',
         sizes: '180x180',
         type: 'image/png',

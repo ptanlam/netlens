@@ -136,7 +136,7 @@ function GoalForm({
           </Select>
         </div>
         {ccy !== "VND" && (
-          <p className="text-[11.5px] text-muted-foreground">
+          <p className="text-caption text-muted-foreground">
             Converted at the latest {ccy}/VND rate on every refresh, so the goal stays worth{" "}
             {ccy === "USD" ? "the dollars" : "the amount"} you asked for.
           </p>
@@ -169,7 +169,7 @@ function GoalForm({
         <Label htmlFor="g-note">Note (optional)</Label>
         <Input id="g-note" name="note" defaultValue={goal?.note ?? undefined} />
       </div>
-      <p className="text-[12px] text-muted-foreground sm:col-span-2">
+      <p className="text-caption text-muted-foreground sm:col-span-2">
         {isFund
           ? "A sinking fund holds cash you set aside plus any savings deposits you earmark for it (each keeping its own rate and term). The money counts in your net worth until you spend it, but is left out of net-worth goals — it's already spoken for. Without a monthly plan, the pace comes from what you've been putting in."
           : isDebt
@@ -240,7 +240,7 @@ function LinkedDeposits({ deposits }: { deposits: Saving[] }) {
   if (deposits.length === 0) return null;
   return (
     <div className="mt-3">
-      <div className="text-[13px] font-semibold text-muted-foreground">
+      <div className="text-body-sm font-semibold text-muted-foreground">
         Deposits ({deposits.length})
       </div>
       {deposits.map((s) => (
@@ -248,19 +248,19 @@ function LinkedDeposits({ deposits }: { deposits: Saving[] }) {
           key={s.id}
           className="flex items-center justify-between gap-3 border-b border-divider py-1.5 last:border-b-0"
         >
-          <span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground">
+          <span className="min-w-0 truncate font-mono text-caption text-muted-foreground">
             {s.bank ?? "Deposit"}
             <span className="text-faint">
               {" · "}
               {s.rate}%/yr · {s.term_months}mo · matures {maturityDate(s)}
             </span>
           </span>
-          <span className="shrink-0 font-mono text-[12px] text-accent-brand tabular-nums">
+          <span className="shrink-0 font-mono text-caption text-accent-brand tabular-nums">
             {fmtVND(currentValue(s))}
           </span>
         </div>
       ))}
-      <p className="pt-1.5 text-[11.5px] text-faint">
+      <p className="pt-1.5 text-caption text-faint">
         Each keeps its own rate and term. Earmark a deposit from the{" "}
         <Link href="/savings" className="underline hover:text-foreground">
           Savings page
@@ -303,7 +303,7 @@ function FundPanel({
   return (
     <div className="mt-3.5 border-t border-divider pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[13px] font-semibold text-muted-foreground">
+        <span className="text-body-sm font-semibold text-muted-foreground">
           Cash set aside{" "}
           <span className="text-muted-foreground">{fmtVND(cash)}</span>
         </span>
@@ -367,7 +367,7 @@ function FundPanel({
       </div>
 
       {contributions.length === 0 ? (
-        <p className="mt-2 text-[12px] text-muted-foreground">
+        <p className="mt-2 text-caption text-muted-foreground">
           No cash in the pot. Add money as you set it aside, or earmark a savings deposit
           for this fund.
         </p>
@@ -378,15 +378,15 @@ function FundPanel({
               key={c.id}
               className="flex items-center justify-between gap-3 border-b border-divider py-1.5 last:border-b-0"
             >
-              <span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground">
+              <span className="min-w-0 truncate font-mono text-caption text-muted-foreground">
                 {c.date}
                 {c.note && <span className="text-faint"> · {c.note}</span>}
               </span>
               <span className="flex shrink-0 items-center gap-1.5">
                 <span
                   className={cn(
-                    "font-mono text-[12px] tabular-nums",
-                    c.amount < 0 ? "text-(--chart-negative)" : "text-accent-brand",
+                    "font-mono text-caption tabular-nums",
+                    c.amount < 0 ? "text-destructive" : "text-accent-brand",
                   )}
                 >
                   {c.amount < 0 ? "−" : "+"}
@@ -407,7 +407,7 @@ function FundPanel({
             </div>
           ))}
           {hidden > 0 && (
-            <p className="pt-1.5 font-mono text-[11px] text-faint">
+            <p className="pt-1.5 font-mono text-caption text-faint">
               + {hidden} earlier {hidden === 1 ? "entry" : "entries"}
             </p>
           )}
@@ -443,7 +443,7 @@ function RankControls({
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       <span
-        className="grid size-6 place-items-center rounded-md bg-secondary font-mono text-[11px] text-muted-foreground tabular-nums"
+        className="grid size-6 place-items-center rounded-md bg-secondary font-mono text-caption text-muted-foreground tabular-nums"
         aria-hidden
       >
         {rank}
@@ -513,11 +513,11 @@ function GoalCard({
           )}
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[14px] font-semibold">{goal.name}</span>
+            <span className="text-body-sm font-semibold">{goal.name}</span>
             <GoalMetricTag metric={goal.metric} />
             {!archived && <GoalStatusChip status={proj.status} />}
           </div>
-          <div className="mt-1 font-mono text-[12px] text-muted-foreground tabular-nums">
+          <div className="mt-1 font-mono text-caption text-muted-foreground tabular-nums">
             {fmtVND(proj.current)} / {fmtVND(proj.target)}
             {goal.target_date && ` · by ${goal.target_date}`}
             {goal.note && ` · ${goal.note}`}
@@ -576,13 +576,13 @@ function GoalCard({
 
       <div className="mt-3.5 flex items-center gap-3">
         <GoalBar progress={proj.progress} muted={archived || proj.status === "stalled"} metric={goal.metric} />
-        <span className="shrink-0 font-mono text-[11.5px] text-muted-foreground tabular-nums">
+        <span className="shrink-0 font-mono text-caption text-muted-foreground tabular-nums">
           {Math.round(proj.progress * 100)}%
         </span>
       </div>
 
       {!archived && (
-        <div className="mt-3.5 grid gap-x-6 gap-y-1.5 border-t border-divider pt-3 text-[12px] sm:grid-cols-2">
+        <div className="mt-3.5 grid gap-x-6 gap-y-1.5 border-t border-divider pt-3 text-caption sm:grid-cols-2">
           <div className="text-muted-foreground">
             <span className="text-foreground">{verdict(goal, proj)}</span>
             {proj.status !== "hit" && (
@@ -610,7 +610,7 @@ function GoalCard({
               {proj.requiredIsExtra ? "on top of your scheduled payments" : ""} to land on{" "}
               {goal.target_date}
               {gap > 0 && (
-                <span className="text-(--chart-negative)">
+                <span className="text-destructive">
                   {" — "}
                   <span className="font-mono tabular-nums">{fmtVND(gap)}/mo</span> more than your
                   current pace
@@ -675,13 +675,13 @@ export function GoalsManager({
       </PageHeader>
 
       {active.length === 0 && (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-body-sm text-muted-foreground">
           No goals yet. Add one from the button above — a target on net worth, investments, savings or debts,
           or a sinking fund you pay into by hand.
         </p>
       )}
       {active.length > 1 && (
-        <p className="text-[12px] text-muted-foreground">
+        <p className="text-caption text-muted-foreground">
           Ranked in your order — the arrows move a goal up or down, and the dashboard follows
           the same order.
         </p>
@@ -701,7 +701,7 @@ export function GoalsManager({
 
       {archived.length > 0 && (
         <>
-          <div className="mt-2 text-[13px] font-semibold text-muted-foreground">
+          <div className="mt-2 text-body-sm font-semibold text-muted-foreground">
             Archived
           </div>
           {archived.map((view) => (

@@ -95,7 +95,7 @@ export function TxForm({
       </div>
       <div className="grid gap-2">
         <Label>Asset type</Label>
-        <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
+        <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-body-sm text-muted-foreground">
           {assetType}
         </div>
         <input type="hidden" name="asset_type" value={assetType} />
@@ -126,7 +126,7 @@ export function TxForm({
         <Input id="note" name="note" defaultValue={tx?.note ?? undefined} />
       </div>
       {noHoldings && (
-        <p className="text-sm text-muted-foreground sm:col-span-2">
+        <p className="text-body-sm text-muted-foreground sm:col-span-2">
           No holdings yet — add one on the Holdings page first, then it can be traded here.
         </p>
       )}

@@ -181,14 +181,14 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
             into it: it reports on whatever is active, including the legend's hover, and
             nothing about it is chart geometry. */}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-          <span className="font-mono text-[9.5px] tracking-[0.08em] text-faint">
+          <span data-unmask className="font-mono text-caption tracking-[0.08em] text-faint">
             {(slice?.type ?? "Total").toUpperCase()}
           </span>
-          <span className="font-mono text-[15px] tabular-nums">
+          <span className="font-mono text-body tabular-nums">
             {fmtMilVND(slice ? slice.value : total)}
           </span>
           {slice && (
-            <span className="font-mono text-[10px] tabular-nums text-faint">
+            <span className="font-mono text-caption tabular-nums text-faint">
               {slice.pct.toFixed(1)}% · {held.length} holding{held.length === 1 ? "" : "s"}
             </span>
           )}
@@ -214,11 +214,11 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
           >
             <span className="flex items-center gap-2.5">
               <span className="size-[9px] rounded-[2px]" style={{ background: r.color }} />
-              <span className="text-[13px]">{r.type}</span>
+              <span className="text-body-sm">{r.type}</span>
             </span>
             <span className="flex gap-3.5">
-              <span className="font-mono text-[12.5px] text-muted-foreground tabular-nums">{fmtMilVND(r.value)}</span>
-              <span className="w-[42px] text-right font-mono text-[12.5px] tabular-nums">{r.pct.toFixed(1)}%</span>
+              <span className="font-mono text-caption text-muted-foreground tabular-nums">{fmtMilVND(r.value)}</span>
+              <span className="w-[42px] text-right font-mono text-caption tabular-nums">{r.pct.toFixed(1)}%</span>
             </span>
           </button>
         ))}
@@ -246,7 +246,7 @@ function PagerButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="grid size-6 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:border-input hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
+      className="grid size-8 place-items-center rounded-full bg-pane text-foreground transition-colors hover:bg-pane-2 disabled:pointer-events-none disabled:opacity-35"
     >
       {children}
     </button>
@@ -332,7 +332,7 @@ export function HoldingsListCard({
       // pair of panels sharing a row with mismatched bottoms reads as a mistake.
       <div className="h-full card-surface panel-body">
         <PanelHead title="Top holdings" />
-        <p className="py-8 text-center text-sm text-muted-foreground">
+        <p className="py-8 text-center text-body-sm text-muted-foreground">
           No holdings with a value yet — set live quantities or holding values to see them here.
         </p>
       </div>
@@ -354,21 +354,21 @@ export function HoldingsListCard({
           it. The filter is a real <Select> over the types actually held rather than the
           design's placeholder button. */}
       <div className="mb-1 flex gap-2.5">
-        <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-border bg-pane px-2.5 focus-within:border-input">
+        <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full bg-pane px-3.5 focus-within:ring-2 focus-within:ring-ring">
           <Search className="size-3.5 shrink-0 text-faint" />
           <input
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(0); }}
             placeholder="Search"
             aria-label="Search holdings"
-            className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint"
+            className="min-w-0 flex-1 bg-transparent text-caption outline-none placeholder:text-faint"
           />
         </label>
         <Select value={type} onValueChange={(v) => { if (v != null) { setType(v); setPage(0); } }}>
           <SelectTrigger
             size="sm"
             aria-label="Filter by asset type"
-            className="h-9 shrink-0 rounded-[11px] border-border bg-pane text-[12px] font-semibold"
+            className="h-10 shrink-0 rounded-full border-transparent bg-pane pl-3.5 text-body-sm font-semibold hover:border-transparent hover:bg-pane-2"
           >
             <SelectValue>{type === ALL_TYPES ? "All" : type}</SelectValue>
           </SelectTrigger>
@@ -388,7 +388,7 @@ export function HoldingsListCard({
         style={{ minHeight: HOLDINGS_PAGE_SIZE * HOLDINGS_ROW_PX }}
       >
         {visible.length === 0 && (
-          <p className="py-6 text-center text-[12.5px] text-muted-foreground">
+          <p className="py-6 text-center text-caption text-muted-foreground">
             No holding matches that.
           </p>
         )}
@@ -401,23 +401,23 @@ export function HoldingsListCard({
             <div key={h.name} className="flex items-center gap-3 border-t border-divider py-3 first:border-t-0">
               <EntityAvatar name={h.name} color={typeColor(h.type)} logo={holdingLogo(h.name)} size="lg" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-semibold" title={h.name}>{h.name}</div>
-                <div className="truncate text-[11px] text-faint">{h.type}</div>
+                <div className="truncate text-body-sm font-semibold" title={h.name}>{h.name}</div>
+                <div className="truncate text-caption text-faint">{h.type}</div>
               </div>
               {paths && (
                 <svg
                   aria-hidden
                   viewBox="0 0 1000 300"
                   preserveAspectRatio="none"
-                  className={cn("h-6 w-[58px] shrink-0", neg ? "text-(--chart-negative)" : "text-accent-brand")}
+                  className={cn("h-6 w-[58px] shrink-0", neg ? "text-destructive" : "text-accent-brand")}
                 >
                   <path d={paths.line} fill="none" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
                 </svg>
               )}
               <div className="shrink-0 text-right">
-                <div className="font-mono text-[12.5px] tabular-nums">{fmtMilVND(h.value)}</div>
+                <div className="font-mono text-caption tabular-nums">{fmtMilVND(h.value)}</div>
                 {h.pnl !== 0 && (
-                  <div className={cn("font-mono text-[10.5px] tabular-nums", neg ? "text-(--chart-negative)" : "text-accent-brand")}>
+                  <div className={cn("font-mono text-caption tabular-nums", neg ? "text-destructive" : "text-accent-brand")}>
                     {neg ? "↘ " : "↗ "}
                     {pct != null ? `${Math.abs(pct).toFixed(1)}%` : fmtSigned(h.pnl)}
                   </div>
@@ -432,7 +432,7 @@ export function HoldingsListCard({
           would resize the panel, which is the thing paging is here to stop. The arrows just
           go dead instead. */}
       <div className="mt-auto flex items-center justify-between gap-3 border-t border-divider pt-3">
-        <span className="font-mono text-[11px] text-faint tabular-nums">
+        <span data-unmask className="font-mono text-caption text-faint tabular-nums">
           {rows.length} holding{rows.length === 1 ? "" : "s"}
         </span>
         <div className="flex items-center gap-1.5">
@@ -443,7 +443,7 @@ export function HoldingsListCard({
           >
             <ChevronLeft className="size-3.5" />
           </PagerButton>
-          <span className="min-w-[38px] text-center font-mono text-[11.5px] text-muted-foreground tabular-nums">
+          <span data-unmask className="min-w-[38px] text-center font-mono text-caption text-muted-foreground tabular-nums">
             {safePage + 1} / {pageCount}
           </span>
           <PagerButton

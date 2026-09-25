@@ -82,7 +82,7 @@ export function RuleForm({
       </div>
       <div className="grid gap-2">
         <Label>Asset type</Label>
-        <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
+        <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-body-sm text-muted-foreground">
           {assetType}
         </div>
         <input type="hidden" name="asset_type" value={assetType} />
@@ -124,7 +124,7 @@ export function RuleForm({
         <Input id="r-note" name="note" defaultValue={rule?.note ?? undefined} />
       </div>
       {noHoldings && (
-        <p className="text-sm text-muted-foreground sm:col-span-2">
+        <p className="text-body-sm text-muted-foreground sm:col-span-2">
           No holdings yet — add one on the Holdings page first, then it can be scheduled here.
         </p>
       )}
@@ -159,11 +159,11 @@ function RuleRow({
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
       <div className="min-w-40 flex-1">
-        <div className="flex items-center gap-2 font-medium">
+        <div className="flex items-center gap-2 font-semibold">
           {rule.instrument}
           {!rule.active && <Badge variant="secondary">paused</Badge>}
         </div>
-        <div className="text-sm text-muted-foreground">
+        <div className="text-body-sm text-muted-foreground">
           {fmtVND(rule.amount)} · {rule.freq} · since {rule.start_date}
           {nextDue && ` · next ${nextDue}`}
         </div>
@@ -232,7 +232,7 @@ export function RecurringManager({
   return (
     <div className="flex flex-col gap-3">
       {rules.length === 0 && (
-        <p className="text-sm text-muted-foreground">No recurring rules yet.</p>
+        <p className="text-body-sm text-muted-foreground">No recurring rules yet.</p>
       )}
       {rules.map(({ rule, nextDue }) => (
         <RuleRow key={rule.id} rule={rule} nextDue={nextDue} instruments={instruments} />
@@ -241,7 +241,7 @@ export function RecurringManager({
         <>
           <Separator className="my-2" />
           <div>
-            <h3 className="mb-3 flex items-center gap-1.5 text-sm font-medium">
+            <h3 className="mb-3 flex items-center gap-1.5 text-body-sm font-semibold">
               <Plus className="size-3.5" /> New rule
             </h3>
             <RuleForm action={addRule} instruments={instruments} />

@@ -43,7 +43,7 @@ Pure, dependency-free logic (safe to import from client components) lives in
 | `components/*-manager.tsx` | Client CRUD UIs (recurring, savings, debts, subscriptions, goals). |
 | `components/dashboard-charts.tsx` | The dashboard's date-range picker + all charts. |
 | `components/investment-manager.tsx` | `/investments`: KPIs and the holdings list, grouped by asset type. |
-| `components/transactions-view.tsx` | `/transactions`: date window + brush zoom, filters, tiles, both capital-deployed charts, the table. |
+| `components/transactions-view.tsx` | `/transactions`: date window, filters, tiles, both capital-deployed charts, the table. |
 | `components/net-worth.tsx` | Net worth = investments + savings − debts panel. |
 | `components/nav.tsx` | `LINKS` array → desktop nav + mobile side-drawer. |
 | `custom-worker.ts` | Worker entrypoint: hands every request to the Next.js app, and runs the price cron — the only thing that refreshes prices on a schedule. No auth of its own. |

@@ -3,6 +3,7 @@ import * as db from "@/lib/db";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { summarize, debtOwed, type Payment } from "@/lib/savings";
 import { commitment, streak } from "@/lib/score";
+import type { InstrumentOption } from "@/components/tx-form";
 
 export default async function Dashboard() {
   await connection();
@@ -12,7 +13,7 @@ export default async function Dashboard() {
   // Everything below is independent, so it goes out as one fan-out rather than eight
   // sequential round trips. On better-sqlite3 that ordering was free; on D1 each call is
   // a network hop, and in series they were the slowest thing on the page.
-  const [payload, pending, savings, debtPayments, debts, fundsCash, goalRows, invested, historyStamp] =
+  const [payload, pending, savings, debtPayments, debts, fundsCash, goalRows, invested, historyStamp, instruments] =
     await Promise.all([
       db.buildPayload(),
       db.pendingFundUnits(),
@@ -23,7 +24,14 @@ export default async function Dashboard() {
       db.listGoals(),
       db.investedByMonth(),
       db.historyStamp(),
+      db.listInstruments(),
     ]);
+
+  // Live holdings only, as on /transactions: a new buy against an archived holding is
+  // almost always a mistake.
+  const options: InstrumentOption[] = instruments
+    .filter((i) => i.archived !== 1)
+    .map((i) => ({ name: i.name, asset_type: i.asset_type }));
 
   const savingsValue = summarize(savings).currentValue;
   const paymentsByDebt = new Map<number, Payment[]>();
@@ -66,6 +74,7 @@ export default async function Dashboard() {
       world={world}
       streak={streakView}
       historyStamp={historyStamp}
+      instruments={options}
     />
   );
 }

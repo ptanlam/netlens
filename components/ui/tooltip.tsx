@@ -28,7 +28,7 @@ function TooltipContent({
           className={cn(
             // Wrapped, not one long line: these carry a sentence explaining a panel now,
             // and unconstrained they stretched half the width of the screen.
-            "max-w-[min(22rem,calc(100vw-2rem))] text-balance select-none rounded-md bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-md",
+            "max-w-[min(22rem,calc(100vw-2rem))] text-balance select-none rounded-xl bg-foreground px-3 py-2 text-body-sm text-background shadow-(--menu-shadow)",
             "origin-[var(--transform-origin)] transition-[transform,opacity] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
             className,
           )}

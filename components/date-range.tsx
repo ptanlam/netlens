@@ -86,19 +86,19 @@ export function DateRange({
   // Fixed height, not padding: a date field derives a different intrinsic height from the
   // same padding as the pills it sits beside.
   const field =
-    "h-7 rounded-lg border border-input bg-pane px-2.5 font-mono text-[12px] outline-none focus:border-ring";
+    "h-10 rounded-full bg-pane px-3.5 text-body-sm font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <div className={cn("flex flex-wrap items-center gap-3", className)}>
-      <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+      <div className="flex gap-0.5 rounded-full bg-pane p-1">
         {presets.map((p) => (
           <button
             key={p.label}
             type="button"
             className={cn(
-              "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
+              "cursor-pointer rounded-full border-0 px-3.5 py-1.5 text-body-sm font-semibold transition-colors",
               from === p.from && to === max
-                ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]"
+                ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2"
                 : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => onChange(p.from, max)}

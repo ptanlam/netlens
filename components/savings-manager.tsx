@@ -124,7 +124,7 @@ function SavingForm({
         <Input id="s-note" name="note" defaultValue={saving?.note ?? undefined} />
       </div>
       {funds.length > 0 && (
-        <p className="text-[12px] text-muted-foreground sm:col-span-2">
+        <p className="text-caption text-muted-foreground sm:col-span-2">
           An earmarked deposit still counts once — here, under Savings. It also fills the
           fund it&apos;s tied to, and is left out of net-worth goals, since it&apos;s
           already spoken for.
@@ -172,19 +172,19 @@ function SavingRow({ saving, funds, now }: { saving: Saving; funds: FundOption[]
       <div>
         <div className="flex items-center gap-2">
           <EntityAvatar name={saving.bank ?? "Term deposit"} color="var(--chart-4)" />
-          <span className="text-[14px] font-semibold">{saving.bank ?? "Term deposit"}</span>
+          <span className="text-body-sm font-semibold">{saving.bank ?? "Term deposit"}</span>
           <Badge variant={matured ? "secondary" : "accent"}>{matured ? "Matured" : "Active"}</Badge>
           {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
         </div>
-        <div className="mt-1 font-mono text-[12px] text-muted-foreground tabular-nums">
+        <div className="mt-1 font-mono text-caption text-muted-foreground tabular-nums">
           {fmtVND(saving.principal)} · {saving.rate}%/yr · {saving.term_months}mo · {saving.start_date} → {maturityDate(saving)}
         </div>
       </div>
       <div className="flex items-center gap-[18px]">
         <div className="text-right">
-          <div className="font-mono text-[14px] tabular-nums">{fmtVND(cur)}</div>
-          <div className="mt-1 font-mono text-[11.5px] tabular-nums">
-            <span className={interest >= 0 ? "text-accent-brand" : "text-(--chart-negative)"}>
+          <div className="font-mono text-body-sm tabular-nums">{fmtVND(cur)}</div>
+          <div className="mt-1 font-mono text-caption tabular-nums">
+            <span className={interest >= 0 ? "text-accent-brand" : "text-destructive"}>
               {interest >= 0 ? "+" : ""}{fmtVND(interest)}
             </span>{" "}
             · at maturity {fmtVND(matVal)}
@@ -284,9 +284,9 @@ export function SavingsManager({
         />
       )}
 
-      <p className="text-[12.5px] text-muted-foreground">Term deposits, newest first.</p>
+      <p className="text-caption text-muted-foreground">Term deposits, newest first.</p>
 
-      {savings.length === 0 && <p className="text-[13px] text-muted-foreground">No deposits yet.</p>}
+      {savings.length === 0 && <p className="text-body-sm text-muted-foreground">No deposits yet.</p>}
       {savings.map((saving) => (
         <SavingRow key={saving.id} saving={saving} funds={funds} now={now} />
       ))}

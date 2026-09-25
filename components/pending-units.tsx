@@ -26,14 +26,14 @@ function PendingItem({ row }: { row: PendingRow }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-5 rounded-xl border border-border bg-card px-4 py-3.5">
       <div>
-        <div className="text-[14px] font-semibold">{row.tx.instrument}</div>
-        <div className="mt-[3px] font-mono text-[12px] text-muted-foreground tabular-nums">
+        <div className="text-body-sm font-semibold">{row.tx.instrument}</div>
+        <div className="mt-[3px] font-mono text-caption text-muted-foreground tabular-nums">
           {row.tx.date} · {fmtVND(row.tx.amount)} · expected {row.window[0]} – {row.window[1]}
         </div>
       </div>
       <div className="flex flex-wrap items-end gap-3.5">
         <div>
-          <label htmlFor={id} className="mb-1.5 block text-[12px] text-muted-foreground">
+          <label htmlFor={id} className="mb-1.5 block text-caption text-muted-foreground">
             Confirmed units{row.estUnits ? ` (est. ${row.estUnits})` : ""}
           </label>
           <input
@@ -42,11 +42,11 @@ function PendingItem({ row }: { row: PendingRow }) {
             step="any"
             value={units}
             onChange={(e) => setUnits(e.target.value)}
-            className="w-[120px] rounded-lg border border-input bg-pane px-2.5 py-[7px] font-mono text-[13px] outline-none focus:border-ring"
+            className="w-[120px] rounded-lg border border-input bg-pane px-2.5 py-[7px] font-mono text-body-sm outline-none focus:border-ring"
           />
         </div>
         {row.hasHoldingQty && (
-          <label className="flex items-center gap-1.5 pb-2 text-[12.5px] text-muted-foreground">
+          <label className="flex items-center gap-1.5 pb-2 text-caption text-muted-foreground">
             <input
               type="checkbox"
               checked={addToHoldings}
@@ -87,7 +87,7 @@ export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
         className="flex w-full items-center gap-2.5 text-left"
       >
         <TriangleAlert className="size-4 shrink-0 text-warning" />
-        <span className="text-[13.5px] font-semibold">Awaiting fund units</span>
+        <span className="text-body-sm font-semibold">Awaiting fund units</span>
         <Badge variant="warning">{pending.length}</Badge>
         <ChevronDown
           className={cn(
@@ -98,7 +98,7 @@ export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
       </button>
       {open && (
         <>
-          <div className="mt-1 text-[12.5px] text-muted-foreground">
+          <div className="mt-1 text-caption text-muted-foreground">
             Fund purchases confirm T+1 / T+2 business days. Enter the units from your confirmation email.
           </div>
           <div className="mt-4 flex flex-col gap-3">

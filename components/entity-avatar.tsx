@@ -51,7 +51,7 @@ export function EntityAvatar({
       aria-hidden
       className={cn(
         box,
-        "font-bold",
+        "font-semibold",
         size === "sm" && "text-[10px]",
         size === "md" && "text-[10px]",
         size === "lg" && "text-[11px]",

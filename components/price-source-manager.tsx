@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 type ActionResult = { ok: boolean; message: string };
 
 const FIELD =
-  "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+  "w-full rounded-lg border border-field-border bg-card px-3.5 py-2 text-body-sm outline-none placeholder:text-faint hover:border-foreground focus-visible:border-foreground focus-visible:ring-1 focus-visible:ring-foreground";
 
 /** One config field with a label and an optional hint below it. */
 function Field({ children, label, htmlFor, hint }: {
@@ -31,7 +31,7 @@ function Field({ children, label, htmlFor, hint }: {
     <div className="grid gap-1.5">
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-caption text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -74,7 +74,7 @@ function SourceForm({ source, action, submitLabel, onDone }: {
     >
       <Field label="Key" htmlFor="ps-key" hint={source ? "The key can't be changed." : "Lowercase id, e.g. binance"}>
         {source ? (
-          <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 font-mono text-sm text-muted-foreground">
+          <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 font-mono text-body-sm text-muted-foreground">
             {source.key}
           </div>
         ) : (
@@ -120,7 +120,7 @@ function SourceForm({ source, action, submitLabel, onDone }: {
         </div>
       )}
 
-      <label className="flex items-center gap-2 sm:col-span-2 text-sm">
+      <label className="flex items-center gap-2 sm:col-span-2 text-body-sm">
         <input type="checkbox" name="batch" checked={batch} onChange={(e) => setBatch(e.target.checked)} className="size-4" />
         <span>Batch — one request returns prices for many holdings (matched by symbol).</span>
       </label>
@@ -179,7 +179,7 @@ function SourceForm({ source, action, submitLabel, onDone }: {
         </div>
         {result && (
           <p className={cn(
-            "flex items-start gap-1.5 text-sm",
+            "flex items-start gap-1.5 text-body-sm",
             result.ok ? "text-green-700 dark:text-green-400" : "text-destructive",
           )}>
             {result.ok
@@ -188,7 +188,7 @@ function SourceForm({ source, action, submitLabel, onDone }: {
             <span className="break-words">{result.message}</span>
           </p>
         )}
-        <p className="text-xs text-muted-foreground">
+        <p className="text-caption text-muted-foreground">
           Runs the request live and reads the price out — nothing is saved.
         </p>
       </div>
@@ -242,7 +242,7 @@ function DeleteSourceButton({ source }: { source: PriceSource }) {
 
 function Tag({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full border border-border px-[9px] py-0.5 font-mono text-[10.5px] text-muted-foreground">
+    <span className="rounded-full border border-border px-[9px] py-0.5 font-mono text-caption text-muted-foreground">
       {children}
     </span>
   );
@@ -252,14 +252,14 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
   return (
     <div className="card-surface panel-body">
       {/* A section inside Settings now, so it sits a level below the page title. */}
-      <div className="text-[16px] font-bold tracking-[-0.01em]">Price sources</div>
-      <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
+      <div className="text-body-lg font-semibold tracking-[-0.01em]">Price sources</div>
+      <div className="mt-1 max-w-[760px] text-body-sm text-muted-foreground">
         The feeds your holdings are priced against. Each is a self-contained config — a request
         URL and how to read the price out — so you can add one without touching code.
       </div>
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-divider pb-4">
-        <span className="text-[13px] text-muted-foreground">
+        <span className="text-body-sm text-muted-foreground">
           {sources.length} source{sources.length === 1 ? "" : "s"}. Holdings pick one of these to price against.
         </span>
         {/* A rebuild refetches every holding's daily closes through these feeds, so it
@@ -275,10 +275,10 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
           <div key={s.key} className="rounded-xl border border-border p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                <span className="text-[16px] font-bold">{s.label}</span>
-                <span className="rounded-sm bg-foreground px-2 py-0.5 font-mono text-[11px] text-background">{s.key}</span>
+                <span className="text-body font-semibold">{s.label}</span>
+                <span className="rounded-sm bg-foreground px-2 py-0.5 font-mono text-caption text-background">{s.key}</span>
                 {s.builtin ? (
-                  <span className="rounded-sm bg-pane-sunk px-2 py-0.5 font-mono text-[11px] text-muted-foreground">built-in</span>
+                  <span className="rounded-sm bg-pane px-2 py-0.5 text-caption font-semibold text-muted-foreground">built-in</span>
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -292,7 +292,7 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
               {s.batch ? <Tag>batch</Tag> : null}
               <Tag>history: {s.history_strategy}</Tag>
             </div>
-            <div className="mt-3 rounded-sm border border-divider-soft bg-pane-sunk px-3 py-2.5 font-mono text-[12px] break-all text-muted-foreground">
+            <div className="mt-3 rounded-sm border border-divider-soft bg-pane-sunk px-3 py-2.5 font-mono text-caption break-all text-muted-foreground">
               {s.url}
             </div>
           </div>

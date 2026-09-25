@@ -40,7 +40,7 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /** One row of the popup. Shared so the link and the sign-out sit on the same rhythm. */
 const ITEM =
-  "flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-muted-foreground outline-none select-none data-highlighted:bg-pane-sunk data-highlighted:text-foreground";
+  "flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-body-sm font-semibold text-muted-foreground outline-none select-none data-highlighted:bg-pane-sunk data-highlighted:text-foreground";
 
 /**
  * The account button: who you're signed in as, plus the two things you can do about it.
@@ -125,10 +125,10 @@ export function UserMenu() {
                 no Access in front of the origin to ask, so it says so rather than leaving a
                 gap you'd have to know the reason for. */}
             <div className="px-2.5 pt-1.5 pb-2.5">
-              <div className="truncate text-[13px] font-semibold text-foreground">
+              <div className="truncate text-body-sm font-semibold text-foreground">
                 {label ?? "Local session"}
               </div>
-              <div className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
+              <div className="mt-0.5 truncate text-caption text-muted-foreground">
                 {identity?.email ?? "No Access identity"}
               </div>
             </div>

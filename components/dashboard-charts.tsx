@@ -3,6 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { Download, TriangleAlert } from "lucide-react";
+import { AddTxDialog } from "@/components/add-tx-dialog";
+import type { InstrumentOption } from "@/components/tx-form";
 import type { Goal, LivePayload, Payload } from "@/lib/types";
 import { fmtSigned, fmtVND, MONTHS } from "@/lib/format";
 import { NetWorthPanel } from "@/components/net-worth";
@@ -17,6 +19,7 @@ import { project, type GoalView, type GoalWorld } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
 import { usePnlHistory } from "@/components/use-pnl-history";
+import { cn } from "@/lib/utils";
 
 export function DashboardCharts({
   payload,
@@ -28,6 +31,7 @@ export function DashboardCharts({
   world,
   streak,
   historyStamp,
+  instruments,
 }: {
   payload: Payload;
   savings: number;
@@ -41,6 +45,8 @@ export function DashboardCharts({
   streak: Streak | null;
   /** Changes when a settled day moves, or when the day does — see `usePnlHistory`. */
   historyStamp: string;
+  /** Live holdings, for the header's Add transaction dialog. */
+  instruments: InstrumentOption[];
 }) {
   const { series, holdings: holdingSeries, live, asOf, error: seriesError } = usePnlHistory(historyStamp);
 
@@ -84,8 +90,8 @@ export function DashboardCharts({
 
   const pnlPct = figures.investedTotal ? (figures.pnl / figures.investedTotal) * 100 : 0;
 
-  // No "Portfolio value" tile here, unlike the Investments page: the hero's rail already
-  // carries that exact figure as its Investments row, directly above this strip.
+  // No "Portfolio value" tile here, unlike the Investments page: the hero already carries
+  // that exact figure as its Investments part, directly above this strip.
   const kpis: Stat[] = [
     { label: "Total invested", value: fmtVND(figures.investedTotal), sub: "Cost basis, all time" },
     {
@@ -104,16 +110,18 @@ export function DashboardCharts({
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4">
-      {/* The dashboard is the one page that had no heading of its own — the top bar named
-          it instead. The design gives every view the same opening row, and CSV export is
-          the only action the dashboard has. */}
+      {/* The design's opening row: the title, then Export as the quiet action and Add
+          transaction as the one green button on the page. */}
       <PageHeader
         title="Dashboard"
         actions={
-          <Button nativeButton={false} render={<a href="/export.csv" download />}>
-            <Download className="size-3.5" />
-            Export report
-          </Button>
+          <>
+            <Button variant="outline" nativeButton={false} render={<a href="/export.csv" download />}>
+              <Download />
+              Export CSV
+            </Button>
+            <AddTxDialog instruments={instruments} variant="default" />
+          </>
         }
       >
         Net worth, holdings and daily P&amp;L, priced from the latest close.
@@ -122,58 +130,72 @@ export function DashboardCharts({
       {pending > 0 && (
         <Link
           href="/transactions"
-          className="flex items-start gap-2.5 rounded-xl border border-warning-border bg-warning-bg px-5 py-4 transition-colors hover:border-warning"
+          className="flex items-start gap-3 rounded-2xl bg-warning-bg px-5 py-4 transition-colors hover:bg-[color-mix(in_oklab,var(--warning-bg),var(--warning)_8%)]"
         >
-          <TriangleAlert className="mt-0.5 size-4 text-warning" />
+          <TriangleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
           <div>
-            <div className="text-[13.5px] font-semibold">
+            <div className="text-body font-semibold">
               {pending} fund purchase{pending > 1 ? "s" : ""} awaiting unit confirmation
             </div>
-            <div className="mt-0.5 text-[12.5px] text-muted-foreground">
+            <div className="mt-0.5 text-body-sm text-muted-foreground">
               Enter the confirmed units on the Transactions page so live valuation stays accurate.
             </div>
           </div>
         </Link>
       )}
 
-      {/* The design's dashboard body: a wide analysis column and a narrow rail of small
-          cards, as a wrapping flex rather than a grid, so the rail drops out beside the
-          charts on its own once neither basis fits. It has to be content-driven and not a
-          breakpoint: the nav is a top bar, a side rail, or a collapsed rail, and each
-          leaves the content a different width, so any viewport media query would pick the
-          wrong moment in two of the three.
-          `flex-wrap-reverse` is what puts the rail *above* the charts once stacked rather
-          than below: the two columns still lay out in source order, but the second line is
-          drawn first. Net worth leads the rail and so leads the page on a phone, where
-          there is no "right" to put it. The flip has one catch — reversing the wrap swaps
-          cross-start for cross-end, so `items-end` is what now aligns the two columns to
-          their tops. */}
-      <div className="flex flex-wrap-reverse items-end gap-3 sm:gap-4">
-        <div className="flex min-w-0 flex-[1_1_560px] flex-col gap-3 sm:gap-4">
+      {/* Net worth leads, full width and in the brand's loudest type, as in the design.
+          Everything under it is detail on that one figure. */}
+      <NetWorthPanel
+        investments={figures.portfolioTotal}
+        savings={savings}
+        funds={funds}
+        debts={debts}
+        todayDelta={todayDelta}
+        todayFrom={todayFrom}
+      />
+
+      <SummaryCards stats={kpis} />
+
+      {/* The body is a two-column grid whose rows pair panels of similar height: the
+          streak with the quick actions, the portfolio chart with the goals. The P&L calendar
+          (the tall one) spans the full width at the foot. Before, the two columns ran
+          independently and the rail ran out a screen and a half before the charts did,
+          leaving a tall empty strip down the right.
+          A container query on the grid itself, not a viewport breakpoint: the sidebar is
+          expanded, collapsed or a drawer, and each leaves the content a different width.
+          Source order is the phone's order (quick actions first, within thumb reach); from
+          two columns up, `order` places each panel beside its partner. Every cell stretches
+          its card to the row's height, so paired panels end on the same line.
+          Three equal tracks with the KPI row's gutter, not a 2fr/1fr split with its own:
+          the wide panels span two, so every card edge down the page lands on the same two
+          vertical lines as the three figures above. Two grids whose gutters miss each other
+          by a few pixels read as a mistake even when you can't say why. */}
+      <div className="@container">
+        <div className="grid grid-cols-1 gap-3 sm:gap-4 @4xl:grid-cols-3 [&>*]:flex [&>*]:min-w-0 [&>*]:flex-col [&>*>*]:flex-1">
+          {/* Beside the streak the card is as tall as the streak is, so the four doors go
+              2×2 there instead of one row floating in the middle of it. */}
+          <div className="@4xl:order-2 @4xl:[&>section]:grid-cols-2 @4xl:[&>section]:gap-y-5">
+            <QuickActions />
+          </div>
           {/* Ahead of the portfolio chart, which is the deliberate order: the chart is what
               the market did to you and the streak is what you did yourself, and only one of
-              those is a thing you can act on this month. Allocation and Holdings used to sit
-              in this column; they're on Investments now, beside the holdings they describe. */}
-          <StreakCard streak={streak} />
-          <PortfolioChart series={series} asOf={asOf} error={seriesError} />
-          <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
-        </div>
-
-        <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 sm:gap-4">
-          <NetWorthPanel
-            investments={figures.portfolioTotal}
-            savings={savings}
-            funds={funds}
-            debts={debts}
-            todayDelta={todayDelta}
-            todayFrom={todayFrom}
-            spark={series?.map((p) => p.value) ?? null}
-          />
-          <QuickActions />
-          {/* One column at every width: this strip is in the rail now, and `auto-fit` would
-              otherwise pack three tiles across the moment the rail wraps to full measure. */}
-          <SummaryCards stats={kpis} className="grid-cols-1 lg:grid-cols-1" />
-          <GoalStrip goals={goals} />
+              those is a thing you can act on this month. Allocation and Holdings are on
+              Investments, beside the holdings they describe. */}
+          <div className="@4xl:order-1 @4xl:col-span-2">
+            <StreakCard streak={streak} />
+          </div>
+          <div className={cn("@4xl:order-3", goals.length > 0 ? "@4xl:col-span-2" : "@4xl:col-span-3")}>
+            <PortfolioChart series={series} asOf={asOf} error={seriesError} />
+          </div>
+          {goals.length > 0 && (
+            <div className="@4xl:order-4">
+              <GoalStrip goals={goals} />
+            </div>
+          )}
+          <div className="@4xl:order-5 @4xl:col-span-3">
+            <PnlCalendar series={series} holdings={holdingSeries} error={seriesError} />
+          </div>
         </div>
       </div>
     </div>

@@ -253,9 +253,9 @@ function PaymentRow({ payment }: { payment: DebtPayment }) {
   }
 
   return (
-    <div className="flex items-center gap-3 border-b py-1.5 text-sm last:border-0">
+    <div className="flex items-center gap-3 border-b py-1.5 text-body-sm last:border-0">
       <span className="tabular-nums text-muted-foreground">{payment.date}</span>
-      <span className="font-mono font-medium tabular-nums text-(--chart-positive)">
+      <span className="font-mono font-semibold tabular-nums text-accent-brand">
         −{fmtVND(payment.amount)}
       </span>
       <span className="flex-1 truncate text-muted-foreground">{payment.note}</span>
@@ -376,7 +376,7 @@ function PaymentDialog({
             {payoff > 0 && (
               <button
                 type="button"
-                className="justify-self-start text-[12px] font-medium text-accent-brand hover:underline"
+                className="justify-self-start text-caption font-semibold text-accent-brand hover:underline"
                 title={
                   debt.kind === "fixed"
                     ? "The full term's value, less what you've paid. A fixed loan charges its interest to maturity whether you clear it early or not, so paying only the balance shown leaves the rest still to come."
@@ -403,7 +403,7 @@ function PaymentDialog({
 
         <div className="max-h-64 overflow-y-auto">
           {history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
+            <p className="text-body-sm text-muted-foreground">No payments recorded yet.</p>
           ) : (
             history.map((p) => <PaymentRow key={p.id} payment={p} />)
           )}
@@ -483,8 +483,8 @@ const columns: ColumnDef<DebtRow>[] = [
       const d = row.original.debt;
       return (
         <div>
-          <div className="font-medium">{d.lender ?? "Loan"}</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="font-semibold">{d.lender ?? "Loan"}</div>
+          <div className="text-caption text-muted-foreground">
             {fmtVND(d.principal)} · {row.original.isCredit ? `since ${d.start_date}` : `${d.term_months}mo`}
           </div>
         </div>
@@ -527,8 +527,8 @@ const columns: ColumnDef<DebtRow>[] = [
     cell: ({ row }) => (
       // Nothing outstanding isn't a liability, so it loses the red.
       <span className={cn(
-        "font-mono font-medium tabular-nums",
-        row.original.owed > 0 ? "text-(--chart-negative)" : "text-muted-foreground",
+        "font-mono font-semibold tabular-nums",
+        row.original.owed > 0 ? "text-destructive" : "text-muted-foreground",
       )}>
         {fmtVND(row.original.owed)}
       </span>
@@ -552,7 +552,7 @@ const columns: ColumnDef<DebtRow>[] = [
     enableSorting: false,
     size: 160,
     cell: ({ row }) => (
-      <span className="block max-w-40 truncate text-sm text-muted-foreground">
+      <span className="block max-w-40 truncate text-body-sm text-muted-foreground">
         {row.original.debt.note}
       </span>
     ),
@@ -695,10 +695,10 @@ export function DebtsManager({
         <div className="flex items-start gap-2.5 rounded-xl border border-warning-border bg-warning-bg px-5 py-4">
           <TriangleAlert className="mt-0.5 size-4 text-warning" />
           <div>
-            <div className="text-[13.5px] font-semibold">
+            <div className="text-body-sm font-semibold">
               {dueThisMonth.length} credit payment{dueThisMonth.length > 1 ? "s" : ""} due this month
             </div>
-            <div className="mt-0.5 text-[12.5px] text-muted-foreground">
+            <div className="mt-0.5 text-caption text-muted-foreground">
               Record this month&apos;s payment for {dueThisMonth.map((r) => r.debt.lender ?? "a credit account").join(", ")}
               {" "}to avoid a late mark on your credit score.
             </div>
@@ -733,7 +733,7 @@ export function DebtsManager({
 
       {/* "Add debt" moved up to the page header — the design keeps one create button per
           view, beside the title. */}
-      <p className="text-[12.5px] text-muted-foreground">
+      <p className="text-caption text-muted-foreground">
         Sorted by interest rate — tackle the highest-rate debts first.
       </p>
 
@@ -751,7 +751,7 @@ export function DebtsManager({
           rather than delete it. Sorted by what you paid, and folded away by default. */}
       {settled.length > 0 && (
         <details className="overflow-hidden card-surface">
-          <summary className="cursor-pointer list-none px-[18px] py-3.5 text-[13px] font-semibold">
+          <summary className="cursor-pointer list-none px-[18px] py-3.5 text-body-sm font-semibold">
             Settled · {settled.length} debt{settled.length > 1 ? "s" : ""} ·{" "}
             <span className="font-normal text-muted-foreground">
               {fmtVND(settled.reduce((a, r) => a + r.paid, 0))} repaid

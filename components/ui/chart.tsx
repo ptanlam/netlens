@@ -76,13 +76,15 @@ export const CHART_MOTION = { duration: 260, easing: "ease-out" } as const;
  * override or an `!important`.
  */
 export const CHART_HOST_STYLE = {
-  "--ts-chart-tooltip-background": "var(--background)",
-  "--ts-chart-tooltip-color": "var(--foreground)",
-  "--ts-chart-tooltip-border": "1px solid color-mix(in srgb, var(--border) 50%, transparent)",
-  "--ts-chart-tooltip-border-radius": "var(--radius-lg, 0.5rem)",
-  "--ts-chart-tooltip-padding": "0.375rem 0.625rem",
-  "--ts-chart-tooltip-shadow": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
-  "--ts-chart-tooltip-font": "500 0.75rem/1.3 var(--font-sans), sans-serif",
+  // Wise's chart tooltip is an ink card over the white panel, not another white card: it
+  // reads as a layer without needing the shadow and hairline a same-colour card would.
+  "--ts-chart-tooltip-background": "var(--foreground)",
+  "--ts-chart-tooltip-color": "var(--background)",
+  "--ts-chart-tooltip-border": "0",
+  "--ts-chart-tooltip-border-radius": "var(--radius-xl, 1rem)",
+  "--ts-chart-tooltip-padding": "0.625rem 0.875rem",
+  "--ts-chart-tooltip-shadow": "0 8px 24px rgb(14 15 12 / 0.18)",
+  "--ts-chart-tooltip-font": "400 0.75rem/1.35 var(--font-sans), sans-serif",
   // The default caps the card at 80% of the *chart's* width, which is fine for a wide
   // series and ruinous for a 172px donut — every holding name there wraps to one letter a
   // line. The card is fixed-positioned, so it is free to be wider than the chart it
@@ -107,7 +109,12 @@ export function bareAxis<TValue extends ChartValue>(options?: {
     ticks: { size: 0, format: options?.format },
     tickLabels: {
       opacity: 1,
-      thin: options?.minGap === undefined ? true : { minGap: options.minGap },
+      // The Wise caption size. The library's default is 11px, a step below anything else
+      // on the page, which is what made the axes read as a different typeface.
+      fontSize: 12,
+      // 16px unless asked: the library's default gap was tuned for its 11px labels, and at
+      // 12px neighbouring month names ("October November") ran into each other.
+      thin: { minGap: options?.minGap ?? 16 },
     },
   };
 }
@@ -155,16 +162,16 @@ const LEGEND_CSS = `
   min-height: 28px !important;
   padding: 4px 10px 4px 8px !important;
   gap: 6px !important;
-  border-color: var(--border) !important;
-  background: transparent !important;
-  color: var(--muted-foreground) !important;
-  font: 500 12.5px/1.1 var(--font-sans), sans-serif !important;
+  border-color: transparent !important;
+  background: var(--pane) !important;
+  color: var(--foreground) !important;
+  font: 400 14px/1.1 var(--font-sans), sans-serif !important;
   text-decoration: none !important;
   transition: color .15s, background-color .15s, border-color .15s, opacity .15s;
 }
 .${CHIP_LEGEND_CLASS} .ts-chart__interactive-legend button:hover {
-  border-color: var(--input) !important;
-  background: var(--pane) !important;
+  border-color: transparent !important;
+  background: var(--pane-2) !important;
   color: var(--foreground) !important;
 }
 .${CHIP_LEGEND_CLASS} .ts-chart__interactive-legend button:focus-visible {

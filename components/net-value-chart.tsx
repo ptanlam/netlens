@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { bareAxis, CHART_HOST_STYLE, CHART_THEME } from "@/components/ui/chart";
-import { SeriesBrush, useDateWindow } from "@/components/chart-brush";
 import { BUCKETS, type Bucket, bucketOf } from "@/components/pnl-chart";
 import { cn } from "@/lib/utils";
 
@@ -45,21 +44,19 @@ export function NetValueChart({
     return out;
   }, [series, bucket, from, to]);
 
-  const view = useDateWindow(data);
-
   const definition = React.useMemo(
     () =>
       defineChart({
         marks: [
           crosshair({ x: true, y: false }),
-          areaY(view.rows, {
+          areaY(data, {
             x: "date",
             y1: 0,
             y2: "value",
             fill: "url(#netValueFill)",
             fillOpacity: 1,
           }),
-          lineY(view.rows, {
+          lineY(data, {
             x: "date",
             y: "value",
             stroke: "var(--chart-2)",
@@ -111,7 +108,7 @@ export function NetValueChart({
           },
         },
       }),
-    [view.rows],
+    [data],
   );
 
   return (
@@ -124,18 +121,6 @@ export function NetValueChart({
           </CardDescription>
         </div>
         <div className="flex items-center gap-1">
-          {/* Only offered once it means something — a reset button on an unbrushed chart
-              is a control that does nothing, which is worse than no control. */}
-          {view.zoomed && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="mr-1 text-muted-foreground"
-              onClick={() => view.setRange(null)}
-            >
-              Reset zoom
-            </Button>
-          )}
           {BUCKETS.map((b) => (
             <Button
               key={b}
@@ -151,7 +136,7 @@ export function NetValueChart({
       </CardHeader>
       <CardContent>
         {error ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">
+          <p className="py-10 text-center text-body-sm text-muted-foreground">
             Couldn&apos;t load net-value history: {error}
           </p>
         ) : (
@@ -164,18 +149,6 @@ export function NetValueChart({
               style={{ ...CHART_HOST_STYLE, minHeight: "12rem" }}
               ariaLabel="Portfolio net value over time"
             />
-            {view.range && data.length > 1 && (
-              <div className="mt-1.5">
-                <SeriesBrush
-                  data={data}
-                  field="value"
-                  color="var(--chart-2)"
-                  range={view.range}
-                  onRange={view.setRange}
-                  label="Drag to narrow the net-value date range"
-                />
-              </div>
-            )}
           </div>
         )}
       </CardContent>

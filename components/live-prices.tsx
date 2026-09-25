@@ -365,8 +365,8 @@ export function LivePrices() {
       {/* The rail carries the links now, but the clock still waits for xl — the header's
           search field is the thing it shares its row with. */}
       <div className="hidden text-right leading-tight xl:block">
-        <div className="text-[11.5px] text-faint">Prices as of</div>
-        <div className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+        <div className="text-caption text-faint">Prices as of</div>
+        <div data-unmask className="font-mono text-caption tabular-nums text-muted-foreground">
           {stampOf(st?.atMs ?? null)}
         </div>
       </div>
@@ -382,7 +382,7 @@ export function LivePrices() {
             live ? `Server refreshes prices every ${label}` : "Server price refresh off"
           }
           className={cn(
-            "h-7 gap-1.5 rounded-full px-3 text-[12px] font-semibold sm:px-3.5",
+            "h-7 gap-1.5 rounded-full px-3 text-caption font-semibold sm:px-3.5",
             live
               ? "border-transparent bg-accent text-accent-foreground"
               : "border-input bg-pane text-muted-foreground hover:bg-muted",
@@ -414,7 +414,7 @@ export function LivePrices() {
         disabled={pending}
         aria-label="Refresh prices now"
         title="Refresh prices now"
-        className="flex h-7 items-center gap-1.5 rounded-full border border-input bg-transparent px-2 text-[12px] font-semibold text-foreground transition-colors hover:border-brand hover:text-brand disabled:opacity-60 sm:px-3.5"
+        className="flex h-7 items-center gap-1.5 rounded-full border border-input bg-transparent px-2 text-caption font-semibold text-foreground transition-colors hover:bg-pane disabled:opacity-60 sm:px-3.5"
       >
         <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
         <span className={word}>Refresh</span>

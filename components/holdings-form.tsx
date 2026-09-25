@@ -29,7 +29,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
     enableSorting: false,
     size: 170,
     cell: ({ row }) => (
-      <span className="font-medium">
+      <span className="font-semibold">
         {row.original.inst.name}
         <input type="hidden" name={`inst_${row.original.idx}`} value={row.original.inst.name} />
       </span>

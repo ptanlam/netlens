@@ -67,7 +67,7 @@ function HoldingForm({
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="h-name">Name</Label>
         {holding ? (
-          <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
+          <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-body-sm text-muted-foreground">
             {holding.name}
           </div>
         ) : (
@@ -111,18 +111,18 @@ function HoldingForm({
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="h-manual">{priced ? "Fallback value (VND)" : "Value (VND)"}</Label>
         <CurrencyInput id="h-manual" name="manual_value" defaultValue={holding?.manual_value ?? undefined} placeholder="10.000.000" />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-caption text-muted-foreground">
           {!priced ? (
             "No live price for this holding — it is worth exactly what you enter here."
           ) : liveValue != null ? (
             <>
-              Currently <span className="font-medium">ignored</span>: a live price is active, so this
+              Currently <span className="font-semibold">ignored</span>: a live price is active, so this
               holding is valued at <span className="font-mono">{fmtVND(liveValue)}</span> (quantity ×
               last price). It is only used if the price feed stops returning a price.
             </>
           ) : holding ? (
             <>
-              <span className="font-medium">In use right now</span>: this holding has no{" "}
+              <span className="font-semibold">In use right now</span>: this holding has no{" "}
               {holding.last_price == null ? "live price" : "quantity"} yet, so it is valued at this
               amount. A live price takes over once quantity × last price are both known.
             </>

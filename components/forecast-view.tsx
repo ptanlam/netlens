@@ -370,16 +370,16 @@ export function ForecastView({
               : "Two lines: what you hold if you add nothing more from today (dashed), and the same plus the monthly pace you've committed to (solid). Investments are held flat — no market return is assumed either way."
           }
           actions={
-            <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+            <div className="flex gap-0.5 rounded-full bg-pane p-1">
               {HORIZONS.map((h) => (
                 <button
                   key={h}
                   type="button"
                   onClick={() => setHorizon(h)}
                   className={cn(
-                    "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
+                    "cursor-pointer rounded-full border-0 px-3.5 py-1.5 text-body-sm font-semibold transition-colors",
                     horizon === h
-                      ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]"
+                      ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -394,8 +394,8 @@ export function ForecastView({
             while this one changes what the walk claims. Two controls of such different
             weight shouldn't sit side by side looking alike. */}
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-[12px] text-muted-foreground">Investments</span>
-          <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+          <span className="text-caption text-muted-foreground">Investments</span>
+          <div className="flex gap-0.5 rounded-full bg-pane p-1">
             {(
               [
                 ["rate", "Fixed rate"],
@@ -415,9 +415,9 @@ export function ForecastView({
                       : undefined
                   }
                   className={cn(
-                    "cursor-pointer rounded-full border-0 px-2.5 py-[5px] text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                    "cursor-pointer rounded-full border-0 px-3 py-1.5 text-body-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40",
                     (m === "historical") === historical
-                      ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]"
+                      ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -427,16 +427,16 @@ export function ForecastView({
             })}
           </div>
           {!historical && (
-            <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+            <div className="flex gap-0.5 rounded-full bg-pane p-1">
               {RATES.map((r) => (
                 <button
                   key={r}
                   type="button"
                   onClick={() => setRate(r)}
                   className={cn(
-                    "cursor-pointer rounded-full border-0 px-2.5 py-[5px] font-mono text-[12px] font-semibold transition-colors",
+                    "cursor-pointer rounded-full border-0 px-3 py-1.5 text-body-sm font-semibold transition-colors",
                     rate === r
-                      ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]"
+                      ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -445,7 +445,7 @@ export function ForecastView({
               ))}
             </div>
           )}
-          <span className="text-[11.5px] text-faint">
+          <span className="text-caption text-faint">
             {historical
               ? "Everything in violet comes from your holdings' past — it's a spread, not a promise."
               : assumed
@@ -465,7 +465,7 @@ export function ForecastView({
           />
         </div>
         {historical && portfolioReturns.excluded.length > 0 && (
-          <p className="mt-2 text-[11.5px] text-faint">
+          <p className="mt-2 text-caption text-faint">
             Held flat in the range, with under {MIN_MONTHS} months of price history to sample
             from: {portfolioReturns.excluded.map((e) => e.name).join(", ")} (
             {Math.round(excludedShare * 100)}% of your portfolio). They still count in the total
@@ -494,12 +494,12 @@ export function ForecastView({
             ...(assumed ? [{ label: `Assumed at ${rate}%`, now: 0, then: end.growth }] : []),
           ].map((row) => (
             <div key={row.label}>
-              <div className="text-[12px] text-muted-foreground">{row.label}</div>
-              <div className="mt-1 font-mono text-[14px] tabular-nums">{fmtVND(row.then)}</div>
+              <div className="text-caption text-muted-foreground">{row.label}</div>
+              <div className="mt-1 font-mono text-body-sm tabular-nums">{fmtVND(row.then)}</div>
               <div
                 className={cn(
-                  "mt-0.5 font-mono text-[11.5px] tabular-nums",
-                  row.then - row.now >= 0 ? "text-accent-brand" : "text-(--chart-negative)",
+                  "mt-0.5 font-mono text-caption tabular-nums",
+                  row.then - row.now >= 0 ? "text-accent-brand" : "text-destructive",
                 )}
               >
                 {row.then - row.now >= 0 ? "+" : "−"}
@@ -511,7 +511,7 @@ export function ForecastView({
       </div>
 
       {pace === 0 && (
-        <div className="rounded-xl border border-warning-border bg-warning-bg px-5 py-4 text-[13px]">
+        <div className="rounded-xl border border-warning-border bg-warning-bg px-5 py-4 text-body-sm">
           <span className="font-semibold">Nothing committed, so nothing is projected.</span>{" "}
           <span className="text-muted-foreground">
             The line above is only what you already hold. Set a recurring rule, or a monthly plan
@@ -527,7 +527,7 @@ export function ForecastView({
           info="Every dated event inside the window — the things that make the line change shape. A projection you can't interrogate is a decoration."
         />
         {byMonth.length === 0 ? (
-          <p className="py-6 text-[13px] text-muted-foreground">
+          <p className="py-6 text-body-sm text-muted-foreground">
             Nothing scheduled in the next {horizon > 60 ? `${horizon / 12} years` : `${horizon} months`} —no deposit matures, no debt clears
             and no goal falls due.
           </p>
@@ -538,7 +538,7 @@ export function ForecastView({
                 key={month}
                 className="flex flex-col gap-2 border-t border-divider-soft py-3 first:border-t-0 sm:flex-row sm:gap-5"
               >
-                <div className="shrink-0 pt-0.5 font-mono text-[12px] text-faint sm:w-[76px]">
+                <div className="shrink-0 pt-0.5 font-mono text-caption text-faint sm:w-[76px]">
                   {fmtMonth(`${month}-01`)}
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -549,11 +549,11 @@ export function ForecastView({
                           className="size-[9px] shrink-0 translate-y-[-1px] rounded-[2px]"
                           style={{ background: KIND_COLOR[e.kind] }}
                         />
-                        <span className="truncate text-[13.5px]">{e.label}</span>
+                        <span className="truncate text-body-sm">{e.label}</span>
                         {/* The kind is spelled out from `sm` only. On a phone the row has
                             just enough width for the name and the amount, and the swatch
                             already says which kind it is. */}
-                        <span className="shrink-0 text-[11.5px] text-faint">
+                        <span className="shrink-0 text-caption text-faint">
                           {fmtDay(e.date)}
                           <span className="hidden sm:inline"> · {KIND_LABEL[e.kind]}</span>
                         </span>
@@ -561,7 +561,7 @@ export function ForecastView({
                       {e.amount != null && (
                         <span
                           className={cn(
-                            "shrink-0 font-mono text-[13px] tabular-nums",
+                            "shrink-0 font-mono text-body-sm tabular-nums",
                             e.outside && "text-faint",
                           )}
                         >
@@ -579,7 +579,7 @@ export function ForecastView({
             thing you own nor a debt you owe, and it stays out of net worth here for exactly
             the reason it stays out of it on the dashboard. */}
         {horizonEvents.some((e) => e.outside) && (
-          <p className="mt-3 text-[11.5px] text-faint">
+          <p className="mt-3 text-caption text-faint">
             Annual renewals are shown in grey — they land in that month, but subscriptions sit
             outside net worth, so they don&apos;t move the line above.
           </p>

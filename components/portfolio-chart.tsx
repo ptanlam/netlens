@@ -3,7 +3,6 @@
 import * as React from "react";
 import { areaY, defineChart, differenceY, lineY } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
-import type { BrushRange } from "@tanstack/charts/interaction/brush";
 import { Chart } from "@tanstack/charts/react";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
@@ -13,7 +12,6 @@ import { fmtMil, fmtVND } from "@/lib/format";
 import { bucketOf, type Bucket } from "@/components/pnl-chart";
 import { DateRange, defaultWindow } from "@/components/date-range";
 import { PanelHead } from "@/components/panel-head";
-import { BRUSH_MIN_POINTS, SeriesBrush, useDateWindow } from "@/components/chart-brush";
 import { bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +54,7 @@ function LiveStamp({ asOf }: { asOf: number | null }) {
     <span
       // Right-aligned in the title row rather than beside the controls: it reports on the
       // data, not on what you can do to it.
-      className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] text-faint tabular-nums"
+      className="ml-auto flex shrink-0 items-center gap-1.5 text-caption text-faint tabular-nums"
       title="When the prices behind this curve were last read"
     >
       <span key={asOf} className="size-[5px] animate-tick-ping rounded-full bg-accent-brand" />
@@ -128,17 +126,11 @@ export function PortfolioChart({
     }));
   }, [series, metric, timeframe]);
 
-  // The picked window: what the strip draws, and the outer bound of everything below it.
+  // The picked window, which is what the chart draws.
   const pts = React.useMemo(
     () => allPts.filter((p) => p.date >= from && p.date <= to),
     [allPts, from, to],
   );
-
-  // A zoom *inside* that window, owned by the brush alone. The date picker sets how much
-  // history is on the table and the strip always spans exactly that; dragging the handles
-  // then reads a stretch of it without moving the pills — which is what makes the strip a
-  // round trip rather than a one-way narrowing.
-  const zoom = useDateWindow(pts);
 
   const title = metric === "value" ? "Portfolio value over time" : "P&L over time";
   const sub =
@@ -148,12 +140,12 @@ export function PortfolioChart({
 
   const mk = (active: boolean) =>
     cn(
-      "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
-      active ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
+      "cursor-pointer rounded-full border-0 px-3.5 py-1.5 text-body-sm font-semibold transition-colors",
+      active ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2" : "text-muted-foreground hover:text-foreground",
     );
 
   return (
-    <div className="card-surface panel-body">
+    <div className="card-surface panel-body flex flex-col">
       {/* Two fixed rows — title (plus the key, when there is one) over the controls —
           rather than one wrapping row. Wrapping made the layout a function of the legend:
           "Value" carries a key wide enough to push the controls onto a second line, "P&L"
@@ -166,11 +158,11 @@ export function PortfolioChart({
               the key is readable at a glance rather than by elimination. */}
           {metric === "value" && (
             <div className="flex items-center gap-3.5">
-              <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+              <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
                 <span className="h-[2px] w-3.5 rounded-full bg-chart-ink" />
                 Value
               </span>
-              <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+              <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
                 <span
                   className="h-[2px] w-3.5"
                   style={{ backgroundImage: "repeating-linear-gradient(to right, var(--chart-gold) 0 5px, transparent 5px 9px)" }}
@@ -182,14 +174,14 @@ export function PortfolioChart({
           <LiveStamp asOf={asOf} />
         </div>
         <div className="flex flex-wrap items-center gap-3.5">
-          <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+          <div className="flex gap-0.5 rounded-full bg-pane p-1">
             {(["value", "pl"] as Metric[]).map((m) => (
               <button key={m} type="button" className={mk(metric === m)} onClick={() => setMetric(m)}>
                 {m === "value" ? "Value" : "P&L"}
               </button>
             ))}
           </div>
-          <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+          <div className="flex gap-0.5 rounded-full bg-pane p-1">
             {TIMEFRAMES.map((t) => (
               <button key={t} type="button" className={mk(timeframe === t)} onClick={() => setTimeframe(t)}>
                 {t}
@@ -207,51 +199,31 @@ export function PortfolioChart({
             to={to}
             min={minDate}
             max={maxDate}
-            onChange={(f, t) => {
-              // A new window is a new strip, so the old selection has no meaning on it —
-              // and leaving it would open the preset already zoomed into part of itself.
-              setRange({ from: f, to: t });
-              zoom.setRange(null);
-            }}
+            onChange={(f, t) => setRange({ from: f, to: t })}
           />
-          {/* Beside the picker, not under it: appearing on its own line would grow the
-              header the moment a drag ends and shift the strip out from under the pointer
-              that was still on it. */}
-          {zoom.zoomed && (
-            <button
-              type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
-              onClick={() => zoom.setRange(null)}
-            >
-              Reset zoom
-            </button>
-          )}
           </div>
         )}
       </div>
 
-      <div className="mt-5">
+      {/* Grows with the card: on the dashboard this panel shares a row with Goals and is
+          stretched to its height, and the curve takes that height rather than leaving it
+          as a blank band under it. */}
+      <div className="mt-5 flex flex-1 flex-col">
         {error ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">
+          <p className="py-10 text-center text-body-sm text-muted-foreground">
             Couldn&apos;t load history: {error}
           </p>
         ) : !series ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>
+          <p className="py-10 text-center text-body-sm text-muted-foreground">Loading…</p>
         ) : series.length && !pts.length ? (
           // Distinguish "you have no history" from "your window missed it" — the empty
           // state below tells you to add transactions, which is unhelpful advice when the
           // fix is to widen the dates.
-          <p className="py-10 text-center text-sm text-muted-foreground">
+          <p className="py-10 text-center text-body-sm text-muted-foreground">
             No history between {from} and {to}.
           </p>
         ) : (
-          <ChartSvg
-            pts={zoom.rows}
-            strip={pts}
-            metric={metric}
-            handles={zoom.range}
-            onHandles={zoom.setRange}
-          />
+          <ChartSvg pts={pts} metric={metric} />
         )}
       </div>
     </div>
@@ -269,21 +241,10 @@ export function PortfolioChart({
  * pair of hand-built clip paths this chart used to intersect to get the same effect, and it
  * gets the crossing right at the pixel rather than at the nearest sample.
  */
-function ChartSvg({
-  pts,
-  strip,
-  metric,
-  handles,
-  onHandles,
-}: {
-  /** The brushed window, which is what the chart draws. */
-  pts: Point[];
-  /** The picked window — the strip's whole span, so an untouched brush fills it. */
-  strip: Point[];
-  metric: Metric;
-  handles: BrushRange<string> | null;
-  onHandles: (next: BrushRange<string> | null) => void;
-}) {
+function ChartSvg({ pts, metric }: { pts: Point[]; metric: Metric }) {
+
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const height = useBoxHeight(boxRef, 250);
 
   // The cost line only exists where every point carries one — a partial series would
   // otherwise draw a line that silently jumps across the gaps.
@@ -386,44 +347,29 @@ function ChartSvg({
 
   if (!pts.length) {
     return (
-      <p className="py-10 text-center text-sm text-muted-foreground">
+      <p className="py-10 text-center text-body-sm text-muted-foreground">
         No history yet — add transactions to see the curve.
       </p>
     );
   }
 
   return (
-    <div>
-      <Chart
-        definition={definition}
-        // A fixed height, not a ratio: this card sits in a grid whose column width changes
-        // with the viewport, and a ratio would make the curve shorter exactly where there is
-        // least room to read it.
-        height={250}
-        initialWidth={1000}
-        className="w-full"
-        style={CHART_HOST_STYLE}
-        ariaLabel={metric === "value" ? "Portfolio value over time" : "Profit and loss over time"}
-      />
-      {/* The strip is the picked window end to end, so an untouched brush spans all of it —
-          whatever the preset. Narrowing from there is the brush's own state, which is why
-          the panel keeps a "Reset zoom" beside the picker. */}
-      {handles && strip.length >= BRUSH_MIN_POINTS && (
-        <div className="mt-1.5">
-          <SeriesBrush
-            data={strip}
-            field="v"
-            color={metric === "value" ? ink : green}
-            range={handles}
-            onRange={onHandles}
-            label={
-              metric === "value"
-                ? "Drag to narrow the portfolio value window"
-                : "Drag to narrow the profit and loss window"
-            }
-          />
-        </div>
-      )}
+    <div className="flex flex-1 flex-col">
+      {/* A height, not a ratio: this card sits in a grid whose column width changes with the
+          viewport, and a ratio would make the curve shorter exactly where there is least room
+          to read it. The height is whatever the card has to spare, measured, with 250px as
+          the floor. The chart is absolutely placed inside its box so it never feeds its own
+          height back into the measurement: the box is sized by the row, never the curve. */}
+      <div ref={boxRef} className="relative min-h-[250px] flex-1">
+        <Chart
+          definition={definition}
+          height={height}
+          initialWidth={1000}
+          className="absolute inset-x-0 top-0 w-full"
+          style={CHART_HOST_STYLE}
+          ariaLabel={metric === "value" ? "Portfolio value over time" : "Profit and loss over time"}
+        />
+      </div>
     </div>
   );
 }
@@ -464,4 +410,20 @@ function tip(datum: unknown, metric: Metric) {
       },
     ],
   };
+}
+
+/** The measured height of `ref`'s box, rounded, with `floor` before the first measurement
+ *  and as a minimum after it. */
+function useBoxHeight(ref: React.RefObject<HTMLElement | null>, floor: number): number {
+  const [h, setH] = React.useState(floor);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setH(Math.max(floor, Math.round(entry.contentRect.height)));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, floor]);
+  return h;
 }

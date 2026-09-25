@@ -4,7 +4,6 @@ import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { areaY, defineChart, lineY, rect, ruleY } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
-import type { BrushRange } from "@tanstack/charts/interaction/brush";
 import { controlledSignal } from "@tanstack/charts/interaction/signal";
 import {
   interactiveColorLegend, type InteractiveColorLegendChange,
@@ -31,7 +30,6 @@ import {
   bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME, CHIP_LEGEND_CLASS, ChipLegendStyle,
   INITIAL_PANEL_WIDTH, legendChartMetrics, legendItemWidth, useLegendBand, usePanelWidth,
 } from "@/components/ui/chart";
-import { BRUSH_MIN_POINTS, SeriesBrush, useDateWindow } from "@/components/chart-brush";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { holdingLogo } from "@/lib/logos";
 import { DateRange, defaultWindow } from "@/components/date-range";
@@ -122,27 +120,13 @@ export function TransactionsView({
       });
   }, [txs, filterHolding, filterType]);
 
-  // The picked window — what the brush strip is drawn over, end to end, so an untouched
-  // brush spans all of it whatever the preset says.
-  const inRange = React.useMemo(
-    () => selected.filter((t) => t.date >= from && t.date <= to),
-    [selected, from, to],
-  );
-  const strip = React.useMemo(() => stripSeries(inRange, from, to), [inRange, from, to]);
-
-  // A zoom inside that window. The picker sets how much history is on the table; the handles
-  // read a stretch of it — and everything below reads the stretch, tiles and table included,
-  // because a panel quoting two different windows at once is unreadable.
-  const zoom = useDateWindow(strip);
-  const zFrom = zoom.range?.start ?? from;
-  const zTo = zoom.range?.end ?? to;
-
+  // The picked window. Everything below reads it, tiles and table included, because a
+  // panel quoting two different windows at once is unreadable.
   const filtered = React.useMemo(() => {
-    return inRange
-      .filter((t) => t.date >= zFrom && t.date <= zTo)
-      .slice()
+    return selected
+      .filter((t) => t.date >= from && t.date <= to)
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
-  }, [inRange, zFrom, zTo]);
+  }, [selected, from, to]);
 
   const invested = filtered.filter((t) => t.amount >= 0).reduce((a, t) => a + t.amount, 0);
   const proceeds = filtered.filter((t) => t.amount < 0).reduce((a, t) => a - t.amount, 0);
@@ -163,10 +147,10 @@ export function TransactionsView({
     }
     // month buckets from `from` to `to`
     const out: { key: string; label: string; amt: number; sold: number }[] = [];
-    let y = Number(zFrom.slice(0, 4));
-    let m = Number(zFrom.slice(5, 7));
-    const ey = Number(zTo.slice(0, 4));
-    const em = Number(zTo.slice(5, 7));
+    let y = Number(from.slice(0, 4));
+    let m = Number(from.slice(5, 7));
+    const ey = Number(to.slice(0, 4));
+    const em = Number(to.slice(5, 7));
     let guard = 0;
     while ((y < ey || (y === ey && m <= em)) && guard++ < 60) {
       const key = `${y}-${String(m).padStart(2, "0")}`;
@@ -174,7 +158,7 @@ export function TransactionsView({
       if (++m > 12) { m = 1; y++; }
     }
     return out;
-  }, [filtered, zFrom, zTo]);
+  }, [filtered, from, to]);
 
   // Averaged over the month buckets actually in range, not over the ones that had a buy —
   // a month you deployed nothing in is a real zero, and dropping it would flatter the pace.
@@ -191,7 +175,7 @@ export function TransactionsView({
         header: "Date",
         size: 110,
         cell: ({ row }) => (
-          <span className="font-mono text-[12px] text-muted-foreground tabular-nums">{row.original.date}</span>
+          <span className="font-mono text-caption text-muted-foreground tabular-nums">{row.original.date}</span>
         ),
       },
       {
@@ -205,7 +189,7 @@ export function TransactionsView({
               color={typeColor(row.original.asset_type)}
               logo={holdingLogo(row.original.instrument)}
             />
-            <span className="truncate text-[13px] font-semibold">{row.original.instrument}</span>
+            <span className="truncate text-body-sm font-semibold">{row.original.instrument}</span>
           </div>
         ),
       },
@@ -231,7 +215,7 @@ export function TransactionsView({
         size: 145,
         meta: { align: "right" },
         cell: ({ row }) => (
-          <span className="font-mono text-[12px] text-muted-foreground tabular-nums">
+          <span className="font-mono text-caption text-muted-foreground tabular-nums">
             {row.original.quantity != null ? fmtUnits(row.original.quantity) : "—"}
           </span>
         ),
@@ -246,7 +230,7 @@ export function TransactionsView({
           const t = row.original;
           const price = t.quantity ? t.amount / t.quantity : null;
           return (
-            <span className="font-mono text-[12px] text-muted-foreground tabular-nums">
+            <span className="font-mono text-caption text-muted-foreground tabular-nums">
               {price != null ? Math.round(price).toLocaleString("de-DE") : "—"}
             </span>
           );
@@ -258,7 +242,7 @@ export function TransactionsView({
         size: 160,
         meta: { align: "right" },
         cell: ({ row }) => (
-          <span className="font-mono text-[12.5px] tabular-nums">{fmtVND(row.original.amount)}</span>
+          <span className="font-mono text-caption tabular-nums">{fmtVND(row.original.amount)}</span>
         ),
       },
       {
@@ -275,7 +259,7 @@ export function TransactionsView({
   // Fixed height, not padding: a <select> derives a different intrinsic height from the
   // same padding as the date fields it sits under.
   const selectCls =
-    "h-7 rounded-lg border border-input bg-pane px-2.5 font-mono text-[12px] outline-none focus:border-ring";
+    "h-8 rounded-lg border border-field-border bg-card px-3 text-body-sm outline-none hover:border-foreground focus:border-foreground";
 
   return (
     <div>
@@ -309,27 +293,13 @@ export function TransactionsView({
               to={to}
               min={minDate}
               max={today}
-              // A new window is a new strip; the old selection means nothing on it, and
-              // keeping it would open the preset already zoomed into part of itself.
-              onChange={(f, t) => { setFrom(f); setTo(t); zoom.setRange(null); }}
+              onChange={(f, t) => { setFrom(f); setTo(t); }}
             />
-            {/* Beside the picker, not under it: appearing on its own line would grow the
-                header the moment a drag ends and shift the strip out from under the pointer
-                that was still on it. */}
-            {zoom.zoomed && (
-              <button
-                type="button"
-                className="cursor-pointer border-0 bg-transparent p-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
-                onClick={() => zoom.setRange(null)}
-              >
-                Reset zoom
-              </button>
-            )}
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2.5">
-          <span className="text-[12.5px] text-muted-foreground">Filter</span>
+          <span className="text-caption text-muted-foreground">Filter</span>
           <select value={filterHolding} onChange={(e) => setFilterHolding(e.target.value)} className={selectCls}>
             <option value="All">All holdings</option>
             {holdingNames.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -343,8 +313,8 @@ export function TransactionsView({
 
         {/* Summary tiles. Monthly average and Best month are scoped to the selected range
             like everything else here, so they move with the 1M/3M/YTD/1Y/All picker. */}
-        <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-divider bg-divider lg:grid-cols-3">
-          <SummaryTile label="Transactions" value={String(filtered.length)} />
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-3">
+          <SummaryTile label="Transactions" value={String(filtered.length)} unmask />
           <SummaryTile label="Invested" value={fmtVND(invested)} />
           <SummaryTile label="Proceeds" value={proceeds > 0 ? fmtVND(proceeds) : "₫0"} valueCls="text-accent-brand" />
           <SummaryTile label="Net deployed" value={fmtVND(net)} />
@@ -352,21 +322,14 @@ export function TransactionsView({
           <SummaryTile label="Best month" value={best ? `${best.label} · ${fmtVND(best.amt)}` : "—"} />
         </div>
 
-        <div className="mt-6 mb-3 text-[13px] font-semibold text-muted-foreground">
+        <div className="mt-6 mb-3 text-body-sm font-semibold text-muted-foreground">
           Cumulative capital deployed
         </div>
-        <CumulativeChart
-          txs={filtered}
-          from={zFrom}
-          to={zTo}
-          strip={strip}
-          handles={zoom.range}
-          onHandles={zoom.setRange}
-        />
+        <CumulativeChart txs={filtered} from={from} to={to} />
 
         {/* "in and out", not "deployed": the columns run both ways now, and a heading that
             named only the half above the axis would be read as a label for the whole chart. */}
-        <div className="mt-6 mb-2.5 text-[13px] font-semibold text-muted-foreground">
+        <div className="mt-6 mb-2.5 text-body-sm font-semibold text-muted-foreground">
           Capital in and out by month
         </div>
         <DeployedByMonth txs={filtered} months={bars} />
@@ -387,14 +350,27 @@ export function TransactionsView({
   );
 }
 
-function SummaryTile({ label, value, valueCls }: { label: string; value: string; valueCls?: string }) {
+function SummaryTile({
+  label,
+  value,
+  valueCls,
+  unmask,
+}: {
+  label: string;
+  value: string;
+  valueCls?: string;
+  /** A count, not an amount: stays readable under "Hide amounts". */
+  unmask?: boolean;
+}) {
+  // Wise's sage feature card, one per figure: separate tiles on the white panel rather
+  // than one box ruled into cells.
   return (
-    <div className="bg-pane px-4 py-3.5">
-      <div className="text-[12.5px] text-muted-foreground">{label}</div>
+    <div className="rounded-2xl bg-pane px-4 py-3.5 sm:px-5 sm:py-4">
+      <div className="text-body-sm text-muted-foreground">{label}</div>
       {/* Same label/figure recipe as <StatCard>, one step smaller: "Best month" carries a
           month label as well as an amount, so it's the widest thing in the grid — the whole
           row steps down rather than letting that one tile wrap. */}
-      <div className={cn("mt-1.5 font-mono text-[15px] font-semibold whitespace-nowrap tabular-nums sm:text-[19px]", valueCls)}>
+      <div data-unmask={unmask || undefined} className={cn("mt-1.5 font-mono text-body font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-body-lg", valueCls)}>
         {value}
       </div>
     </div>
@@ -413,76 +389,16 @@ interface CumPoint {
   key: string;
 }
 
-/**
- * How many samples the context strip under the cumulative chart is drawn from.
- *
- * The strip is sampled on an even *time* grid rather than being handed the transaction steps
- * themselves, because `scalePoint` spaces its values evenly: built from the steps, a year of
- * not buying and a busy fortnight would sit the same distance apart, and the window you
- * dragged would not line up with the axis above it.
- *
- * The count is also the brush's granularity, since it snaps to the values it is given —
- * roughly a day and a half over a year's range, and never finer than a day, which is as
- * precise as a window over a spending history needs to be.
- */
-const STRIP_SAMPLES = 240;
-
-/**
- * The picked window's running total at one sample per grid step — the shape the brush is
- * dragged over.
- *
- * Sampled on an even *time* grid rather than from the transaction steps, because `scalePoint`
- * spaces values evenly: built from the steps, a year of not buying and a busy fortnight would
- * sit the same distance apart, and the window you dragged would not line up with the chart
- * above it.
- *
- * It lives beside the panel rather than inside the chart because the brush over it is the
- * panel's zoom: the tiles and the table read the same selection.
- */
-function stripSeries(txs: Tx[], from: string, to: string): { date: string; v: number }[] {
-  const DAY = 86_400_000;
-  const startMs = Date.parse(`${from}T00:00:00Z`);
-  const endMs = Date.parse(`${to}T00:00:00Z`);
-  if (!(endMs > startMs)) return [];
-  const stepMs = Math.max(DAY, Math.ceil((endMs - startMs) / STRIP_SAMPLES / DAY) * DAY);
-  const rows = txs.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
-  const out: { date: string; v: number }[] = [];
-  let i = 0;
-  let cum = 0;
-  for (let ms = startMs; ms <= endMs; ms += stepMs) {
-    const date = new Date(ms).toISOString().slice(0, 10);
-    while (i < rows.length && rows[i].date <= date) cum += rows[i++].amount;
-    out.push({ date, v: cum });
-  }
-  // The grid steps in whole days, so on a span that isn't a multiple of the step its last
-  // rung lands short of `to` — a year steps by two days and stops yesterday. That is not
-  // just a stunted curve: the strip's last date *is* the window's end everywhere below
-  // (`useDateWindow` hands back the whole span when nothing is brushed), so today's
-  // transactions dropped out of the table and the tiles on 1Y and All while showing on 1M.
-  if (out.length && out[out.length - 1].date < to) {
-    while (i < rows.length && rows[i].date <= to) cum += rows[i++].amount;
-    out.push({ date: to, v: cum });
-  }
-  return out;
-}
-
 function CumulativeChart({
   txs,
   from,
   to,
-  strip,
-  handles,
-  onHandles,
 }: {
-  /** The brushed window's transactions — what the curve draws. */
+  /** The window's transactions — what the curve draws. */
   txs: Tx[];
-  /** The brushed window's bounds, which the curve's x domain is fixed to. */
+  /** The window's bounds, which the curve's x domain is fixed to. */
   from: string;
   to: string;
-  /** The picked window, end to end — so an untouched brush spans the whole strip. */
-  strip: { date: string; v: number }[];
-  handles: BrushRange<string> | null;
-  onHandles: (next: BrushRange<string> | null) => void;
 }) {
 
   // The running total across the window, bookended by its own edges so the line spans the
@@ -571,21 +487,6 @@ function CumulativeChart({
         style={CHART_HOST_STYLE}
         ariaLabel="Capital deployed over the selected range"
       />
-      {/* The strip is the picked window end to end, so the handles open at its two edges
-          whatever the preset — narrowing from there is the brush's own state, which the
-          "Reset zoom" beside the picker undoes. */}
-      {handles && strip.length >= BRUSH_MIN_POINTS && (
-        <div className="mt-1.5">
-          <SeriesBrush
-            data={strip}
-            field="v"
-            color="var(--chart-gold)"
-            range={handles}
-            onRange={onHandles}
-            label="Drag to narrow the capital-deployed window"
-          />
-        </div>
-      )}
     </div>
   );
 }
@@ -948,7 +849,7 @@ function DeployedByMonth({
 
   if (!plan.series.length) {
     return (
-      <p className="py-10 text-center text-sm text-muted-foreground">
+      <p className="py-10 text-center text-body-sm text-muted-foreground">
         Nothing bought or sold in this range.
       </p>
     );

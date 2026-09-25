@@ -24,8 +24,8 @@ export function SettingsNav() {
                 : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
             )}
           >
-            <div className="text-[13.5px] font-medium whitespace-nowrap">{s.label}</div>
-            <div className="mt-0.5 hidden text-[11.5px] text-faint lg:block">{s.hint}</div>
+            <div className="text-body-sm font-semibold whitespace-nowrap">{s.label}</div>
+            <div className="mt-0.5 hidden text-caption text-faint lg:block">{s.hint}</div>
           </Link>
         );
       })}

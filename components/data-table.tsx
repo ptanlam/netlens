@@ -48,7 +48,7 @@ const MENU_POPUP =
   "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95";
 
 const MENU_ITEM =
-  "relative flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none " +
+  "relative flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-body-sm outline-none select-none " +
   "focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:text-muted-foreground";
 
 /** Sticky offsets + edge shadow for a pinned column, keyed off TanStack's measured sizes. */
@@ -347,7 +347,10 @@ export function DataTable<TData, TValue>({
                             type="button"
                             onClick={column.getToggleSortingHandler()}
                             className={cn(
-                              "inline-flex items-center gap-1 truncate hover:text-foreground",
+                              // `uppercase` again: the reset sets `text-transform: none` on
+                              // buttons, so a sortable head lost the eyebrow case its
+                              // unsortable neighbours keep.
+                              "inline-flex items-center gap-1 truncate uppercase hover:text-foreground",
                               align === "right" && "flex-row-reverse",
                             )}
                           >
@@ -420,7 +423,7 @@ export function DataTable<TData, TValue>({
       </Table>
 
       {pageSize && (
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 text-body-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <span className="whitespace-nowrap">Rows per page</span>
             <Select

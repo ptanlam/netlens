@@ -25,7 +25,7 @@ Personal net-worth tracker: **investments, savings (term deposits), debts (loans
 
 ## Stack
 
-Next.js 16 (App Router, Server Actions, Turbopack) · React 19 · **@base-ui/react** primitives wrapped in `components/ui/` (shadcn-style) · Tailwind CSS v4 · @tanstack/charts · **Cloudflare D1** via `@opennextjs/cloudflare` · sonner (toasts) · next-themes.
+Next.js 16 (App Router, Server Actions, Turbopack) · React 19 · **@base-ui/react** primitives wrapped in `components/ui/` (shadcn-style), themed as the **Wise design system** (`DESIGN.md`, tokens in `app/globals.css`) · Tailwind CSS v4 · @tanstack/charts · **Cloudflare D1** via `@opennextjs/cloudflare` · sonner (toasts) · next-themes.
 
 ## Architecture in 6 lines
 
@@ -152,8 +152,8 @@ neither of — the columns were decoration there, carrying a popup nothing could
 second mobile-only layout to keep in step. A second tap on the same column closes it, since on
 touch there is no "pointer away".
 
-Each lever is drawn in **the hue of the page it came from** (`LEVER_COLOR`) — the same five-slot
-palette the nav tints its sections with and `GoalStrip` fills its bars from. A column's height is
+Each lever has its own colour from the fixed chart palette (`LEVER_COLOR`): ink for money invested,
+as in the design's "Invested per month" bars, and Wise Green for new deposits. A column's height is
 the month's total and each segment takes its share of it, so the top edge is exactly the figure the
 commitment line judges. Missed months keep their hues but drop back — you still put that money
 somewhere.

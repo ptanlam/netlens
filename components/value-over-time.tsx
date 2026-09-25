@@ -3,7 +3,6 @@
 import * as React from "react";
 import { areaY, defineChart, lineY, ruleY } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
-import type { BrushRange } from "@tanstack/charts/interaction/brush";
 import { Chart } from "@tanstack/charts/react";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
@@ -11,7 +10,6 @@ import { scaleUtc } from "d3-scale";
 import { fmtMil, fmtVND } from "@/lib/format";
 import { PanelHead } from "@/components/panel-head";
 import { bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
-import { BRUSH_MIN_POINTS, SeriesBrush, useDateWindow } from "@/components/chart-brush";
 import { DateRange, defaultWindow } from "@/components/date-range";
 import { cn } from "@/lib/utils";
 
@@ -152,21 +150,16 @@ export function ValueOverTime({
     [series, metric],
   );
 
-  // The picked window: the strip's whole span, so an untouched brush fills it whatever the
-  // preset says.
+  // The picked window, which is what the chart draws.
   const windowed = React.useMemo(
     () => shown.filter((p) => p.date >= from && p.date <= to),
     [shown, from, to],
   );
 
-  // A zoom inside that window, owned by the brush alone — the picker says how much history
-  // is on the table, the handles read a stretch of it without moving the pills.
-  const zoom = useDateWindow(windowed);
-
   const pill = (active: boolean) =>
     cn(
-      "cursor-pointer rounded-full border-0 px-3 py-[5px] text-[12px] font-semibold transition-colors",
-      active ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
+      "cursor-pointer rounded-full border-0 px-3.5 py-1.5 text-body-sm font-semibold transition-colors",
+      active ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2" : "text-muted-foreground hover:text-foreground",
     );
 
   return (
@@ -176,7 +169,7 @@ export function ValueOverTime({
           <PanelHead title={title} info={subtitle} />
           {split && series.length > 1 && (
             <div className="mt-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-2">
-              <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+              <div className="flex gap-0.5 rounded-full bg-pane p-1">
                 {(["total", "interest"] as const).map((m) => (
                   <button
                     key={m}
@@ -189,7 +182,7 @@ export function ValueOverTime({
                 ))}
               </div>
               {metric === "total" && (
-                <div className="flex items-center gap-3.5 text-[11.5px] text-muted-foreground">
+                <div className="flex items-center gap-3.5 text-caption text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: areaFill, boxShadow: `inset 0 0 0 1px ${stroke}` }} />
                     {baseLabel}
@@ -210,36 +203,19 @@ export function ValueOverTime({
               to={to}
               min={minDate}
               max={maxDate}
-              // A new window is a new strip; the old selection means nothing on it, and
-              // keeping it would open the preset already zoomed into part of itself.
-              onChange={(f, t) => { setFrom(f); setTo(t); zoom.setRange(null); }}
+              onChange={(f, t) => { setFrom(f); setTo(t); }}
             />
-            {/* Beside the picker, not under it: appearing on its own line would grow the
-                header the moment a drag ends and shift the strip out from under the pointer
-                that was still on it. */}
-            {zoom.zoomed && (
-              <button
-                type="button"
-                className="cursor-pointer border-0 bg-transparent p-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
-                onClick={() => zoom.setRange(null)}
-              >
-                Reset zoom
-              </button>
-            )}
           </div>
         )}
       </div>
 
       <div className="mt-5">
         {series.length < 2 ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">{emptyMessage}</p>
+          <p className="py-10 text-center text-body-sm text-muted-foreground">{emptyMessage}</p>
         ) : (
           <ChartSvg
             key={metric}
-            pts={zoom.rows}
-            strip={windowed}
-            handles={zoom.range}
-            onHandles={zoom.setRange}
+            pts={windowed}
             stroke={stroke}
             areaFill={metric === "interest" ? (bandFill ?? areaFill) : areaFill}
             bandFill={bandFill}
@@ -260,9 +236,6 @@ interface Plotted extends SeriesPoint {
 
 function ChartSvg({
   pts,
-  strip,
-  handles,
-  onHandles,
   stroke,
   areaFill,
   bandFill,
@@ -270,12 +243,7 @@ function ChartSvg({
   baseLabel,
   bandLabel,
 }: {
-  /** The brushed window, which is what the chart draws. */
   pts: SeriesPoint[];
-  /** The picked window — the strip's whole span, so an untouched brush fills it. */
-  strip: SeriesPoint[];
-  handles: BrushRange<string> | null;
-  onHandles: (next: BrushRange<string> | null) => void;
   stroke: string;
   areaFill: string;
   bandFill?: string;
@@ -290,12 +258,12 @@ function ChartSvg({
 
   // Whether this series carries a principal/interest split, and so whether the chart is two
   // curves with a band between them or a single filled line.
-  const split = strip.some((p) => p.base !== undefined);
+  const split = pts.some((p) => p.base !== undefined);
   const baseOf = (p: SeriesPoint) => p.base ?? 0;
 
   // `fmtMil` rounds to whole millions, which collapses an interest-only axis (tens of
   // thousands) to a column of "0mil" — so the unit follows the size of the series. It
-  // follows the *visible* one: brushing into an early stretch re-scales the axis to it.
+  // follows the *visible* one: a window over an early stretch re-scales the axis to it.
   const fmtTick = React.useMemo(
     () => axisFmt(Math.max(1, ...rows.map((p) => p.v))),
     [rows],
@@ -376,7 +344,7 @@ function ChartSvg({
 
   if (rows.length < 2) {
     return (
-      <p className="py-10 text-center text-sm text-muted-foreground">
+      <p className="py-10 text-center text-body-sm text-muted-foreground">
         Not enough data in this range — widen the dates.
       </p>
     );
@@ -392,20 +360,6 @@ function ChartSvg({
         style={CHART_HOST_STYLE}
         ariaLabel={`${tipLabel} over time`}
       />
-      {/* The strip is the picked window end to end, so the handles open at its two edges
-          whatever the preset — narrowing from there is the brush's own state. */}
-      {handles && strip.length >= BRUSH_MIN_POINTS && (
-        <div className="mt-1.5">
-          <SeriesBrush
-            data={strip}
-            field="v"
-            color={stroke}
-            range={handles}
-            onRange={onHandles}
-            label={`Drag to narrow the ${tipLabel.toLowerCase()} date range`}
-          />
-        </div>
-      )}
     </div>
   );
 }

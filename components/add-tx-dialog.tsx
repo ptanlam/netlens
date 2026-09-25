@@ -10,12 +10,19 @@ import {
 } from "@/components/ui/dialog";
 import { TxForm, type InstrumentOption } from "@/components/tx-form";
 
-export function AddTxDialog({ instruments }: { instruments: InstrumentOption[] }) {
+export function AddTxDialog({
+  instruments,
+  variant = "outline",
+}: {
+  instruments: InstrumentOption[];
+  /** `default` (Wise Green) only where adding a transaction is the page's main action. */
+  variant?: "default" | "outline";
+}) {
   const [open, setOpen] = React.useState(false);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" />}>
+      <DialogTrigger render={<Button variant={variant} />}>
         <Plus className="size-3.5" />
         Add transaction
       </DialogTrigger>

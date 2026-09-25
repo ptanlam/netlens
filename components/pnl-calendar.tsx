@@ -81,7 +81,7 @@ function WeekdayHead() {
   return (
     <div className="grid grid-cols-7 pb-1.5">
       {WEEKDAYS.map((d) => (
-        <div key={d} className="text-center font-mono text-[11px] text-muted-foreground">
+        <div key={d} className="text-center font-mono text-caption text-muted-foreground">
           {d}
         </div>
       ))}
@@ -90,13 +90,14 @@ function WeekdayHead() {
 }
 
 /** A cell's outline carries its settlement state: the two unfinished ones ring themselves in
- *  their own colour, a settled one wears the same hairline as everything else. This was a
+ *  their own colour, and a settled one has no outline at all. Wise is flat, so the fill
+ *  alone is the square; a ring only appears when it has something to say. This was a
  *  corner dot, which the SVG scene has no way to place inside a band. */
 const STATUS_RING: Record<PnlDayStatus | "none", { stroke: string; strokeWidth: number }> = {
   live: { stroke: "var(--accent-brand)", strokeWidth: 1.5 },
   partial: { stroke: "var(--warning)", strokeWidth: 1.5 },
-  complete: { stroke: "var(--divider)", strokeWidth: 1 },
-  none: { stroke: "var(--divider)", strokeWidth: 1 },
+  complete: { stroke: "transparent", strokeWidth: 0 },
+  none: { stroke: "transparent", strokeWidth: 0 },
 };
 
 /**
@@ -147,7 +148,7 @@ function shortName(name: string): string {
 /** Key for the settlement rings, shown under the calendar grid. Not the chart's own
  *  legend: that one belongs to the colour scale, and a chart has exactly one of those. */
 function StatusKey() {
-  const item = "flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground";
+  const item = "flex items-center gap-1.5 font-mono text-caption text-muted-foreground";
   const swatch = "size-2.5 rounded-[3px] border-[1.5px]";
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1">
@@ -219,7 +220,8 @@ function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
               y: "name",
               text: (r) => fmtSigned(r.pnl),
               anchor: "end",
-              fontSize: 11.5,
+              fontSize: 14,
+              fontWeight: 600,
               fill: (r) => (r.pnl < 0 ? "var(--chart-negative)" : "var(--accent-brand)"),
             }),
           ),
@@ -229,7 +231,9 @@ function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
         x: { scale: scaleLinear([-1.04, GUTTER], [0, 1]), axis: false },
         y: {
           scale: scaleBand<string>().domain(data.map((r) => r.name)).padding(0.34),
-          axis: bareAxis<string>({ format: shortName }),
+          // Every row is a holding, and a bar with no name is useless, so the rows keep their
+          // labels at the row pitch rather than the page-wide 16px gap meant for dates.
+          axis: bareAxis<string>({ format: shortName, minGap: 2 }),
         },
         theme: CHART_THEME,
         focusRing: false,
@@ -510,7 +514,7 @@ export function PnlCalendar({
         fill,
         stroke: STATUS_RING[state].stroke,
         strokeWidth: STATUS_RING[state].strokeWidth,
-        radius: 5,
+        radius: 10,
         inset: CELL_INSET,
         // Mark states resolve only while something is focused, which is exactly the hover
         // (and keyboard) highlight — a square lifts under the cursor without a second
@@ -533,28 +537,42 @@ export function PnlCalendar({
         square(bands.live, "live"),
         // Drawn over the fills rather than styled into them: a selection outlives the
         // pointer, and only a mark of its own can say so after the focus has gone.
-        whenSelected(
-          cell(cells, {
-            x: "col",
-            y: "row",
-            key: "date",
-            fill: "none",
-            stroke: "var(--foreground)",
-            strokeWidth: 2,
-            radius: 5,
-            inset: CELL_INSET,
-          }),
-          selection,
+        // A solid ink tile, the way an active pill is ink everywhere else in Wise. It used to
+        // be a 2px ink ring, which read as a fourth status outline beside In-progress and
+        // Partial, so a click barely registered. The status ring is kept on top of the ink,
+        // so selecting a partial day doesn't hide that it is partial.
+        // One mark per band because a cell's stroke is a constant, not a per-datum value.
+        ...(["complete", "partial", "live"] as const).map((state) =>
+          whenSelected(
+            cell(bands[state === "complete" ? "settled" : state], {
+              x: "col",
+              y: "row",
+              key: "date",
+              fill: "var(--foreground)",
+              stroke: STATUS_RING[state].stroke,
+              strokeWidth: STATUS_RING[state].strokeWidth,
+              radius: 10,
+              inset: CELL_INSET,
+            }),
+            selection,
+          ),
         ),
         decorative(
           text(cells, {
             x: "col",
             y: "row",
             text: "label",
-            dy: isYear ? -11 : -8,
-            fontSize: isYear ? 12 : 11,
+            dy: isYear ? -12 : -9,
+            fontSize: isYear ? 14 : 12,
             fontWeight: 600,
-            fill: (c) => (c.tracked ? "var(--muted-foreground)" : "var(--faint)"),
+            // On the selected (ink) tile the text takes the tooltip's inverse palette, which
+            // is tuned to be read against `--foreground` in both themes.
+            fill: (c) =>
+              c.date === selKey
+                ? "var(--tooltip-neutral)"
+                : c.tracked
+                  ? "var(--muted-foreground)"
+                  : "var(--faint)",
           }),
         ),
         decorative(
@@ -569,14 +587,19 @@ export function PnlCalendar({
             // the room, and a year with a gap in it should look deliberate. A month of
             // days does not: 31 em dashes read as noise.
             text: (c) => (c.tracked ? fmtCompact(c.delta) : isYear ? "—" : ""),
-            dy: isYear ? 12 : 9,
-            fontSize: isYear ? 11.5 : 9.5,
+            dy: isYear ? 13 : 10,
+            fontSize: isYear ? 14 : 12,
+            fontWeight: 600,
             fill: (c) =>
               !c.tracked
                 ? "var(--faint)"
-                : c.delta >= 0
-                  ? "var(--positive-strong)"
-                  : "var(--negative-strong)",
+                : c.date === selKey
+                  ? c.delta >= 0
+                    ? "var(--tooltip-positive)"
+                    : "var(--tooltip-negative)"
+                  : c.delta >= 0
+                    ? "var(--positive-strong)"
+                    : "var(--negative-strong)",
           }),
         ),
       ],
@@ -679,7 +702,7 @@ export function PnlCalendar({
   }
 
   return (
-    <div className="card-surface panel-body">
+    <div className="@container card-surface panel-body">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-5">
           <PanelHead
@@ -698,12 +721,12 @@ export function PnlCalendar({
                 onClick={() => shift(-1)}
                 disabled={!canPrev}
                 aria-label={view === "year" ? "Previous year" : "Previous month"}
-                className="size-7 rounded-md border border-input bg-pane text-[13px] text-muted-foreground disabled:opacity-40"
+                className="size-8 rounded-full bg-pane text-body text-foreground transition-colors hover:bg-pane-2 disabled:opacity-40"
               >
                 ‹
               </button>
               {view === "year" ? (
-                <span className="rounded-md border border-input bg-pane px-2.5 py-1 text-center font-mono text-[13px] tabular-nums">
+                <span className="rounded-full bg-pane px-3.5 py-1.5 text-center text-body-sm font-semibold tabular-nums">
                   {year}
                 </span>
               ) : (
@@ -718,7 +741,7 @@ export function PnlCalendar({
                     setMonth(e.target.value);
                     setSelected(null);
                   }}
-                  className="rounded-md border border-input bg-pane px-2.5 py-1 text-center font-mono text-[13px] text-foreground outline-none focus:border-ring"
+                  className="h-8 rounded-full bg-pane px-3.5 text-center text-body-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               )}
               <button
@@ -726,7 +749,7 @@ export function PnlCalendar({
                 onClick={() => shift(1)}
                 disabled={!canNext}
                 aria-label={view === "year" ? "Next year" : "Next month"}
-                className="size-7 rounded-md border border-input bg-pane text-[13px] text-muted-foreground disabled:opacity-40"
+                className="size-8 rounded-full bg-pane text-body text-foreground transition-colors hover:bg-pane-2 disabled:opacity-40"
               >
                 ›
               </button>
@@ -739,7 +762,7 @@ export function PnlCalendar({
                 onClick={goToday}
                 disabled={atToday}
                 aria-label={view === "year" ? "Go to the current year" : "Go to the current month"}
-                className="h-7 rounded-md border border-input bg-pane px-2.5 text-[12px] font-semibold text-muted-foreground disabled:opacity-40"
+                className="h-8 rounded-full border border-foreground bg-card px-3.5 text-body-sm font-semibold text-foreground transition-colors hover:bg-pane disabled:border-transparent disabled:bg-pane disabled:text-muted-foreground disabled:opacity-60"
               >
                 Today
               </button>
@@ -748,15 +771,15 @@ export function PnlCalendar({
         </div>
         <div className="flex items-center gap-4">
           {active && (
-            <div className="flex gap-[3px] rounded-full border border-border bg-secondary p-[3px]">
+            <div className="flex gap-0.5 rounded-full bg-pane p-1">
               {(["month", "year"] as const).map((v) => (
                 <button
                   key={v}
                   type="button"
                   onClick={() => setView(v)}
                   className={cn(
-                    "rounded-full px-3 py-[5px] text-[12px] font-semibold capitalize transition-colors",
-                    view === v ? "bg-pane-2 text-foreground shadow-[0_1px_6px_rgb(0_0_0/0.18)]" : "text-muted-foreground hover:text-foreground",
+                    "rounded-full px-3.5 py-1.5 text-body-sm font-semibold capitalize transition-colors",
+                    view === v ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {v}
@@ -766,10 +789,10 @@ export function PnlCalendar({
           )}
           {active && (
             <div className="text-right">
-              <div className="text-[12.5px] text-muted-foreground">
+              <div className="text-caption text-muted-foreground">
                 {view === "year" ? "Year P&L" : "Month P&L"}
               </div>
-              <div className={cn("mt-1 font-mono text-[15px] font-semibold tabular-nums", periodTotal < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
+              <div className={cn("mt-1 font-mono text-body font-semibold tabular-nums", periodTotal < 0 ? "text-destructive" : "text-accent-brand")}>
                 {fmtSigned(periodTotal)}
               </div>
             </div>
@@ -778,13 +801,17 @@ export function PnlCalendar({
       </div>
 
       {error ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">Couldn&apos;t load P&amp;L history: {error}</p>
+        <p className="py-10 text-center text-body-sm text-muted-foreground">Couldn&apos;t load P&amp;L history: {error}</p>
       ) : !series ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>
+        <p className="py-10 text-center text-body-sm text-muted-foreground">Loading…</p>
       ) : !active ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">No P&amp;L history yet — add transactions to see daily moves.</p>
+        <p className="py-10 text-center text-body-sm text-muted-foreground">No P&amp;L history yet — add transactions to see daily moves.</p>
       ) : (
-        <div>
+        // Full width at the foot of the dashboard, so on a wide panel the per-holding
+        // breakdown moves beside the calendar rather than under it. Stacked, a calendar
+        // stretched to 1100px was all empty cell with the breakdown a screen further down.
+        <div className="@5xl:grid @5xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] @5xl:gap-8">
+          <div className="min-w-0">
           {view !== "year" && <WeekdayHead />}
           <Chart
             definition={definition}
@@ -817,14 +844,15 @@ export function PnlCalendar({
             }
           />
           <StatusKey />
+          </div>
 
-          <div className="mt-[22px] border-t border-border pt-[22px]">
+          <div className="mt-[22px] min-w-0 border-t border-divider pt-[22px] @5xl:mt-0 @5xl:border-t-0 @5xl:border-l @5xl:pt-0 @5xl:pl-8">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
               <div>
-                <div className="text-[12.5px] text-muted-foreground">
+                <div className="text-caption text-muted-foreground">
                   Selected {unit} · per holding
                 </div>
-                <div className="mt-1.5 text-[18px] font-bold">
+                <div className="mt-1.5 text-body-lg font-semibold tracking-[-0.01em]">
                   {selHas && selCell
                     ? view === "year"
                       ? selCell.full
@@ -833,24 +861,24 @@ export function PnlCalendar({
                 </div>
               </div>
               {selHas && (
-                <div className={cn("font-mono text-[21px] tracking-[-0.01em] tabular-nums", selCell!.delta < 0 ? "text-(--chart-negative)" : "text-accent-brand")}>
+                <div className={cn("font-mono text-body-lg tracking-[-0.01em] tabular-nums", selCell!.delta < 0 ? "text-destructive" : "text-accent-brand")}>
                   {fmtSigned(selCell!.delta)}
                 </div>
               )}
             </div>
             {!selHas ? (
-              <p className="py-2 text-[13px] text-faint">
+              <p className="py-2 text-body-sm text-faint">
                 Select a {unit} with activity to see the per-holding breakdown.
               </p>
             ) : detailRows.length === 0 ? (
-              <p className="py-2 text-[13px] text-faint">No per-holding breakdown for this {unit}.</p>
+              <p className="py-2 text-body-sm text-faint">No per-holding breakdown for this {unit}.</p>
             ) : (
               <ContribChart key={selKey} rows={detailRows} />
             )}
             {/* One expression rather than prose around `{unit}`: interpolating mid-sentence
                 splits this into two JSX text nodes, and the split eats the space that opens
                 the second one — "any dayin the calendar". */}
-            <div className="mt-4 text-[11.5px] text-faint">
+            <div className="mt-4 text-caption text-faint">
               {`Click any ${unit} in the calendar to inspect its per-holding P&L · gains right, losses left`}
             </div>
           </div>

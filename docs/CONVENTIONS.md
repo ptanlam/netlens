@@ -33,21 +33,26 @@
 - Theme: `next-themes`, `class` attribute, system default. Picked on
   `/settings/appearance` (`components/appearance-settings.tsx`) — Match system / Daylight
   (light) / Midnight (dark). Colors come from CSS vars in `app/globals.css`.
-- **Surfaces are a three-step stack**, from the "Netlens Alpha" design: the page field
-  (`bg-background`) → the panel (`card-surface`) → the in-panel chip (`bg-pane`, e.g. a
-  filter control or a table's column bar). Depth is the step plus a hairline `--border`,
-  never a blur or a drop shadow — a panel that lifts breaks the only thing holding the
-  hierarchy together.
-- Every panel is `card-surface` — a custom utility in `app/globals.css` carrying the 18px
-  radius, the surface fill and the hairline. Don't re-spell it as `rounded-xl border
-  bg-card`, or the radius drifts from every other card on the page. Overlays that set
+- **The look is the Wise design system**, from the "Netlens Dashboard" design (Claude Design
+  project; the brand spec is `DESIGN.md`). Surfaces are a three-step stack: the sage page
+  (`bg-background`) → the white card (`card-surface`) → sage again for an in-panel chip
+  (`bg-pane`, e.g. a segmented control or a table's column bar). Wise is **flat**: depth is
+  that colour step alone, with no border and no shadow on a card. Only floating layers
+  (menus, dialogs, toasts) get a shadow.
+- Every panel is `card-surface` — a custom utility in `app/globals.css` carrying Wise's 24px
+  radius and the card fill. Don't re-spell it as `rounded-2xl bg-card`. Overlays that set
   their own corners use `panel-surface`; menus use `floating-menu`.
+- The net-worth hero is the page's **one inverse surface**: `bg-hero` (ink, with the figure in
+  Wise Green; it flips to a green card with ink figures in dark mode). Use the `hero-*` tokens
+  inside it, since the normal ink tokens don't read on it.
 - Every page opens with `<PageHeader title actions>` (`components/page-header.tsx`) — a
-  30px title, one line of secondary ink, and the page's actions on the right. Where the
+  40px display-face (Figtree 900) title, one line of secondary ink, and the page's actions on the right. Where the
   primary action is a client dialog (`New deposit`, `Add debt`, `New goal`), the *manager*
   renders the header so the two can live in one component.
-- **One filled button per view.** `variant="default"` is brand blue with the theme's only
-  glow under it; everything else is `outline` (on `bg-pane`) or `ghost`.
+- **One filled button per view.** Every button is a pill. `variant="default"` is Wise Green
+  with a forest-ink label; everything else is `outline` (white with a 1px ink edge),
+  `secondary` (sage) or `ghost`. Form fields have a 12px corner and a `border-field-border`
+  edge that goes to full ink on focus.
 - **Row marks are `<EntityAvatar name color logo>`** (`components/entity-avatar.tsx`).
   With a `logo` it's the real brand mark on a white chip; without one it falls back to
   the tinted first letter. Holdings resolve theirs through `holdingLogo(name, symbol)`
@@ -66,17 +71,30 @@
   *state* — Active, live, Behind, Due — and is a full pill tinted by tone (`accent`,
   `warning`, `destructive`, `secondary`). Don't hand-roll `rounded-sm bg-secondary px-[7px]`;
   four components each grew their own before this was one component.
-- Typography is two families: **Space Grotesk** (`font-sans`, and `font-heading`/
-  `font-serif` alias to it) and **JetBrains Mono** (`font-mono`) for every figure. There
-  are exactly four sizes above body:
-  - page title — `text-[30px] font-bold tracking-[-0.025em]` (`<PageHeader>` owns it)
-  - panel title — `text-[16px] font-bold tracking-[-0.01em]`
-  - sub-section caption inside a panel — `text-[13px] font-semibold text-muted-foreground`
-  - label / figure caption — `text-[12.5px] text-muted-foreground`
+- Typography is two families: **Inter** (`font-sans`; `font-heading`/`font-serif` alias to
+  it, with the `opsz` axis so large text takes the Display cut) for everything, and
+  **Figtree 900** (`font-display`) standing in for Wise's proprietary Wise Sans on the brand
+  moments only: page titles, the wordmark and the net-worth figure. Figtree has no ₫, which
+  falls through to Inter 900. Figures keep the `font-mono` class, which resolves to Inter
+  with tabular numerals so columns still line up.
 
-  Body runs 13.5px/1.45; table body is 12.5px. Labels are sentence case at reading size —
-  the letterspaced uppercase micro-label survives only on table column heads
-  (`<TableHead>`), never on a figure's caption.
+  Inside panels, text sits on the **Wise type scale**, which `globals.css` defines as utilities.
+  Use these, not arbitrary `text-[Npx]`: the half-pixel sizes the old theme used (11.5, 12.5,
+  13.5) are what made the panels read as a different, denser face.
+
+  | utility | size / line | use |
+  | --- | --- | --- |
+  | `text-caption` | 12 / 16 | fine print, axis labels, table heads, legends |
+  | `text-body-sm` | 14 / 20 | labels, secondary body, table body, controls |
+  | `text-body` | 16 / 24 | list-row names, default body |
+  | `text-body-lg` | 20 / 28 | panel titles (`font-semibold`) |
+  | `text-display-xs` | 24 / 31, −0.02em | stat figures, dialog titles |
+
+  Weight is **400 or 600** (`font-semibold`), never `font-medium`; 900 is only for the display
+  face. Page titles are `font-display font-black` (`<PageHeader>` owns it). Chart tick labels
+  are 12px via `bareAxis`, and the chart tooltip is an inverse card (`CHART_HOST_STYLE`).
+  Labels are sentence case — the letterspaced uppercase micro-label survives only on table
+  column heads (`<TableHead>`).
 
 ## Colors
 - **Never hardcode a color.** Every colour must resolve to a CSS var from
@@ -91,19 +109,17 @@
 - Asset types have fixed slots: `TYPE_COLORS` in `dashboard-charts.tsx`
   (Funds=chart-1, Stocks=chart-2, Crypto=chart-3, Real Estate=chart-4). Color follows
   the entity, never its rank.
-- `--brand` (blue) is the **action** colour — primary buttons, the brand mark. Gains stay
-  `--accent-brand` green. Don't reach for green to mean "primary", or a neutral control
-  starts reading as a profit — and don't mark the current nav row in brand either; "here"
-  is the `bg-pane` step plus the brighter `--input` hairline.
-- The value line on charts is `--chart-ink`, which is gain-green in this design — a value
-  series is the one thing that never means "click me". `--chart-gold` (amber) is the
-  capital-deployed line, both standalone (Investments) and paired against value on the
-  dashboard; it is deliberately NOT loss-coral, or "money you put in" would read as a
-  warning about the money.
+- `--primary` / `--brand` (Wise Green `#9fe870`) is the **action** colour — the primary
+  button, the current nav row's disc, the brand mark. Gains are a *different* green, the
+  semantic `--accent-brand` (`#054d28`), never Wise Green: Wise keeps its brand accent out
+  of status, so a profit never reads as "click me".
+- The value line on charts is `--chart-ink` (ink: a value series is neutral, not a gain).
+  `--chart-gold` is the capital-deployed line, which the design draws as dashed grey. The
+  name is historical; it is deliberately NOT loss-red, or "money you put in" would read as
+  a warning about the money.
 - Where value and cost are drawn together, the band between them is filled by sign —
   positive wash above the cost line, negative below it — and the wash under the *lower*
-  line goes neutral grey. `--ink-rgb` is the same green as `--positive-rgb`, so an ink
-  wash under a gain band would hide it.
+  line goes neutral grey.
 - Gains/losses: `text-(--chart-positive)` / `text-(--chart-negative)` (Tailwind v4
   arbitrary-property syntax). Debts/owed amounts render negative-colored.
 

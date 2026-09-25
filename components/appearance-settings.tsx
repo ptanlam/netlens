@@ -61,10 +61,10 @@ function ChoiceGrid({
           >
             <Icon className={cn("size-4 shrink-0", selected ? "text-accent-brand" : "text-muted-foreground")} />
             <span className="min-w-0 flex-1">
-              <span className={cn("block text-[13.5px] font-medium", selected && "text-accent-foreground")}>
+              <span className={cn("block text-body-sm font-semibold", selected && "text-accent-foreground")}>
                 {o.label}
               </span>
-              <span className="block text-[11.5px] text-muted-foreground">{o.hint}</span>
+              <span className="block text-caption text-muted-foreground">{o.hint}</span>
             </span>
             {selected && <Check className="size-3.5 shrink-0 text-accent-brand" />}
           </button>
@@ -92,8 +92,8 @@ export function AppearanceSettings() {
       {/* Theme used to be the card above this one. It's the picker in the header now —
           one click from anywhere, instead of two navigations to change how the app looks. */}
       <div className="card-surface panel-body">
-        <div className="text-[16px] font-bold tracking-[-0.01em]">Sidebar</div>
-        <div className="mt-1 max-w-[760px] text-[13px] text-muted-foreground">
+        <div className="text-body-lg font-semibold tracking-[-0.01em]">Sidebar</div>
+        <div className="mt-1 max-w-[760px] text-body-sm text-muted-foreground">
           How wide the sidebar sits on a screen with room for it. Narrow screens use the
           slide-out drawer either way — there isn&apos;t room for a rail beside the content,
           and the drawer carries the same groups.

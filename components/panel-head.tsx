@@ -38,8 +38,8 @@ export function PanelHead({
           className={cn(
             "truncate",
             tone === "title"
-              ? "text-[16px] font-bold tracking-[-0.01em]"
-              : "text-[13px] text-muted-foreground",
+              ? "text-body-lg font-semibold tracking-[-0.01em]"
+              : "text-body-sm text-muted-foreground",
           )}
         >
           {title}
@@ -51,7 +51,7 @@ export function PanelHead({
               // `cursor-help`, and it takes focus: the tooltip is the only place this
               // explanation now lives, so it has to be reachable without a pointer.
               aria-label={`About ${typeof title === "string" ? title : "this panel"}`}
-              className="grid size-[15px] shrink-0 cursor-help place-items-center rounded-full border border-input text-[9.5px] leading-none font-normal text-faint transition-colors hover:border-muted-foreground hover:text-muted-foreground"
+              className="grid size-[18px] shrink-0 cursor-help place-items-center rounded-full bg-pane text-caption leading-none font-semibold text-muted-foreground transition-colors hover:bg-pane-2 hover:text-foreground"
             >
               i
             </button>

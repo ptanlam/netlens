@@ -2,8 +2,9 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * The row every page opens with, from the design: a 30px title, a single line of secondary
- * ink explaining what the page is for, and the page's own actions pushed to the right edge.
+ * The row every page opens with, from the design: a heavy display-face title at 40px on the
+ * display's very tight leading, a single line of secondary ink under it, and the page's own
+ * actions pushed to the right edge.
  *
  * One component rather than a hand-rolled block per page — when they were hand-rolled the
  * five drifted (26px here, 24px there, and the subtitle capped at a different measure on
@@ -29,7 +30,7 @@ export function PageHeader({
         // Actions align to the *top*, not the bottom: the description is one line on most
         // pages but runs to three on /goals, and bottom-alignment dropped the button a
         // whole paragraph below the title it belongs to.
-        "flex flex-wrap items-start justify-between gap-x-5 gap-y-3.5",
+        "flex flex-wrap items-start justify-between gap-x-5 gap-y-4 pt-1 sm:pt-3",
         className,
       )}
     >
@@ -37,9 +38,11 @@ export function PageHeader({
           the title claims a full line as soon as the two blocks can't share one, which
           drops the actions onto their own row instead of squeezing them off the edge. */}
       <div className="min-w-0 flex-1 basis-[min(100%,32rem)]">
-        <h1 className="text-[24px] font-bold tracking-[-0.025em] sm:text-[30px]">{title}</h1>
+        <h1 className="font-display text-[32px] leading-[0.9] font-black tracking-[-0.01em] sm:text-[40px]">
+          {title}
+        </h1>
         {children && (
-          <div className="mt-1.5 max-w-[760px] text-[13.5px] text-muted-foreground">
+          <div className="mt-3 max-w-[760px] text-body-sm text-muted-foreground">
             {children}
           </div>
         )}

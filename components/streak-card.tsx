@@ -33,14 +33,13 @@ const PLOT = 116;
 const HEADROOM = 1.15;
 
 /**
- * Each lever wears the hue of the page it came from — the same five-slot palette the nav
- * tints its sections with and `GoalStrip` fills its bars from. So a column says *where* the
- * month's money went before you read a single label, and it says it in the language the
- * rest of the app already uses: cyan is Investments here exactly as it is in the sidebar.
+ * Two levers, two colours from the fixed palette: ink for money put into investments, as in
+ * the design's "Invested per month" bars, and Wise Green for new deposits. A column says
+ * where the month's money went before you read a single label.
  */
 const LEVER_COLOR: Record<Lever, string> = {
-  invest: "var(--chart-3)",
-  deposit: "var(--chart-4)",
+  invest: "var(--chart-1)",
+  deposit: "var(--chart-2)",
 };
 
 const STATUS_WORD: Record<MonthStatus, string> = {
@@ -139,7 +138,7 @@ function MonthColumn({
             {fmtVND(m.total)} of {fmtVND(bar)}
           </span>
           {LEVERS.filter((l) => Math.round(m.levers[l]) !== 0).map((l) => (
-            <span key={l} className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] tabular-nums">
+            <span key={l} className="mt-0.5 flex items-center gap-1.5 font-mono text-caption tabular-nums">
               <span className="size-[7px] shrink-0 rounded-[2px]" style={{ background: LEVER_COLOR[l] }} />
               {LEVER_LABELS[l]} {fmtVND(m.levers[l])}
             </span>
@@ -173,10 +172,10 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
           title="Streak"
           info="Counts the months you cleared your own monthly commitment. It needs one first — a recurring rule, or a monthly plan on a goal."
         />
-        <div className="mt-3 text-[13px] text-muted-foreground">
+        <div className="mt-3 text-body-sm text-muted-foreground">
           Set a monthly commitment and this starts counting the months you clear it.
         </div>
-        <div className="mt-2.5 flex gap-3 text-[12px]">
+        <div className="mt-2.5 flex gap-3 text-caption">
           <Link href="/recurring" className="text-accent-brand hover:underline">
             Recurring →
           </Link>
@@ -221,7 +220,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
         }
         actions={
           best > current ? (
-            <Badge variant="secondary" className="font-mono tabular-nums">
+            <Badge data-unmask variant="secondary" className="font-mono tabular-nums">
               Best {best}
             </Badge>
           ) : null
@@ -234,10 +233,10 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
       <div className="mt-4 flex flex-wrap items-start gap-x-7 gap-y-5">
         <div className="min-w-0 flex-[1_1_180px]">
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-[34px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
+            <span data-unmask className="font-mono text-[34px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
               {current}
             </span>
-            <span className="text-[13px] text-muted-foreground">
+            <span className="text-body-sm text-muted-foreground">
               {current === 1 ? "month" : "months"} in a row
             </span>
           </div>
@@ -247,7 +246,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
               something you can act on well. */}
           <div
             className={cn(
-              "mt-2 text-[12.5px]",
+              "mt-2 text-caption",
               shortfall > 0 ? "text-muted-foreground" : "text-accent-brand",
             )}
           >
@@ -266,7 +265,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
             )}
           </div>
 
-          <div className="mt-3.5 border-t border-divider pt-3 font-mono text-[11px] text-faint">
+          <div className="mt-3.5 border-t border-divider pt-3 font-mono text-caption text-faint">
             {fmtVND(bar)}/month ·{" "}
             {streak.barSource === "recurring" ? "your recurring rules" : "your goal plans"}
           </div>
@@ -274,7 +273,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
           {used.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-x-3.5 gap-y-1.5">
               {used.map((l) => (
-                <span key={l} className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                <span key={l} className="flex items-center gap-1.5 text-caption text-muted-foreground">
                   <span className="size-[9px] rounded-[2px]" style={{ background: LEVER_COLOR[l] }} />
                   {LEVER_LABELS[l]}
                 </span>
@@ -282,7 +281,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
               {/* The dashed rule, named. It used to carry its own figure at the end of the
                   line, which landed on top of the newest column — and the figure is already
                   spelled out two lines above this. */}
-              <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+              <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
                 <span className="w-3.5 border-t border-dashed border-muted-foreground/70" />
                 Commitment
               </span>
@@ -330,8 +329,9 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
             {cells.map((m, i) => (
               <span
                 key={m?.month ?? `lab-${i}`}
+                data-unmask
                 className={cn(
-                  "truncate text-center font-mono text-[9.5px]",
+                  "truncate text-center font-mono text-caption",
                   m?.month === open
                     ? "font-semibold text-foreground"
                     : m?.month === now.month

@@ -118,9 +118,9 @@ export function HeaderSearch() {
           onKeyDown={onKeyDown}
           placeholder="Search a holding, goal or transaction…"
           aria-label="Search"
-          className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-faint"
+          className="min-w-0 flex-1 bg-transparent text-body-sm outline-none placeholder:text-faint"
         />
-        <kbd className="shrink-0 rounded-[6px] border border-border px-1.5 py-0.5 font-mono text-[10.5px] text-faint">
+        <kbd data-unmask className="shrink-0 rounded-[6px] border border-border px-1.5 py-0.5 font-mono text-caption text-faint">
           ⌘K
         </kbd>
       </label>
@@ -128,7 +128,7 @@ export function HeaderSearch() {
       {open && q.trim() !== "" && (
         <div className="floating-menu absolute top-[calc(100%+6px)] left-0 z-50 w-full max-w-[420px] overflow-hidden rounded-xl border py-1.5">
           {results.length === 0 ? (
-            <div className="px-3.5 py-2.5 text-[12.5px] text-muted-foreground">
+            <div className="px-3.5 py-2.5 text-caption text-muted-foreground">
               {items === null ? "Searching…" : `Nothing matches “${q.trim()}”`}
             </div>
           ) : (
@@ -139,7 +139,7 @@ export function HeaderSearch() {
                 onMouseEnter={() => setCursor(i)}
                 onClick={() => go(r)}
                 className={cn(
-                  "flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-[13px]",
+                  "flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-body-sm",
                   i === cursor && "bg-pane",
                 )}
               >

@@ -86,11 +86,11 @@ function ArchiveHoldingButton({ name, archived }: { name: string; archived: bool
 function SoldOutPrompt({ name }: { name: string }) {
   const [pending, startTransition] = React.useTransition();
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-pane-sunk px-3 py-2 text-[12.5px] text-muted-foreground">
+    <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-pane-sunk px-3 py-2 text-caption text-muted-foreground">
       <span>Sold out — no units left. Its transactions and P&amp;L history are kept either way.</span>
       <button
         type="button"
-        className="font-medium text-accent-brand hover:underline disabled:opacity-60"
+        className="font-semibold text-accent-brand hover:underline disabled:opacity-60"
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
@@ -129,11 +129,11 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
         className="flex cursor-pointer items-center justify-between gap-3 px-[18px] py-3.5"
       >
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className={cn("inline-block font-mono text-[12px] text-faint transition-transform", open && "rotate-90")}>▸</span>
+          <span className={cn("inline-block font-mono text-caption text-faint transition-transform", open && "rotate-90")}>▸</span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <EntityAvatar name={inst.name} color={typeColor(inst.asset_type)} logo={holdingLogo(inst.name, inst.symbol)} />
-              <span className="truncate text-[14px] font-semibold">{inst.name}</span>
+              <span className="truncate text-body-sm font-semibold">{inst.name}</span>
               <Badge variant="tag">{inst.asset_type}</Badge>
               {live && !soldOut && <Badge variant="accent">live</Badge>}
               {soldOut && <Badge variant="secondary">sold out</Badge>}
@@ -143,7 +143,7 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
                 </Badge>
               )}
             </div>
-            <div className="mt-1 font-mono text-[11.5px] text-faint tabular-nums">
+            <div className="mt-1 font-mono text-caption text-faint tabular-nums">
               {inst.quantity != null && inst.last_price != null
                 ? `${fmtUnits(inst.quantity)} × ${inst.last_price.toLocaleString("de-DE")}`
                 : "manual value"}
@@ -153,8 +153,8 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
           </div>
         </div>
         <div className="text-right">
-          <div className="font-mono text-[14px] tabular-nums">{fmtVND(value)}</div>
-          <div className={cn("mt-1 font-mono text-[11.5px] tabular-nums", pnl >= 0 ? "text-accent-brand" : "text-(--chart-negative)")}>
+          <div className="font-mono text-body-sm tabular-nums">{fmtVND(value)}</div>
+          <div className={cn("mt-1 font-mono text-caption tabular-nums", pnl >= 0 ? "text-accent-brand" : "text-destructive")}>
             {pnl >= 0 ? "+" : ""}{fmtVND(pnl)}{pnlPct != null && ` (${pnl >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)`}
           </div>
         </div>
@@ -163,7 +163,7 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
       {open && (
         <div className="border-t border-divider-soft bg-pane-sunk px-[18px] py-4 pl-[41px]">
           {soldOut && <SoldOutPrompt name={inst.name} />}
-          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-muted-foreground">
+          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-muted-foreground">
             <span>Source: {inst.price_source}</span>
             {inst.symbol && <span>Symbol: {inst.symbol}</span>}
             <span>Cost: {fmtVND(cost)}</span>
@@ -180,11 +180,11 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
               (sorting, units, price, the lot). */}
           <div className="mb-5">
             {txCount === 0 ? (
-              <p className="text-[13px] text-muted-foreground">No transactions recorded.</p>
+              <p className="text-body-sm text-muted-foreground">No transactions recorded.</p>
             ) : (
               <Link
                 href={`/transactions?holding=${encodeURIComponent(inst.name)}`}
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent-brand hover:underline"
+                className="inline-flex items-center gap-1.5 text-body-sm font-semibold text-accent-brand hover:underline"
               >
                 {txCount} transaction{txCount === 1 ? "" : "s"}
                 <ArrowRight className="size-3.5" />
@@ -194,7 +194,7 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
 
           <section>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-[13px] font-semibold">Recurring</h4>
+              <h4 className="text-body-sm font-semibold">Recurring</h4>
               <AddRecurringDialog instruments={[option]} />
             </div>
             <RecurringManager rules={rules} instruments={[option]} showAddForm={false} />
@@ -269,7 +269,7 @@ export function InvestmentManager({
       tone: totalPnl >= 0 ? "gain" : "loss",
       sub: `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% of invested`,
     },
-    { label: "Holdings", value: String(active.length), sub: `across ${typeCount} asset type${typeCount === 1 ? "" : "s"}` },
+    { label: "Holdings", value: String(active.length), unmask: true, sub: `across ${typeCount} asset type${typeCount === 1 ? "" : "s"}` },
   ];
 
   return (
@@ -309,13 +309,13 @@ export function InvestmentManager({
         </div>
       </div>
 
-      <div className="mt-6 mb-3.5">
-        <div className="text-[16px] font-bold tracking-[-0.01em]">Holdings</div>
-        <div className="mt-0.5 text-[12.5px] text-muted-foreground">Select a holding for its price source, rules and history</div>
+      <div className="mt-8 mb-4">
+        <h2 className="text-display-xs leading-[1.3] font-semibold tracking-[-0.02em]">Holdings</h2>
+        <div className="mt-1 text-body-sm text-muted-foreground">Select a holding for its price source, rules and history</div>
       </div>
 
       {active.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-body-sm text-muted-foreground">
           {archived.length > 0
             ? "No active holdings — they're all archived."
             : "No holdings yet — add one to start tracking."}
@@ -327,14 +327,14 @@ export function InvestmentManager({
               <div className="flex items-center justify-between px-1 pb-2.5">
                 <div className="flex items-center gap-2.5">
                   <span className="size-[9px] rounded-[2px]" style={{ background: typeColor(group.type) }} />
-                  <span className="text-[14px] font-semibold">{group.type}</span>
-                  <span className="text-[12px] text-faint">
+                  <span className="text-body-sm font-semibold">{group.type}</span>
+                  <span className="text-caption text-faint">
                     {group.holdings.length} holding{group.holdings.length === 1 ? "" : "s"}
                   </span>
                 </div>
                 <div className="flex items-baseline gap-3 font-mono tabular-nums">
-                  <span className="text-[14px]">{fmtVND(group.value)}</span>
-                  <span className={cn("text-[12.5px]", group.pnl >= 0 ? "text-accent-brand" : "text-(--chart-negative)")}>
+                  <span className="text-body-sm">{fmtVND(group.value)}</span>
+                  <span className={cn("text-caption", group.pnl >= 0 ? "text-accent-brand" : "text-destructive")}>
                     {group.pnl >= 0 ? "+" : ""}{fmtVND(group.pnl)}
                   </span>
                 </div>
@@ -392,11 +392,11 @@ function ArchivedHoldings({
         className="flex w-full items-center gap-2.5 px-1 pb-2.5 text-left"
       >
         <Archive className="size-3.5 text-faint" />
-        <span className="text-[14px] font-semibold text-muted-foreground">Archived</span>
-        <span className="text-[12px] text-faint">
+        <span className="text-body-sm font-semibold text-muted-foreground">Archived</span>
+        <span className="text-caption text-faint">
           {holdings.length} holding{holdings.length === 1 ? "" : "s"}
         </span>
-        <span className={cn("ml-1 font-mono text-[12px] text-faint transition-transform", open && "rotate-90")}>▸</span>
+        <span className={cn("ml-1 font-mono text-caption text-faint transition-transform", open && "rotate-90")}>▸</span>
       </button>
       {open && (
         <div className="overflow-hidden card-surface opacity-80">

@@ -15,15 +15,11 @@ import { UserMenu } from '@/components/user-menu';
 import { LivePrices, PricePoller } from '@/components/live-prices';
 import { HeaderSearch } from '@/components/header-search';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { MaskToggle } from '@/components/mask-toggle';
 import { toggleNavCollapsed } from '@/lib/nav-layout';
 import { cn } from '@/lib/utils';
 
 // Settings isn't here: it's a row in the drawer and a line in the account menu.
-//
-// `tint` is the section's own hue, from the app's five (see `--color-hue-*`). It only paints
-// the icon, never the label or the row: "here" is still marked by the surface step, so the
-// colour is identity — which section you're looking at — rather than a second, competing
-// signal for which one is current.
 //
 // **The groups are the app's own model of your money**, not an alphabet or a usage ranking:
 // net worth is what you own plus what you've saved minus what you owe, and the last group is
@@ -38,7 +34,6 @@ interface NavLink {
   href: string;
   label: string;
   icon: LucideIcon;
-  tint: string;
 }
 
 interface NavSection {
@@ -51,30 +46,30 @@ interface NavSection {
 const SECTIONS: NavSection[] = [
   {
     label: null,
-    links: [{ href: '/', label: 'Dashboard', icon: LayoutDashboard, tint: 'text-hue-blue' }],
+    links: [{ href: '/', label: 'Dashboard', icon: LayoutDashboard }],
   },
   {
     label: 'Money in',
     links: [
-      { href: '/investments', label: 'Investments', icon: TrendingUp, tint: 'text-hue-cyan' },
+      { href: '/investments', label: 'Investments', icon: TrendingUp },
       // Next to Investments because it's the other half of the same subject: what you hold,
       // then what you did. Amber matches the dashboard's own "History" shortcut.
-      { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight, tint: 'text-hue-amber' },
-      { href: '/savings', label: 'Savings', icon: PiggyBank, tint: 'text-hue-green' },
+      { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+      { href: '/savings', label: 'Savings', icon: PiggyBank },
     ],
   },
   {
     label: 'Money out',
     links: [
-      { href: '/debts', label: 'Debts', icon: CreditCard, tint: 'text-hue-amber' },
-      { href: '/subscriptions', label: 'Subscriptions', icon: CalendarSync, tint: 'text-hue-amber' },
+      { href: '/debts', label: 'Debts', icon: CreditCard },
+      { href: '/subscriptions', label: 'Subscriptions', icon: CalendarSync },
     ],
   },
   {
     label: "What's ahead",
     links: [
-      { href: '/goals', label: 'Goals', icon: Target, tint: 'text-hue-violet' },
-      { href: '/forecast', label: 'Forecast', icon: LineChart, tint: 'text-hue-violet' },
+      { href: '/goals', label: 'Goals', icon: Target },
+      { href: '/forecast', label: 'Forecast', icon: LineChart },
     ],
   },
 ];
@@ -83,16 +78,14 @@ function isActive(pathname: string, href: string) {
   return href === '/' ? pathname === '/' : pathname.startsWith(href);
 }
 
-/** The design's mark: a glowing brand tile carrying the initial, then the wordmark split
- *  across two weights — "Net" solid, "lens" light and dropped to secondary ink. The glow is
- *  the only luminosity in the theme, which is what fixes the accent in the eye before any
- *  chart uses it. */
+/** The mark. The design's sidebar has just the word "Netlens" in the heavy display face. The green
+ *  disc is for the places too narrow for the word: the collapsed rail and a small phone. */
 function BrandMark({
   size = 'sm',
   hideWord = false,
 }: {
   size?: 'sm' | 'lg';
-  /** Drop the word below 420px, keeping the tile. Only the top bar asks for this — see
+  /** Drop the word below 420px, keeping the disc. Only the top bar asks for this — see
    *  `Wordmark`; the rail and the drawer both have the width for it. */
   hideWord?: boolean;
 }) {
@@ -101,22 +94,26 @@ function BrandMark({
     <>
       <span
         aria-hidden
+        data-rail-disc
         className={cn(
-          'grid shrink-0 place-items-center rounded-lg bg-(image:--brand-gradient) font-bold text-white shadow-[0_0_22px_rgb(43_127_255/0.45)]',
-          lg ? 'size-[34px] text-[15px]' : 'size-[26px] text-[12px]',
+          'grid shrink-0 place-items-center rounded-full bg-primary pt-[0.08em] font-display font-black text-primary-foreground',
+          lg ? 'size-10 text-body-lg' : 'size-8 text-body',
+          // In the top bar the disc only shows once the word has gone.
+          hideWord && 'min-[420px]:hidden',
         )}
       >
         N
       </span>
       <span
         data-rail-label
+        data-rail-wordmark
         className={cn(
-          'truncate font-bold whitespace-nowrap tracking-[-0.02em]',
-          lg ? 'text-[19px]' : 'text-[17px]',
+          'truncate font-display font-black whitespace-nowrap tracking-[-0.02em] leading-none',
+          lg ? 'text-[30px]' : 'text-display-xs',
           hideWord && 'max-[419px]:hidden',
         )}
       >
-        Net<span className='font-normal text-muted-foreground'>lens</span>
+        Netlens
       </span>
     </>
   );
@@ -146,47 +143,37 @@ function Wordmark() {
  *  the way to a row, not to compete with one. */
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div data-rail-group-label className='px-3 pb-0.5 text-[11.5px] text-faint'>
+    <div data-rail-group-label className='px-3 pb-1 text-caption font-semibold text-faint'>
       {children}
     </div>
   );
 }
 
+/** The design's AppShellRow: a full pill, the icon in a 32px disc, and "here" marked by the
+ *  pale-green row with the disc filled Wise Green. Shared by the rail and the drawer. */
+const ROW =
+  'group/nav flex items-center gap-3 rounded-full px-2 py-1.5 text-body font-semibold whitespace-nowrap text-foreground transition-colors duration-[120ms] hover:bg-pane data-[active=true]:bg-brand-soft data-[active=true]:font-semibold data-[active=true]:hover:bg-brand-soft';
+const DISC =
+  'grid size-8 shrink-0 place-items-center rounded-full transition-colors group-data-[active=true]/nav:bg-primary group-data-[active=true]/nav:text-primary-foreground [&_svg]:size-[18px]';
+
 function NavPill({
   href,
   label,
   icon: Icon,
-  tint,
   pathname,
   onClick,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** The section's hue class. Applied to the icon only. */
-  tint: string;
   pathname: string;
   onClick?: () => void;
 }) {
-  const active = isActive(pathname, href);
   return (
-    <Link
-      href={href}
-      onClick={onClick}
-      data-active={active}
-      className={cn(
-        // The design's nav row: a 12px corner and the in-panel surface for "here", rather
-        // than a brand wash. Blue is the *action* colour on this palette — a filled button
-        // — so spending it on the current page would put two meanings on one colour.
-        'group/nav relative z-10 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] whitespace-nowrap transition-colors',
-        active
-          ? 'bg-pane font-semibold text-foreground ring-1 ring-input ring-inset'
-          : 'font-medium text-muted-foreground hover:text-foreground',
-      )}
-    >
-      {/* Full hue on the current section, dimmed elsewhere — the rail stays colourful
-          without every row shouting at once. */}
-      <Icon className={cn('size-4 shrink-0 transition-opacity', tint, active ? 'opacity-100' : 'opacity-60 group-hover/nav:opacity-100')} />
+    <Link href={href} onClick={onClick} data-active={isActive(pathname, href)} className={ROW}>
+      <span className={DISC}>
+        <Icon />
+      </span>
       {label}
     </Link>
   );
@@ -261,12 +248,12 @@ function MobileNav({ pathname }: { pathname: string }) {
         </DialogPrimitive.Trigger>
       </IconTooltip>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-black/40 backdrop-blur-sm duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0' />
+        <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-(--scrim) duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0' />
         <DialogPrimitive.Popup
           onTouchStart={onPopupTouchStart}
           onTouchEnd={onPopupTouchEnd}
-          className='panel-surface fixed inset-y-3 left-3 z-50 flex w-[17rem] max-w-[85%] flex-col gap-4 overflow-y-auto rounded-3xl p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
-          <DialogPrimitive.Title className='flex items-center gap-2.5 px-1.5'>
+          className='panel-surface fixed inset-y-3 left-3 z-50 flex w-[17rem] max-w-[85%] flex-col gap-5 overflow-y-auto rounded-3xl p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
+          <DialogPrimitive.Title className='flex items-center gap-2.5 px-3 pt-1'>
             <BrandMark />
           </DialogPrimitive.Title>
 
@@ -283,7 +270,6 @@ function MobileNav({ pathname }: { pathname: string }) {
                     href={l.href}
                     label={l.label}
                     icon={l.icon}
-                    tint={l.tint}
                     pathname={pathname}
                     onClick={() => setOpen(false)}
                   />
@@ -299,20 +285,14 @@ function MobileNav({ pathname }: { pathname: string }) {
               They're back on the top bar at every width; what made that row impossible
               before was its 70px height and the full-width wordmark, and neither is there
               now. */}
-          <div className='mt-auto border-t border-border pt-3'>
-            <Link
+          <div className='mt-auto border-t border-divider pt-3'>
+            <NavPill
               href='/settings'
+              label='Settings'
+              icon={Settings}
+              pathname={pathname}
               onClick={() => setOpen(false)}
-              className={cn(
-                'flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors',
-                isActive(pathname, '/settings')
-                  ? 'bg-pane font-semibold text-foreground ring-1 ring-input ring-inset'
-                  : 'font-medium text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Settings className='size-4' />
-              Settings
-            </Link>
+            />
           </div>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
@@ -321,34 +301,25 @@ function MobileNav({ pathname }: { pathname: string }) {
 }
 
 
-/** One row of the side rail. The label
- *  is a sibling of the icon rather than plain text so the collapsed rail can drop it in
- *  CSS — collapsing must not change the markup, or it couldn't be applied before paint. */
+/** One row of the side rail. The label is a sibling of the icon rather than plain text so
+ *  the collapsed rail can drop it in CSS — collapsing must not change the markup, or it
+ *  couldn't be applied before paint. */
 function RailLink({
   href,
   label,
   icon: Icon,
-  tint,
   pathname,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** The section's hue class, on the icon only. Settings has none — it isn't a section. */
-  tint?: string;
   pathname: string;
 }) {
   return (
-    <Link
-      href={href}
-      data-active={isActive(pathname, href)}
-      title={label}
-      // The design's rail row: 12px corner, icon in a fixed 20px gutter so every label
-      // starts on the same x, and "here" marked by the in-panel surface plus the brighter
-      // hairline rather than by colour.
-      className='group/rail flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[active=true]:border-input data-[active=true]:bg-pane data-[active=true]:font-semibold data-[active=true]:text-foreground'
-    >
-      <Icon className={cn('size-4 shrink-0 transition-opacity', tint, tint && (isActive(pathname, href) ? 'opacity-100' : 'opacity-60 group-hover/rail:opacity-100'))} />
+    <Link href={href} data-active={isActive(pathname, href)} title={label} className={ROW}>
+      <span className={DISC}>
+        <Icon />
+      </span>
       <span data-rail-label className='min-w-0 truncate'>{label}</span>
     </Link>
   );
@@ -374,7 +345,7 @@ function SideRail({ pathname }: { pathname: string }) {
           onClick={toggleNavCollapsed}
           aria-label='Toggle sidebar width'
           title='Toggle sidebar width'
-          className='grid size-[30px] shrink-0 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:border-input hover:text-foreground'
+          className='grid size-8 shrink-0 place-items-center rounded-full bg-pane text-muted-foreground transition-colors hover:bg-pane-2 hover:text-foreground'
         >
           {/* Points the other way when collapsed — a CSS rotation, so the button doesn't
               have to know the state React can't see on the server. */}
@@ -387,7 +358,7 @@ function SideRail({ pathname }: { pathname: string }) {
           <div data-rail-group key={section.label ?? i}>
             {section.label && <GroupLabel>{section.label}</GroupLabel>}
             {section.links.map((l) => (
-              <RailLink key={l.href} href={l.href} label={l.label} icon={l.icon} tint={l.tint} pathname={pathname} />
+              <RailLink key={l.href} href={l.href} label={l.label} icon={l.icon} pathname={pathname} />
             ))}
           </div>
         ))}
@@ -411,7 +382,7 @@ export function Nav() {
           without either one polling. */}
       <PricePoller />
       <SideRail pathname={pathname} />
-      <header data-app-header className='sticky top-0 z-40 border-b border-border bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
+      <header data-app-header className='sticky top-0 z-40 bg-(--header-bg) pt-[env(safe-area-inset-top)] backdrop-blur-[14px]'>
         {/* Must track <main>'s max-width in app/layout.tsx, or the header sits narrower
             than the content beneath it. The left/right padding also clears the safe areas:
             the iPhone notch in landscape and, on iPadOS 26, the window-control traffic
@@ -420,7 +391,7 @@ export function Nav() {
         {/* Shorter below the rail's breakpoint. It carries two things there — the drawer
             trigger and the mark — and 70px of sticky chrome for that was most of what made
             the bar look wrong on a phone. */}
-        <div data-app-header-inner className='mx-auto flex h-14 w-full max-w-[1180px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(1.625rem,env(safe-area-inset-left))] sm:pr-[max(1.625rem,env(safe-area-inset-right))] min-[900px]:h-[70px] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
+        <div data-app-header-inner className='mx-auto flex h-14 w-full max-w-[1200px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(1.625rem,env(safe-area-inset-left))] sm:pr-[max(1.625rem,env(safe-area-inset-right))] min-[900px]:h-[70px] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
           {/* display:none until 900px, where the rail takes the links and the wordmark and
               the header's left side is free for the search field. */}
           <HeaderSearch />
@@ -440,6 +411,7 @@ export function Nav() {
               the phone gets the same three controls, spelt shorter. */}
           <div className='flex shrink-0 items-center gap-1.5 sm:gap-2'>
             <LivePrices />
+            <MaskToggle />
             <ThemeToggle />
             {/* The design's header affordances are bordered circles on the panel surface,
                 not bare glyphs — they have to hold their own against a chart scrolling
