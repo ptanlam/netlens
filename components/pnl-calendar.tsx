@@ -159,9 +159,8 @@ function StatusKey() {
   );
 }
 
-/** Where the value column sits, in the bar chart's own units — bars reach ±1, so everything
- *  past that is gutter. */
-const GUTTER = 1.72;
+/** Pixels between the widest bar's end and the value column. */
+const LABEL_GAP = 10;
 
 /** Shortest bar a non-zero move may draw, in the same units — see `ContribChart`. */
 const MIN_BAR = 0.015;
@@ -178,7 +177,7 @@ const MIN_BAR = 0.015;
  * bar's length always means the same amount of money: each side used to be normalised to its
  * own largest move, which drew a ₫118k loss exactly as long as a ₫4M gain and made the day's
  * one bad holding look like its biggest event. The money itself is printed at the end of
- * every row, in the gutter the domain leaves past the widest bar.
+ * every row, in a column just past where the widest bar can reach.
  *
  * Every holding that moved is listed — a portfolio has few enough positions that the whole
  * period fits, and a bar chart you have to page through can't be compared at a glance.
@@ -212,14 +211,18 @@ function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
             radius: 3,
             maxThickness: 14,
           }),
-          // The figure sits in the gutter the domain leaves to the right of every bar, so
-          // the money reads down one column however long the bars are.
+          // The figure starts a pixel gap past x = 1, where the widest bar ends, so the money
+          // reads down one column however long the bars are. It is offset in pixels rather
+          // than placed in a gutter of the domain because a gutter scales with the card and
+          // the text doesn't: on a narrow card the widest bar ran under its own figure. The
+          // automatic right margin is measured from these labels, so it always fits them.
           decorative(
             text(data, {
-              x: () => GUTTER,
+              x: () => 1,
               y: "name",
               text: (r) => fmtSigned(r.pnl),
-              anchor: "end",
+              anchor: "start",
+              dx: LABEL_GAP,
               fontSize: 14,
               fontWeight: 600,
               fill: (r) => (r.pnl < 0 ? "var(--chart-negative)" : "var(--accent-brand)"),
@@ -228,7 +231,7 @@ function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
         ],
         // An instance, not a factory: the domain is the encoding here, not something to be
         // inferred from the shares that happen to be on screen.
-        x: { scale: scaleLinear([-1.04, GUTTER], [0, 1]), axis: false },
+        x: { scale: scaleLinear([-1.04, 1], [0, 1]), axis: false },
         y: {
           scale: scaleBand<string>().domain(data.map((r) => r.name)).padding(0.34),
           // Every row is a holding, and a bar with no name is useless, so the rows keep their
