@@ -1448,13 +1448,16 @@ export async function plannedMonthly(): Promise<number> {
   return rules.reduce((a, r) => a + (r.freq === "weekly" ? (r.amount * 52) / 12 : r.amount), 0);
 }
 
-/** ₫/month actually contributed over the trailing window — the fallback pace when there
- *  are no recurring rules. Net of sells, floored at 0. */
+/** ₫/month **bought** into investments over the trailing window — what a goal compares
+ *  against your recurring rules (see `resolvePace`). Purchases only, the same reading as
+ *  the Transactions page's "Monthly average" and `investedByMonth`: netting a sell in would
+ *  read a month you took profit in as a quiet one. */
 export async function actualMonthly(months = 6): Promise<number> {
   const since = addMonthsIso(todayIso(), -months);
-  const row = await q("SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE date >= ?")
-    .get<{ s: number }>(since);
-  return Math.max(0, (row?.s ?? 0) / months);
+  const row = await q(
+    "SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END),0) s FROM transactions WHERE date >= ?",
+  ).get<{ s: number }>(since);
+  return (row?.s ?? 0) / months;
 }
 
 /**

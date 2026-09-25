@@ -41,7 +41,7 @@ const VISIBLE_CONTRIBUTIONS = 5;
 const PACE_SOURCE_NOTE: Record<string, string> = {
   goal: "your monthly plan",
   planned: "your active recurring rules",
-  actual: "your recent contributions",
+  actual: "your 6-month average",
   schedule: "the repayment schedule",
   none: "nothing yet",
 };
@@ -669,9 +669,9 @@ export function GoalsManager({
     <div className="flex flex-col gap-4">
       <PageHeader title="Goals" actions={addGoalDialog}>
         A target on a figure you already track — or a sinking fund you pay into by hand.
-        Progress is read live from your data, and the projection uses money you&apos;ve
-        committed — recurring rules and repayment schedules — with market growth counted
-        as zero.
+        Progress is read live from your data, and the projection uses the money you put in —
+        your recurring rules or your 6-month average, whichever is higher, and repayment
+        schedules — with market growth counted as zero.
       </PageHeader>
 
       {active.length === 0 && (

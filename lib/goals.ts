@@ -71,7 +71,7 @@ export interface GoalWorld {
   savingsByGoal: Record<number, Accruing[]>;
   /** ₫/month you've committed to, from active recurring rules. */
   plannedMonthly: number;
-  /** ₫/month you've actually contributed over the trailing window. */
+  /** ₫/month you've actually bought into investments over the trailing window. */
   actualMonthly: number;
   /** VND per one unit of each foreign currency, latest known. A goal denominated in one
    *  ("$100k") is converted through this on every projection, so the target tracks the
@@ -348,8 +348,12 @@ export function valueAt(
 /**
  * The pace to project at, in priority order:
  *  1. what you told the goal you'd put in (`monthly_plan`) — always wins;
- *  2. your active recurring rules — money you've actually committed;
- *  3. your recent real contributions — what you've been doing lately.
+ *  2. the higher of your active recurring rules and your trailing monthly average.
+ *
+ * The two are compared, not added: a rule materializes into real transactions, so the
+ * average already contains every rule that has run. Taking the higher one credits buys you
+ * make on top of your rules without counting a rule twice, and still gives a rule you only
+ * just set up — no history yet — its full weight.
  *
  * Debts default to their own repayment schedule, and term deposits to nothing at all,
  * because contributions from recurring rules flow into investments, not into either.
@@ -366,8 +370,8 @@ export function resolvePace(g: Goal, w: GoalWorld): { pace: number; paceSource: 
     const rate = fundContributionRate(w, g);
     return rate > 0 ? { pace: rate, paceSource: "actual" } : { pace: 0, paceSource: "none" };
   }
+  if (w.actualMonthly > w.plannedMonthly) return { pace: w.actualMonthly, paceSource: "actual" };
   if (w.plannedMonthly > 0) return { pace: w.plannedMonthly, paceSource: "planned" };
-  if (w.actualMonthly > 0) return { pace: w.actualMonthly, paceSource: "actual" };
   return { pace: 0, paceSource: "none" };
 }
 
