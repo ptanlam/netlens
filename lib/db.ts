@@ -382,25 +382,23 @@ export async function getProperty(instrument: string): Promise<Property | undefi
 
 export async function saveProperty(
   instrument: string, lat: number, lng: number, areaM2: number,
-  landUse: string, access: string, radiusKm: number, autoComps: number, note: string | null,
+  landUse: string, access: string, radiusKm: number, note: string | null,
 ) {
   await q(
-    `INSERT INTO properties(instrument, lat, lng, area_m2, land_use, access, radius_km, auto_comps, note) VALUES (?,?,?,?,?,?,?,?,?)
+    `INSERT INTO properties(instrument, lat, lng, area_m2, land_use, access, radius_km, note) VALUES (?,?,?,?,?,?,?,?)
      ON CONFLICT(instrument) DO UPDATE SET lat=excluded.lat, lng=excluded.lng, area_m2=excluded.area_m2,
        land_use=excluded.land_use, access=excluded.access, radius_km=excluded.radius_km,
-       auto_comps=excluded.auto_comps, note=excluded.note`,
-  ).run(instrument, lat, lng, areaM2, landUse, access, radiusKm, autoComps, note);
+       note=excluded.note`,
+  ).run(instrument, lat, lng, areaM2, landUse, access, radiusKm, note);
 }
 
-/** Forget where a plot is, with the index and the auto-comps kept for it. The holding, its
- *  value and its valuation history stay — those are about what you own, not where it is —
- *  and so do the comps you added by hand: they're still this plot's, and count again once
- *  it's placed. */
+/** Forget where a plot is, with its index. The holding, its value and its valuation history
+ *  stay — those are about what you own, not where it is — and so do its comps: they're still
+ *  this plot's, and count again once it's placed. */
 export async function deleteProperty(instrument: string) {
   await db().batch([
     q("DELETE FROM properties WHERE instrument=?").bound(instrument),
     q("DELETE FROM property_index WHERE instrument=?").bound(instrument),
-    q("DELETE FROM property_comps WHERE auto_for=?").bound(instrument),
   ]);
 }
 
@@ -417,42 +415,45 @@ export async function getComp(id: number): Promise<PropertyComp | undefined> {
 }
 
 const INSERT_COMP =
-  "INSERT INTO property_comps(lat, lng, area_m2, price, date, kind, land_use, access, label, source, note, instrument, auto_for) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
+  "INSERT INTO property_comps(lat, lng, area_m2, price, date, kind, land_use, access, label, source, note, instrument) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
 
-/** `auto` marks the row as the daily refresh's to replace. */
-function compArgs(c: CompInput, instrument: string, auto: boolean): Bind[] {
+function compArgs(c: CompInput, instrument: string): Bind[] {
   return [
     c.lat, c.lng, c.area_m2, Math.round(c.price), c.date, c.kind, c.land_use, c.access,
-    c.label, c.source, c.note, instrument, auto ? instrument : null,
+    c.label, c.source, c.note, instrument,
   ];
 }
 
 export async function addComp(instrument: string, c: CompInput) {
-  await q(INSERT_COMP).run(...compArgs(c, instrument, false));
+  await q(INSERT_COMP).run(...compArgs(c, instrument));
 }
 
 /** Several comps for one plot in one round trip — an import of listings, typically. */
 export async function addComps(instrument: string, list: CompInput[]) {
   if (list.length === 0) return;
   const stmt = q(INSERT_COMP);
-  await db().batch(list.map((c) => stmt.bound(...compArgs(c, instrument, false))));
+  await db().batch(list.map((c) => stmt.bound(...compArgs(c, instrument))));
 }
 
-/** Swap a plot's auto-kept comps for a fresh set, atomically: a failed insert can't leave
- *  the plot with its old rows gone and no new ones. */
-export async function replaceAutoComps(instrument: string, list: CompInput[]) {
-  const stmt = q(INSERT_COMP);
-  await db().batch([
-    q("DELETE FROM property_comps WHERE auto_for=?").bound(instrument),
-    ...list.map((c) => stmt.bound(...compArgs(c, instrument, true))),
-  ]);
+/** A price refresh's results in one round trip. A listing still up takes its current ask
+ *  and area, re-dated to today — it's being asked today — and is marked listed again. One
+ *  found gone keeps its row and last ask, stamped with the first day it was missed. */
+export async function applyCompRefresh(
+  listed: { id: number; price: number; area_m2: number; date: string }[],
+  gone: { id: number; date: string }[],
+) {
+  const up = q("UPDATE property_comps SET price=?, area_m2=?, date=?, delisted_on=NULL WHERE id=?");
+  const down = q("UPDATE property_comps SET delisted_on=COALESCE(delisted_on, ?) WHERE id=?");
+  const stmts = [
+    ...listed.map((l) => up.bound(l.price, l.area_m2, l.date, l.id)),
+    ...gone.map((g) => down.bound(g.date, g.id)),
+  ];
+  if (stmts.length) await db().batch(stmts);
 }
 
-/** Editing a comp adopts it: it stops being the auto-refresh's to replace, since a comp
- *  you've corrected by hand is one you mean to keep. */
 export async function updateComp(id: number, c: CompInput) {
   await q(
-    "UPDATE property_comps SET lat=?, lng=?, area_m2=?, price=?, date=?, kind=?, land_use=?, access=?, label=?, source=?, note=?, auto_for=NULL WHERE id=?",
+    "UPDATE property_comps SET lat=?, lng=?, area_m2=?, price=?, date=?, kind=?, land_use=?, access=?, label=?, source=?, note=? WHERE id=?",
   ).run(c.lat, c.lng, c.area_m2, Math.round(c.price), c.date, c.kind, c.land_use, c.access, c.label, c.source, c.note, id);
 }
 

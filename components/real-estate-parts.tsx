@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ExternalLink, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ExternalLink, Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   COMP_KINDS, LAND_USE_LABELS, ROAD_ACCESS_LABELS,
@@ -10,7 +10,7 @@ import {
 } from "@/lib/types";
 import {
   addComp, addIndexPoint, applyEstimate, deleteComp, deleteIndexPoint, deleteProperty,
-  deleteValuation, findListings, importListings, saveProperty, updateComp,
+  deleteValuation, findListings, importListings, refreshCompPrices, saveProperty, updateComp,
 } from "@/app/actions";
 import type { Listing } from "@/lib/listings";
 import { fmtVND } from "@/lib/format";
@@ -42,15 +42,6 @@ export type EstateHolding = { name: string; value: number };
 const COMP_KIND_LABELS: Record<(typeof COMP_KINDS)[number], string> = {
   sale: "Sold for",
   asking: "Listed at (asking)",
-};
-
-/** A short menu rather than a number field: the useful answers are few, and "Off" reads
- *  better than a 0. */
-const AUTO_COMPS_LABELS: Record<string, string> = {
-  "0": "Off",
-  "5": "5 nearest listings",
-  "10": "10 nearest listings",
-  "20": "20 nearest listings",
 };
 
 const VALUATION_SOURCE_LABELS: Record<ValuationSource, string> = {
@@ -168,7 +159,7 @@ export function PropertyForm({
             <Input id={`p-area-${holding}`} name="area_m2" type="number" min="1" step="0.1" defaultValue={property?.area_m2} placeholder="120" required />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor={`p-radius-${holding}`}>Comps within (km)</Label>
+            <Label htmlFor={`p-radius-${holding}`}>Search radius (km)</Label>
             <Input id={`p-radius-${holding}`} name="radius_km" type="number" min="0.1" max="50" step="0.1" defaultValue={property?.radius_km ?? 3} required />
           </div>
           <div className="grid gap-2">
@@ -178,19 +169,6 @@ export function PropertyForm({
           <div className="grid gap-2">
             <Label htmlFor={`p-access-${holding}`}>Road access</Label>
             <EnumSelect id={`p-access-${holding}`} name="access" labels={ROAD_ACCESS_LABELS} defaultValue={property?.access ?? "alley"} />
-          </div>
-          <div className="grid gap-2 sm:col-span-2">
-            <Label htmlFor={`p-auto-${holding}`}>Auto-update comps</Label>
-            <EnumSelect
-              id={`p-auto-${holding}`}
-              name="auto_comps"
-              labels={AUTO_COMPS_LABELS}
-              defaultValue={String(property?.auto_comps ?? 10)}
-            />
-            <p className="text-caption text-muted-foreground">
-              Once a day, keeps the nearest Nhà Tốt listings with the same land use as comps,
-              replacing the previous set. Comps you added or ticked in yourself are never touched.
-            </p>
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label htmlFor={`p-note-${holding}`}>Note (optional)</Label>
@@ -310,30 +288,31 @@ export function AddCompDialog({ holding }: { holding: string }) {
 // ---------- the comp map ----------
 
 /**
- * Your plot at the centre and every comp inside its radius around it, north up, drawn to
- * scale. Not a map: there are no tiles to fetch and nothing to key, and what matters here is
+ * Your plot at the centre and every one of its comps around it, north up, drawn to scale —
+ * the outer ring is the search radius, or the farthest comp if one lies beyond it. Not a map: there are no tiles to fetch and nothing to key, and what matters here is
  * only where the evidence sits relative to you. A comp's dot grows with the weight it carries;
  * one filtered out by land use is drawn hollow, so you can see why it isn't counting.
  */
 export function CompRadar({ property, scored }: { property: Property; scored: ScoredComp[] }) {
   const R = 100;
-  const inside = scored.filter((s) => s.distanceKm < property.radius_km && s.excluded !== "future");
-  const maxW = Math.max(...inside.map((s) => s.weight), 0);
+  const shown = scored.filter((s) => s.excluded !== "future");
+  const maxW = Math.max(...shown.map((s) => s.weight), 0);
+  const span = Math.max(property.radius_km, ...shown.map((s) => s.distanceKm));
+  const k = R / span;
 
   return (
-    <svg viewBox="-120 -120 240 240" className="mx-auto w-full max-w-[280px]" role="img" aria-label={`Comps within ${property.radius_km} km`}>
+    <svg viewBox="-120 -120 240 240" className="mx-auto w-full max-w-[280px]" role="img" aria-label={`Comps within ${fmtKm(span)}`}>
       {[1, 0.5].map((f) => (
         <g key={f}>
           <circle r={R * f} fill="none" stroke="var(--grid-strong)" strokeDasharray={f === 1 ? undefined : "3 3"} />
           <text x={R * f - 3} y={-4} fontSize={10} textAnchor="end" fill="var(--muted-foreground)">
-            {fmtKm(property.radius_km * f)}
+            {fmtKm(span * f)}
           </text>
         </g>
       ))}
       <text x={0} y={-R - 6} fontSize={10} textAnchor="middle" fill="var(--muted-foreground)">N</text>
-      {inside.map((s) => {
+      {shown.map((s) => {
         const { x, y } = offsetKm(property, s.comp);
-        const k = R / property.radius_km;
         const used = s.weight > 0;
         const r = used && maxW > 0 ? 3 + 6 * Math.sqrt(s.weight / maxW) : 4;
         return (
@@ -361,8 +340,7 @@ export function CompRadar({ property, scored }: { property: Property; scored: Sc
 // ---------- one property ----------
 
 export function basisLine(v: Valuation, property: Property, anchor: Anchor | null, hasIndex: boolean): string {
-  const within = `within ${property.radius_km} km`;
-  const comps = `${v.used} comp${v.used === 1 ? "" : "s"} ${within}`;
+  const comps = `${v.used} comp${v.used === 1 ? "" : "s"}`;
   const paid = hasIndex ? "what you paid, carried forward by the area index" : "what you paid";
   switch (v.method) {
     case "comps":
@@ -370,10 +348,10 @@ export function basisLine(v: Valuation, property: Property, anchor: Anchor | nul
     case "blend":
       return `${Math.round(v.compShare * 100)}% from ${comps}, ${Math.round((1 - v.compShare) * 100)}% from ${paid}. Each added comp shifts it further toward the market.`;
     case "index":
-      return `No comps ${within} yet. This is what you paid (${fmtVND(anchor?.cost ?? 0)}), carried forward by the area index.`;
+      return `No comps yet. This is what you paid (${fmtVND(anchor?.cost ?? 0)}), carried forward by the area index.`;
     case "cost":
     case "none":
-      return `Nothing to predict from yet: no comps ${within}. Find listings nearby, or add a sale you know of.`;
+      return "Nothing to predict from yet: no comps. Find listings nearby, or add a sale you know of.";
   }
 }
 
@@ -627,6 +605,27 @@ export function EditLocationDialog({ holding, property }: { holding: string; pro
 }
 
 /** Book the estimate's low end as the plot's value, dated today. */
+/** Re-read the plot's Nhà Tốt comps for their current asks. A press, never a schedule. */
+export function RefreshPricesButton({ holding, disabled }: { holding: string; disabled: boolean }) {
+  const [pending, startTransition] = React.useTransition();
+  return (
+    <Button
+      variant="outline"
+      disabled={pending || disabled}
+      onClick={() =>
+        startTransition(async () => {
+          const res = await refreshCompPrices(holding);
+          if (res.ok) toast.success(res.message);
+          else toast.error(res.message);
+        })
+      }
+    >
+      <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
+      {pending ? "Refreshing…" : "Refresh prices"}
+    </Button>
+  );
+}
+
 export function BookLowEndButton({ holding, disabled }: { holding: string; disabled: boolean }) {
   const [pending, startTransition] = React.useTransition();
   return (

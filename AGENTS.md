@@ -120,7 +120,8 @@ comps: sales you enter, or **Nhà Tốt listings** pulled in by "Find listings n
 only on that button press, never on a schedule; imports dedupe on the listing URL in `source`):
 
 - **`properties`** places a holding (keyed by instrument name): lat/lng, area, land use,
-  road access, and the radius comps count within.
+  road access, and a radius — how far "Find listings nearby" searches, and the distance at
+  which a comp's weight halves. It is **not** a cutoff.
 - **`property_comps`** are comparable plots — a sale or a listing — and **each belongs to one
   plot** (`instrument`, migration `0010`). They used to be shared by every plot in reach; they
   aren't any more, because each is gathered *for* a plot and one plot's evidence turning up in
@@ -129,8 +130,8 @@ only on that button press, never on a schedule; imports dedupe on the listing UR
 - **`property_index`** is an optional area price series per property; only ratios between
   dates are used, to carry old comps and the purchase price forward.
 
-The estimate is the weighted median ₫/m² of comps (land use must match; distance, age, road
-and plot size only weigh; asking prices lose `ASKING_DISCOUNT`), shrunk toward what you paid
+The estimate is the weighted median ₫/m² of **every comp added to the plot** (only land use
+must match; distance, age, road and plot size only weigh, and never to zero; asking prices lose `ASKING_DISCOUNT`), shrunk toward what you paid
 (`PRIOR_WEIGHT`) while the evidence is thin. **It never moves net worth by itself**: "Book the
 low end" books the low end, deliberately and conservatively. Nothing derived is stored.
 
@@ -140,11 +141,16 @@ low end" books the low end, deliberately and conservatively. Nothing derived is 
   booking also writes the value it replaced, dated at the first purchase (`initial`). Undo =
   delete the row. `manual_value` is kept equal to the latest row, so nothing that reads today's
   value changed. Typing a Real Estate value on Investments books it too (`recordManualEdit`).
-- **Auto-comps** (`properties.auto_comps` = N, 0 off): the cron, once a day
-  (`refreshAutoCompsScheduled`), and a save of the location replace the rows that property's
-  refresh owns (`property_comps.auto_for`) with the N nearest same-land-use listings, less any
-  that plot already keeps by hand. Hand-added or ticked comps (`auto_for` NULL) are never touched; editing an
-  auto comp adopts it.
+- **Refresh prices** (`refreshCompPrices`) re-reads each Nhà Tốt comp by its listing id
+  (`checkListings`, one lookup per listing, max 40 a press, stalest first). A listing still up
+  takes its current ask and area and is re-dated to today; one that's gone keeps its row and
+  last ask and gets `delisted_on` (migration `0011`) — it has often sold near that ask. Only
+  price, area and date change, so a land use you corrected stays corrected. A press, never
+  a schedule.
+- **No auto-comps.** A daily "keep the N nearest listings" refresh existed briefly and was
+  removed: the evidence is what you chose to add. Its columns (`properties.auto_comps`,
+  `property_comps.auto_for`, migration `0009`) are left in place, unused, to keep migrations
+  additive.
 
 ## Streak
 

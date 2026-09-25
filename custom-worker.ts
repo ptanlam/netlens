@@ -26,7 +26,6 @@
 // Generated at build time by the adapter; typed in types/open-next.d.ts.
 import { default as handler } from "./.open-next/worker.js";
 import { bindD1 } from "./lib/db";
-import { refreshAutoCompsScheduled } from "./lib/listings";
 import { refreshHistory, refreshScheduled, sweepRecentHistory } from "./lib/prices";
 
 export default {
@@ -67,8 +66,6 @@ export default {
           // out the backfill. Both self-throttle, so calling them each tick is cheap.
           await refreshHistory();
           errors.push(...(await sweepRecentHistory())[1]);
-          // Once a day: each plot with auto-comps on gets its nearest listings refreshed.
-          errors.push(...(await refreshAutoCompsScheduled()));
           if (errors.length)
             console.error(
               `[price-cron] updated ${live?.[0] ?? 0}, ${errors.length} failed:\n  - ${errors.join("\n  - ")}`,

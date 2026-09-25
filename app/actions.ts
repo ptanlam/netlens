@@ -6,8 +6,8 @@ import {
   refreshAll, refreshHistory, refreshRecentHistory, testPriceSource as runPriceSourceTest,
 } from "@/lib/prices";
 import { fmtVND } from "@/lib/format";
-import { listingComp, nearbyListings, refreshAutoComps, type Listing } from "@/lib/listings";
-import { estimate, parseLatLng, type LatLng } from "@/lib/realestate";
+import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
+import { estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
   BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, PRICE_REFRESH_INTERVALS, ROAD_ACCESS,
   SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, normalizePriceRefreshMs,
@@ -557,21 +557,14 @@ export async function saveProperty(instrument: string, fd: FormData) {
   if (area == null || area <= 0) return { ok: false, message: "A positive area (m²) is required." };
   const radius = num(fd.get("radius_km")) ?? 3;
   if (radius <= 0 || radius > 50) return { ok: false, message: "Radius must be between 0 and 50 km." };
-  const auto = Math.round(num(fd.get("auto_comps")) ?? 0);
-  if (auto < 0 || auto > 50) return { ok: false, message: "Auto-comps must be between 0 and 50." };
   await db.saveProperty(
     instrument, at.lat, at.lng, area,
     oneOf<LandUse>(LAND_USES, str(fd.get("land_use")), "residential"),
     oneOf<RoadAccess>(ROAD_ACCESS, str(fd.get("access")), "alley"),
-    radius, auto, str(fd.get("note")) || null,
+    radius, str(fd.get("note")) || null,
   );
-  // Refreshed now rather than at the next daily run, so a changed pin, radius or count
-  // shows its comps straight away. Turning it off removes the set: those rows were only
-  // ever the refresh's, and nothing would keep them current any more.
-  const errors = auto > 0 ? await refreshAutoComps(instrument) : (await db.replaceAutoComps(instrument, []), []);
   revalidateAll();
-  if (errors.length) return { ok: true, message: `Location saved, but the comps didn't refresh: ${errors[0]}` };
-  return { ok: true, message: auto > 0 ? `Location saved. Keeping the ${auto} nearest listings.` : "Location saved." };
+  return { ok: true, message: "Location saved." };
 }
 
 export async function deleteProperty(instrument: string) {
@@ -668,6 +661,50 @@ export async function importListings(instrument: string, ids: number[]) {
     message: `Added ${picked.length} comp${picked.length === 1 ? "" : "s"} from Nhà Tốt.` +
       (gone > 0 ? ` ${gone} had already been added or were taken down.` : ""),
   };
+}
+
+/** Most listings one refresh re-reads. Each is an upstream request, and a Worker invocation
+ *  has a subrequest budget; the stalest go first, so a second press covers the rest. */
+const MAX_PRICE_CHECKS = 40;
+
+/**
+ * Re-read every Nhà Tốt comp of a plot from the listing itself: a new ask replaces the old,
+ * and a listing taken down is marked, not deleted. Comps you entered by hand have no listing
+ * to re-read and are left alone. Only price, area and date change — a land use or road you
+ * corrected on a comp stays corrected.
+ */
+export async function refreshCompPrices(instrument: string) {
+  const targets = (await db.listComps(instrument))
+    .flatMap((c) => {
+      const id = listingId(c.source);
+      return id == null ? [] : [{ comp: c, id }];
+    })
+    .sort((a, b) => a.comp.date.localeCompare(b.comp.date))
+    .slice(0, MAX_PRICE_CHECKS);
+  if (targets.length === 0)
+    return { ok: false, message: "No Nhà Tốt comps to refresh. Comps you entered by hand have no listing to re-read." };
+
+  const checks = await checkListings(targets.map((t) => t.id));
+  const today = db.todayIso();
+  const listed = targets.flatMap((t, i) => {
+    const c = checks[i];
+    return c.status === "listed" ? [{ id: t.comp.id, price: c.price, area_m2: c.area_m2, date: today, was: t.comp }] : [];
+  });
+  const gone = targets.filter((_, i) => checks[i].status === "gone");
+  const unknown = checks.filter((c) => c.status === "unknown").length;
+  if (listed.length === 0 && gone.length === 0)
+    return { ok: false, message: "Couldn't reach Nhà Tốt. Try again in a moment." };
+
+  await db.applyCompRefresh(listed, gone.map((t) => ({ id: t.comp.id, date: today })));
+  revalidateAll();
+  const repriced = listed.filter((l) => l.price !== l.was.price || l.area_m2 !== l.was.area_m2).length;
+  const newlyGone = gone.filter((t) => t.comp.delisted_on == null).length;
+  const parts = [
+    repriced > 0 ? `${repriced} new price${repriced === 1 ? "" : "s"}` : "no price has changed",
+    newlyGone > 0 && `${newlyGone} no longer listed`,
+    unknown > 0 && `${unknown} couldn't be read`,
+  ].filter(Boolean);
+  return { ok: true, message: `Checked ${targets.length} listing${targets.length === 1 ? "" : "s"}: ${parts.join(", ")}.` };
 }
 
 export async function addIndexPoint(instrument: string, fd: FormData) {

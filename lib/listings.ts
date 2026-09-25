@@ -4,15 +4,12 @@
  * This is the public JSON feed nhatot.com's own pages call — undocumented, unversioned and
  * free to change under us, so everything here is defensive: an unknown field drops the
  * listing rather than guessing, and a failed request comes back as an error string, never a
- * throw. It runs when you press "Find listings nearby", when you save a plot with auto-comps
- * on, and once a day from the cron for plots that have them (`refreshAutoCompsScheduled`).
+ * throw. It runs only when you press "Find listings nearby" — never on a schedule — and
+ * nothing becomes a comp until you tick it in.
  *
  * What it answers is *asking* prices. They become `kind: "asking"` comps, which the estimate
  * already discounts (`ASKING_DISCOUNT` in `lib/realestate.ts`).
  */
-import {
-  listComps, listProperties, metaGet, metaSet, replaceAutoComps,
-} from "./db";
 import { distanceKm, type LatLng } from "./realestate";
 import type { CompInput, LandUse, RoadAccess } from "./types";
 
@@ -157,6 +154,46 @@ export async function nearbyListings(
   return { ok: true, listings: [...out.values()].sort((a, b) => a.distanceKm - b.distanceKm) };
 }
 
+/** What a listing says today, looked up by id. */
+export type ListingCheck =
+  | { status: "listed"; price: number; area_m2: number }
+  /** Taken down — Nhà Tốt answers 404, or the ad is no longer active. */
+  | { status: "gone" }
+  /** Couldn't tell: the request failed, or the ad has no usable price right now. */
+  | { status: "unknown" };
+
+async function checkListing(id: number): Promise<ListingCheck> {
+  try {
+    const res = await fetch(`${FEED}/${id}`, { headers: { accept: "application/json" } });
+    if (res.status === 404) return { status: "gone" };
+    if (!res.ok) return { status: "unknown" };
+    const text = (await res.text()).replace(/[\u0000-\u001f]/g, " ");
+    const ad = (JSON.parse(text) as { ad?: RawAd & { status?: string } }).ad;
+    if (!ad) return { status: "unknown" };
+    if (ad.status && ad.status !== "active") return { status: "gone" };
+    const { price, size } = ad;
+    if (!price || !size || ad.is_price_not_valid || price < 10_000_000 || size < 10) return { status: "unknown" };
+    return { status: "listed", price: Math.round(price), area_m2: size };
+  } catch {
+    return { status: "unknown" };
+  }
+}
+
+/** How many lookups run at once: quick for a plot's worth of comps, and polite to a feed we
+ *  have no agreement with. */
+const CHECK_CONCURRENCY = 6;
+
+/** Each listing's current price, in `ids` order. One request per listing: the search feed
+ *  can't be asked for particular ids, and only a direct lookup tells "taken down" apart
+ *  from "moved outside the search radius". */
+export async function checkListings(ids: number[]): Promise<ListingCheck[]> {
+  const out: ListingCheck[] = [];
+  for (let i = 0; i < ids.length; i += CHECK_CONCURRENCY) {
+    out.push(...(await Promise.all(ids.slice(i, i + CHECK_CONCURRENCY).map(checkListing))));
+  }
+  return out;
+}
+
 /** A listing as the comp it becomes — always an asking price. */
 export function listingComp(l: Listing): CompInput {
   return {
@@ -164,56 +201,4 @@ export function listingComp(l: Listing): CompInput {
     kind: "asking", land_use: l.land_use, access: l.access,
     label: l.title.slice(0, 80), source: l.url, note: l.place || null,
   };
-}
-
-/**
- * For every plot with auto-comps on (or just `only`), replace the comps its refresh owns
- * with the `auto_comps` nearest listings of the same land use (less any already kept).
- *
- * Replaced, not appended: the set is "the N nearest listed right now", so a listing taken
- * down drops out and a closer new one takes its place. A comp you added or ticked in
- * yourself is never touched, and one of the N that's already one of the plot's comps isn't
- * added twice. If the search fails the old set stays; a Nhà Tốt outage costs freshness,
- * not evidence.
- *
- * One upstream search and one batched write per plot. That's a loop with I/O in it, but
- * each plot is its own search around its own pin, so there's no single query to fold it into.
- */
-export async function refreshAutoComps(only?: string): Promise<string[]> {
-  const [properties, comps] = await Promise.all([listProperties(), listComps()]);
-  const targets = properties.filter((p) => p.auto_comps > 0 && (!only || p.instrument === only));
-  const errors: string[] = [];
-  for (const p of targets) {
-    const found = await nearbyListings(p, p.radius_km);
-    if (!found.ok) {
-      errors.push(`${p.instrument}: ${found.message}`);
-      continue;
-    }
-    // This plot's own hand-kept comps. Another plot's comps are no concern of this one's —
-    // comps aren't shared, so the same listing may well be evidence for both.
-    const taken = new Set(
-      comps.filter((c) => c.instrument === p.instrument && c.auto_for == null).map((c) => c.source),
-    );
-    // The N nearest first, *then* drop the ones already kept: a listing you ticked in by
-    // hand is one of the N and already counts, so it isn't replaced by one further out.
-    const nearest = found.listings
-      .filter((l) => l.land_use === p.land_use)
-      .slice(0, p.auto_comps)
-      .filter((l) => !taken.has(l.url));
-    await replaceAutoComps(p.instrument, nearest.map(listingComp));
-  }
-  return errors;
-}
-
-/** Listings move slowly; once a day is plenty, and keeps us a light user of a feed we
- *  have no agreement with. */
-const AUTO_COMPS_MAX_AGE_MS = 24 * 3_600_000;
-
-/** The cron's entry point: `refreshAutoComps`, at most once a day. The stamp is written
- *  before the refresh, so a failing feed is retried tomorrow rather than every minute. */
-export async function refreshAutoCompsScheduled(): Promise<string[]> {
-  const at = await metaGet("comps_refreshed_at");
-  if (at && Date.now() - Date.parse(at + "Z") < AUTO_COMPS_MAX_AGE_MS) return [];
-  await metaSet("comps_refreshed_at", new Date().toISOString().slice(0, 19));
-  return (await refreshAutoComps()).map((e) => `auto-comps ${e}`);
 }

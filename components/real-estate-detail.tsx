@@ -10,7 +10,7 @@ import {
 } from "@/lib/types";
 import { fmtVND } from "@/lib/format";
 import {
-  estimate, fmtLatLng, hasPrediction, mapsUrl, type Anchor, type ScoredComp,
+  estimate, fmtLatLng, hasPrediction, listingId, mapsUrl, type Anchor, type ScoredComp,
 } from "@/lib/realestate";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
@@ -19,7 +19,8 @@ import { SummaryCards } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import {
   AddCompDialog, BookLowEndButton, CONFIDENCE_BADGE, CompActions, CompRadar, EditLocationDialog,
-  FindListingsDialog, IndexPanel, PropertyForm, ValuationList, basisLine, fmtKm, fmtPerM2,
+  FindListingsDialog, IndexPanel, PropertyForm, RefreshPricesButton, ValuationList, basisLine,
+  fmtKm, fmtPerM2,
   type EstateHolding,
 } from "@/components/real-estate-parts";
 
@@ -28,7 +29,6 @@ type PlotComp = ScoredComp & { share: number };
 
 const EXCLUDED_LABEL = {
   "land use": "Different land use",
-  "too far": "Too far",
   future: "Dated in the future",
 } as const;
 
@@ -51,7 +51,8 @@ const compColumns: ColumnDef<PlotComp>[] = [
           </div>
           <div className="truncate text-caption text-muted-foreground">
             {c.kind === "sale" ? "Sold" : "Asking"}
-            {c.auto_for && " · auto"} · {c.note ?? fmtLatLng(c)}
+            {c.delisted_on && ` · no longer listed since ${c.delisted_on}`}
+            {" · "}{c.note ?? fmtLatLng(c)}
           </div>
         </div>
       );
@@ -166,8 +167,6 @@ export function RealEstateDetail({
   const predicted = hasPrediction(v);
   const used = v.scored.filter((s) => s.weight > 0);
   const totalW = used.reduce((a, s) => a + s.weight, 0);
-  // All of them, not just those inside the radius: every comp here was gathered for this plot,
-  // so one that drifted out of reach (the radius shrank) is still yours to see and delete.
   const rows: PlotComp[] = v.scored.map((s) => ({ ...s, share: totalW > 0 ? s.weight / totalW : 0 }));
   const booked = holding.value;
   const diff = v.low - booked;
@@ -182,6 +181,10 @@ export function RealEstateDetail({
           <>
             <EditLocationDialog holding={holding.name} property={property} />
             <FindListingsDialog property={property} />
+            <RefreshPricesButton
+              holding={holding.name}
+              disabled={!comps.some((c) => listingId(c.source) != null)}
+            />
             <BookLowEndButton holding={holding.name} disabled={!predicted || v.low === booked} />
             <AddCompDialog holding={holding.name} />
           </>
@@ -222,7 +225,7 @@ export function RealEstateDetail({
             sub: diff === 0 ? "Matches the low end" : `Low end is ${diff > 0 ? "+" : "−"}${fmtVND(Math.abs(diff))}`,
           },
         ] : [
-          { label: "Estimate", value: "No prediction yet", sub: `No comps within ${property.radius_km} km`, unmask: true },
+          { label: "Estimate", value: "No prediction yet", sub: "No comps with the same land use", unmask: true },
           {
             label: "What you paid",
             value: anchor ? fmtVND(anchor.cost) : "—",
@@ -245,7 +248,7 @@ export function RealEstateDetail({
             {used.length === 0 ? (
               <p className="text-body-sm text-muted-foreground">
                 No comps count yet. Use <span className="font-semibold text-foreground">Find listings nearby</span>,
-                or add a plot with the same land use within {property.radius_km} km yourself.
+                or add a plot with the same land use yourself.
               </p>
             ) : (
               <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
@@ -275,12 +278,7 @@ export function RealEstateDetail({
       <section className="flex flex-col gap-3 overflow-hidden card-surface panel-body">
         <PanelHead
           title={`Comps · ${rows.length}`}
-          info={`The evidence for this plot alone — comps aren't shared, so another plot's never count here. Each shows the share of the estimate it carries. ₫/m² is as counted: asking prices discounted, old comps carried forward by the area index. One with a different land use, or beyond ${property.radius_km} km, is listed but doesn't count. Auto comps are replaced by the daily refresh; editing one keeps it.`}
-          actions={
-            property.auto_comps > 0 ? (
-              <Badge variant="secondary">Auto: {property.auto_comps} nearest</Badge>
-            ) : undefined
-          }
+          info={`Every comp you added to this plot counts, with the share of the estimate it carries: nearer, fresher and more alike count more — one ${property.radius_km} km out counts half as much as one next door. Comps aren't shared between plots. ₫/m² is as counted: asking prices discounted, old comps carried forward by the area index. Only a different land use keeps a comp out.`}
         />
         <DataTable
           columns={compColumns}

@@ -1,15 +1,17 @@
 /**
  * What a plot of land is worth, from where it is. Pure — safe on client and server.
  *
- * This never fetches anything. It works from comps near the plot — sales you entered, or
- * listings imported from Nhà Tốt by `lib/listings.ts` — and, if you keep one, an area index.
+ * This never fetches anything. It works from the comps you added to the plot — sales you
+ * entered, or listings imported from Nhà Tốt by `lib/listings.ts` — and, if you keep one, an
+ * area index. Every comp you added counts; none is dropped for being far or for making up
+ * the numbers past some count.
  * It says how much evidence there was, because a valuation built on one listing is not the
  * same claim as one built on twenty sales.
  *
  * The method, in the order it runs:
  *
  * 1. **Score every comp** (`scoreComp`). Land use must match outright. Everything else only
- *    weighs: distance (fading to nothing at the property's radius), age (halving every
+ *    weighs: distance (half weight at the search radius, never zero), age (halving every
  *    `HALF_LIFE_YEARS`), road access and plot size. An asking price is cut by
  *    `ASKING_DISCOUNT` first, and an old comp is carried forward by the area index.
  * 2. **Take the weighted quartiles** of the comps' ₫/m² and multiply by your area. The
@@ -129,7 +131,7 @@ export function indexFactor(points: PropertyIndexPoint[], from: string, to: stri
 
 // ---------- scoring comps ----------
 
-export type ExcludedReason = "land use" | "too far" | "future";
+export type ExcludedReason = "land use" | "future";
 
 export interface ScoredComp {
   comp: PropertyComp;
@@ -155,12 +157,11 @@ export function scoreComp(
   const base = { comp, distanceKm: d, perM2 };
 
   if (comp.land_use !== subject.land_use) return { ...base, weight: 0, excluded: "land use" };
-  if (d >= subject.radius_km) return { ...base, weight: 0, excluded: "too far" };
   if (comp.date > today) return { ...base, weight: 0, excluded: "future" };
 
-  // Biweight kernel: full weight on top of the plot, easing to exactly zero at the radius,
-  // so a comp drifting across the edge fades out rather than dropping off a cliff.
-  const near = (1 - (d / subject.radius_km) ** 2) ** 2;
+  // Nearer counts more, but nothing you added counts for nothing: full weight on top of the
+  // plot, half at the search radius, a fifth at twice it. The radius is only a scale here.
+  const near = 1 / (1 + (d / subject.radius_km) ** 2);
   const ageYears = (Date.parse(today) - Date.parse(comp.date)) / DAY_MS / YEAR_DAYS;
   const fresh = 0.5 ** (ageYears / HALF_LIFE_YEARS);
   const road = comp.access === subject.access ? 1 : ACCESS_MISMATCH;
@@ -312,6 +313,13 @@ export function predictionDelta(items: PredictedHolding[]): number {
 }
 
 /** A plot's details page. The name is the holding's, so it's encoded — names have spaces. */
+/** The Nhà Tốt listing id in a comp's `source`, or null for a comp that isn't an imported
+ *  listing (`listingUrl` in `lib/listings.ts` writes these). */
+export function listingId(source: string | null): number | null {
+  const m = source?.match(/^https:\/\/www\.nhatot\.com\/(\d+)\.htm$/);
+  return m ? Number(m[1]) : null;
+}
+
 export function estateHref(name: string): string {
   return `/real-estate/${encodeURIComponent(name)}`;
 }

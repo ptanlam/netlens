@@ -220,10 +220,8 @@ export interface Property {
   area_m2: number;
   land_use: LandUse;
   access: RoadAccess;
-  /** How far out a comp may be and still count. */
+  /** How far "Find listings nearby" searches, and the distance at which a comp counts half. */
   radius_km: number;
-  /** Keep this many of the nearest Nhà Tốt listings as comps, refreshed daily. 0 = off. */
-  auto_comps: number;
   note: string | null;
   created_at: string;
 }
@@ -245,15 +243,16 @@ export interface PropertyComp {
   /** The plot this comp is evidence for. Comps aren't shared: each belongs to one plot.
    *  Null only for a comp from before that, with no plot placed to hand it to. */
   instrument: string | null;
-  /** Set (to `instrument`) when the daily auto-refresh owns this row and replaces it on each
-   *  run. Null for a comp you added or ticked in yourself — those are never touched. */
-  auto_for: string | null;
+  /** A Nhà Tốt comp whose listing a price refresh found gone, from that day. Kept — it has
+   *  often sold near its last ask — but no longer refreshed. Null = still listed, or not a
+   *  listing at all. */
+  delisted_on: string | null;
   created_at: string;
 }
 
-/** Fields a comp is written with; the rest (`id`, `created_at`, and which plot owns it and
- *  how) are passed separately. */
-export type CompInput = Omit<PropertyComp, "id" | "created_at" | "instrument" | "auto_for">;
+/** Fields a comp is written with; the rest (`id`, `created_at`, and which plot owns it) are
+ *  passed separately. */
+export type CompInput = Omit<PropertyComp, "id" | "created_at" | "instrument" | "delisted_on">;
 
 export const VALUATION_SOURCES = ["initial", "estimate", "manual"] as const;
 export type ValuationSource = (typeof VALUATION_SOURCES)[number];
