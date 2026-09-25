@@ -32,6 +32,7 @@ Pure, dependency-free logic (safe to import from client components) lives in
 | `lib/types.ts` | Shared interfaces + `as const` arrays (`ASSET_TYPES`, `INTEREST_TYPES`, `PRICE_SOURCES`). Client-safe. |
 | `lib/savings.ts` | Interest maths over the `Accruing` shape — used by BOTH savings and debts. |
 | `lib/subscriptions.ts` | Billing-cycle maths over the `Billable` shape — renewal dates, ₫/month, the 12-month forecast. |
+| `lib/realestate.ts` | Land valuation from nearby comps + an optional area index. Pure; see AGENTS.md "Real estate". |
 | `lib/goals.ts` | Goal progress + the forward projection. Pure; reads a `GoalWorld` gathered by `db.buildGoalWorld()`. |
 | `lib/settings.ts` | `SETTINGS_SECTIONS` — the settings rail, shared server/client. |
 | `lib/pnl.ts` | Reconstructs the daily P&L series from transactions + `price_history`. |
@@ -62,7 +63,7 @@ The load-bearing part is in `wrangler.jsonc`, not in any code: `workers_dev: fal
 ## Routes
 
 Pages: `/` (dashboard), `/investments`, `/transactions`, `/savings`, `/debts`,
-`/subscriptions`, `/goals`,
+`/subscriptions`, `/goals`, `/real-estate`, `/real-estate/<name>`,
 `/recurring`, `/settings/appearance`, `/settings/price-sources`.
 Route handlers: `GET /export.csv`, `GET /api/pnl-history`, `GET /api/price-status`,
 `GET /healthz`.

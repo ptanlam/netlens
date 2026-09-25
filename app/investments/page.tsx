@@ -8,12 +8,13 @@ export default async function InvestmentsPage() {
   // Must land before anything reads transactions — it inserts the due ones.
   await db.materializeRecurring();
 
-  const [instruments, txs, rules, sources, historyStamp] = await Promise.all([
+  const [instruments, txs, rules, sources, historyStamp, predictions] = await Promise.all([
     db.listInstruments(),
     db.allTransactions(),
     db.listRecurring(),
     db.listPriceSources(),
     db.historyStamp(),
+    db.realEstatePredictions(),
   ]);
   const sourceKeys = [db.MANUAL_SOURCE, ...sources.map((s) => s.key)];
 
@@ -54,6 +55,7 @@ export default async function InvestmentsPage() {
       txCountBy={txCountBy}
       rulesByInstrument={rulesByInstrument}
       sourceKeys={sourceKeys}
+      predictions={predictions}
     />
   );
 }

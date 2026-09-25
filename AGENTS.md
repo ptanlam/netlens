@@ -106,6 +106,46 @@ A goal can be denominated in foreign money ("Race to $100k"): `goals.target_ccy`
 - A live target means a goal can slip to "Behind" on a week you saved perfectly well, so every screen showing one also shows the amount, the rate, the source and the timestamp (`FxNote`).
 
 
+## Real estate (land valuation)
+
+`/real-estate` is a table of every Real Estate holding (booked vs predicted, valued on the
+server so no comps are shipped to it); each row opens `/real-estate/<name>` — the plot's
+prediction, comp map, its comps, bookings and area index. On Investments, a Real Estate
+holding's row links there ("Valuation"). Shared UI pieces live
+in `components/real-estate-parts.tsx`; `revalidateAll` revalidates `/real-estate` as a
+*layout* so every plot page refreshes. The app estimates a holding's worth from **where it is**
+(`lib/realestate.ts`, schema in `migrations/0008_property_valuation.sql`). The evidence is
+comps: sales you enter, or **Nhà Tốt listings** pulled in by "Find listings nearby"
+(`lib/listings.ts` — Chợ Tốt's undocumented public feed, queried by lat/lng + whole-km radius,
+only on that button press, never on a schedule; imports dedupe on the listing URL in `source`):
+
+- **`properties`** places a holding (keyed by instrument name): lat/lng, area, land use,
+  road access, and the radius comps count within.
+- **`property_comps`** are comparable plots — a sale or a listing — and **each belongs to one
+  plot** (`instrument`, migration `0010`). They used to be shared by every plot in reach; they
+  aren't any more, because each is gathered *for* a plot and one plot's evidence turning up in
+  another's estimate was a surprise. The same listing may be a comp for two plots — as two rows.
+  Filter by `instrument` everywhere comps feed an estimate (`db.listComps(instrument)`).
+- **`property_index`** is an optional area price series per property; only ratios between
+  dates are used, to carry old comps and the purchase price forward.
+
+The estimate is the weighted median ₫/m² of comps (land use must match; distance, age, road
+and plot size only weigh; asking prices lose `ASKING_DISCOUNT`), shrunk toward what you paid
+(`PRIOR_WEIGHT`) while the evidence is thin. **It never moves net worth by itself**: "Book the
+low end" books the low end, deliberately and conservatively. Nothing derived is stored.
+
+- **Bookings are dated** (`property_valuations`, migration `0009`). A past day is valued at the
+  latest booking on or before it (`manualAt` in `lib/pnl.ts`, used by BOTH `buildDaily` and
+  `buildLatest`), so a gain lands on the day you booked it, not the purchase day. The first
+  booking also writes the value it replaced, dated at the first purchase (`initial`). Undo =
+  delete the row. `manual_value` is kept equal to the latest row, so nothing that reads today's
+  value changed. Typing a Real Estate value on Investments books it too (`recordManualEdit`).
+- **Auto-comps** (`properties.auto_comps` = N, 0 off): the cron, once a day
+  (`refreshAutoCompsScheduled`), and a save of the location replace the rows that property's
+  refresh owns (`property_comps.auto_for`) with the N nearest same-land-use listings, less any
+  that plot already keeps by hand. Hand-added or ticked comps (`auto_for` NULL) are never touched; editing an
+  auto comp adopts it.
+
 ## Streak
 
 The saving streak (`lib/score.ts`, `components/streak-card.tsx`) **opens the dashboard's analysis

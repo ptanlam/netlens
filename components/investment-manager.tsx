@@ -22,6 +22,7 @@ import { PageHeader } from "@/components/page-header";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { holdingLogo } from "@/lib/logos";
 import { cn } from "@/lib/utils";
+import { estateHref, predictionDelta, type PredictedHolding } from "@/lib/realestate";
 
 export interface HoldingView {
   inst: Instrument;
@@ -118,6 +119,8 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
   // Exactly zero units — sold out. Null is a different thing (units unknown: a fund
   // awaiting confirmation, or a manually-valued holding), and must not be flagged.
   const soldOut = inst.quantity === 0 && inst.archived !== 1;
+  // Land has its own page — location, comps, the prediction, booked values.
+  const estate = inst.asset_type === "Real Estate" ? estateHref(inst.name) : null;
 
   return (
     <div className="border-t border-divider-soft first:border-t-0">
@@ -135,6 +138,18 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
               <EntityAvatar name={inst.name} color={typeColor(inst.asset_type)} logo={holdingLogo(inst.name, inst.symbol)} />
               <span className="truncate text-body-sm font-semibold">{inst.name}</span>
               <Badge variant="tag">{inst.asset_type}</Badge>
+              {estate && (
+                // Inside the row's own toggle, so it must not also open the row.
+                <Link
+                  href={estate}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-caption font-semibold text-accent-brand hover:underline"
+                >
+                  Valuation
+                  <ArrowRight className="size-3" />
+                </Link>
+              )}
               {live && !soldOut && <Badge variant="accent">live</Badge>}
               {soldOut && <Badge variant="secondary">sold out</Badge>}
               {usesFallback && (
@@ -178,7 +193,7 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
               the filter already set. A holding's own rows used to be paged five at a time
               right here, which was a second, weaker copy of a table that page does properly
               (sorting, units, price, the lot). */}
-          <div className="mb-5">
+          <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-2">
             {txCount === 0 ? (
               <p className="text-body-sm text-muted-foreground">No transactions recorded.</p>
             ) : (
@@ -187,6 +202,15 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
                 className="inline-flex items-center gap-1.5 text-body-sm font-semibold text-accent-brand hover:underline"
               >
                 {txCount} transaction{txCount === 1 ? "" : "s"}
+                <ArrowRight className="size-3.5" />
+              </Link>
+            )}
+            {estate && (
+              <Link
+                href={estate}
+                className="inline-flex items-center gap-1.5 text-body-sm font-semibold text-accent-brand hover:underline"
+              >
+                Location, comps &amp; prediction
                 <ArrowRight className="size-3.5" />
               </Link>
             )}
@@ -228,6 +252,7 @@ export function InvestmentManager({
   txCountBy,
   rulesByInstrument,
   sourceKeys,
+  predictions,
 }: {
   holdings: HoldingView[];
   /** Drives the two overview panels. Server-rendered, then replaced by each price tick's
@@ -241,6 +266,9 @@ export function InvestmentManager({
   txCountBy: Record<string, number>;
   rulesByInstrument: Record<string, RuleView[]>;
   sourceKeys: string[];
+  /** Real Estate holdings with a predicted value. Shown as their own tile beside the actual
+   *  portfolio value, which keeps counting only what you booked. */
+  predictions: PredictedHolding[];
 }) {
   // Shared with the dashboard, so arriving here from it costs nothing: the series is
   // already in the module cache. Only the per-holding breakdown is used — the row sparks.
@@ -260,8 +288,25 @@ export function InvestmentManager({
   const groups = groupByType(active);
   const typeCount = new Set(active.map((h) => h.inst.asset_type)).size;
 
+  const landDelta = Math.round(predictionDelta(predictions));
+
   const kpis: Stat[] = [
-    { label: "Portfolio value", value: fmtVND(totalValue), sub: "Live · quantity × price" },
+    {
+      label: "Portfolio value",
+      value: fmtVND(totalValue),
+      // The prediction rides under the actual figure rather than taking a tile of its own:
+      // it's the same total with land re-priced, and a fifth tile left Holdings alone on
+      // a row.
+      sub: landDelta !== 0 ? (
+        <Link
+          href="/real-estate"
+          title={`With land at its estimate (${landDelta > 0 ? "+" : "−"}${fmtVND(Math.abs(landDelta))})`}
+          className="underline-offset-2 hover:underline"
+        >
+          Predicted <span className="font-mono whitespace-nowrap">{fmtVND(totalValue + landDelta)}</span>
+        </Link>
+      ) : "Live · quantity × price",
+    },
     { label: "Total invested", value: fmtVND(totalCost), sub: "Cost basis, all time" },
     {
       label: "Total P&L",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import * as db from "@/lib/db";
+import { estateHref } from "@/lib/realestate";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +33,17 @@ export async function GET() {
     { label: "Dashboard", kind: "Page", href: "/" },
     { label: "Investments", kind: "Page", href: "/investments" },
     { label: "Savings", kind: "Page", href: "/savings" },
+    { label: "Real estate", kind: "Page", href: "/real-estate" },
     { label: "Debts", kind: "Page", href: "/debts" },
     { label: "Subscriptions", kind: "Page", href: "/subscriptions" },
     { label: "Goals", kind: "Page", href: "/goals" },
     { label: "Transactions", kind: "Page", href: "/transactions" },
     { label: "Settings", kind: "Page", href: "/settings" },
-    ...instruments.map((i) => ({ label: i.name, kind: i.asset_type, href: "/investments" })),
+    ...instruments.map((i) => ({
+      label: i.name,
+      kind: i.asset_type,
+      href: i.asset_type === "Real Estate" ? estateHref(i.name) : "/investments",
+    })),
     ...savings.map((s) => ({
       label: s.bank ?? "Term deposit",
       kind: "Deposit",

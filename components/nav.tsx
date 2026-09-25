@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import {
   Menu, Settings, ChevronsLeft,
-  LayoutDashboard, TrendingUp, ArrowLeftRight, PiggyBank, CreditCard, CalendarSync, Target, LineChart,
+  LayoutDashboard, TrendingUp, ArrowLeftRight, PiggyBank, LandPlot, CreditCard, CalendarSync, Target, LineChart,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,7 @@ const SECTIONS: NavSection[] = [
       // then what you did. Amber matches the dashboard's own "History" shortcut.
       { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
       { href: '/savings', label: 'Savings', icon: PiggyBank },
+      { href: '/real-estate', label: 'Real estate', icon: LandPlot },
     ],
   },
   {

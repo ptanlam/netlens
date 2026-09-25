@@ -184,6 +184,98 @@ export interface Subscription {
   created_at: string;
 }
 
+// ---------- real estate (land valuation) ----------
+
+/** A hard match between a plot and its comps — residential land trades at several times the
+ *  agricultural land beside it, so mixing the two would average two different markets. */
+export const LAND_USES = ["residential", "agricultural", "mixed"] as const;
+export type LandUse = (typeof LAND_USES)[number];
+
+export const LAND_USE_LABELS: Record<LandUse, string> = {
+  residential: "Residential",
+  agricultural: "Agricultural",
+  mixed: "Partly residential",
+};
+
+/** A soft match: a comp on a different kind of road still counts, for less. */
+export const ROAD_ACCESS = ["street", "alley", "none"] as const;
+export type RoadAccess = (typeof ROAD_ACCESS)[number];
+
+export const ROAD_ACCESS_LABELS: Record<RoadAccess, string> = {
+  street: "Street front",
+  alley: "Alley",
+  none: "No road access",
+};
+
+/** `sale` is a price someone paid; `asking` is a listing, discounted on read. */
+export const COMP_KINDS = ["sale", "asking"] as const;
+export type CompKind = (typeof COMP_KINDS)[number];
+
+/** Where a Real Estate holding sits and what kind of plot it is. `instrument` is the
+ *  holding's name — the holding stays what net worth reads; this only describes it. */
+export interface Property {
+  instrument: string;
+  lat: number;
+  lng: number;
+  area_m2: number;
+  land_use: LandUse;
+  access: RoadAccess;
+  /** How far out a comp may be and still count. */
+  radius_km: number;
+  /** Keep this many of the nearest Nhà Tốt listings as comps, refreshed daily. 0 = off. */
+  auto_comps: number;
+  note: string | null;
+  created_at: string;
+}
+
+/** A comparable plot. `price` is the whole plot in VND, as quoted — never per m². */
+export interface PropertyComp {
+  id: number;
+  lat: number;
+  lng: number;
+  area_m2: number;
+  price: number;
+  date: string;
+  kind: CompKind;
+  land_use: LandUse;
+  access: RoadAccess;
+  label: string | null;
+  source: string | null;
+  note: string | null;
+  /** The plot this comp is evidence for. Comps aren't shared: each belongs to one plot.
+   *  Null only for a comp from before that, with no plot placed to hand it to. */
+  instrument: string | null;
+  /** Set (to `instrument`) when the daily auto-refresh owns this row and replaces it on each
+   *  run. Null for a comp you added or ticked in yourself — those are never touched. */
+  auto_for: string | null;
+  created_at: string;
+}
+
+/** Fields a comp is written with; the rest (`id`, `created_at`, and which plot owns it and
+ *  how) are passed separately. */
+export type CompInput = Omit<PropertyComp, "id" | "created_at" | "instrument" | "auto_for">;
+
+export const VALUATION_SOURCES = ["initial", "estimate", "manual"] as const;
+export type ValuationSource = (typeof VALUATION_SOURCES)[number];
+
+/** What a manually-valued holding was worth from `date` on, until the next row. */
+export interface PropertyValuation {
+  instrument: string;
+  date: string;
+  value: number;
+  source: ValuationSource;
+  created_at: string;
+}
+
+/** One reading of an area price index. Only ratios between dates are used, so the unit is
+ *  whatever the source publishes, as long as it stays the same. */
+export interface PropertyIndexPoint {
+  instrument: string;
+  date: string;
+  level: number;
+  source: string | null;
+}
+
 /**
  * What a goal tracks. Four of these are figures the dashboard already computes, so the
  * goal reads them live. `fund` is the odd one out: a sinking fund (a car, a wedding) is

@@ -18,13 +18,14 @@
  * The schema lives in `migrations/`, not in a string here — see `migrations/0001_init.sql`.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, PriceStatus, RecurringRule, Saving, Subscription, Tx } from "./types";
+import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, Subscription, Tx, ValuationSource } from "./types";
 import { normalizePriceRefreshMs } from "./types";
 import { fundCashAt, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
+import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
 
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
-export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, RecurringRule, Saving, Subscription, Tx } from "./types";
+export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, Property, PropertyComp, PropertyIndexPoint, RecurringRule, Saving, Subscription, Tx } from "./types";
 
 /** Set by `bindD1`, for callers that have no Cloudflare context to read. */
 let boundDb: D1Database | null = null;
@@ -367,6 +368,206 @@ export async function setSubscriptionCancelled(id: number, cancelled: boolean) {
 
 export async function deleteSubscription(id: number) {
   await q("DELETE FROM subscriptions WHERE id=?").run(id);
+}
+
+// ---------- real estate (land valuation — maths in lib/realestate.ts) ----------
+
+export async function listProperties(): Promise<Property[]> {
+  return q("SELECT * FROM properties ORDER BY instrument").all<Property>();
+}
+
+export async function getProperty(instrument: string): Promise<Property | undefined> {
+  return q("SELECT * FROM properties WHERE instrument=?").get<Property>(instrument);
+}
+
+export async function saveProperty(
+  instrument: string, lat: number, lng: number, areaM2: number,
+  landUse: string, access: string, radiusKm: number, autoComps: number, note: string | null,
+) {
+  await q(
+    `INSERT INTO properties(instrument, lat, lng, area_m2, land_use, access, radius_km, auto_comps, note) VALUES (?,?,?,?,?,?,?,?,?)
+     ON CONFLICT(instrument) DO UPDATE SET lat=excluded.lat, lng=excluded.lng, area_m2=excluded.area_m2,
+       land_use=excluded.land_use, access=excluded.access, radius_km=excluded.radius_km,
+       auto_comps=excluded.auto_comps, note=excluded.note`,
+  ).run(instrument, lat, lng, areaM2, landUse, access, radiusKm, autoComps, note);
+}
+
+/** Forget where a plot is, with the index and the auto-comps kept for it. The holding, its
+ *  value and its valuation history stay — those are about what you own, not where it is —
+ *  and so do the comps you added by hand: they're still this plot's, and count again once
+ *  it's placed. */
+export async function deleteProperty(instrument: string) {
+  await db().batch([
+    q("DELETE FROM properties WHERE instrument=?").bound(instrument),
+    q("DELETE FROM property_index WHERE instrument=?").bound(instrument),
+    q("DELETE FROM property_comps WHERE auto_for=?").bound(instrument),
+  ]);
+}
+
+/** One plot's comps, or every plot's when no name is given (for the pages that value
+ *  several plots at once, which then group them by `instrument`). */
+export async function listComps(instrument?: string): Promise<PropertyComp[]> {
+  return instrument
+    ? q("SELECT * FROM property_comps WHERE instrument=? ORDER BY date DESC, id DESC").all<PropertyComp>(instrument)
+    : q("SELECT * FROM property_comps ORDER BY date DESC, id DESC").all<PropertyComp>();
+}
+
+export async function getComp(id: number): Promise<PropertyComp | undefined> {
+  return q("SELECT * FROM property_comps WHERE id=?").get<PropertyComp>(id);
+}
+
+const INSERT_COMP =
+  "INSERT INTO property_comps(lat, lng, area_m2, price, date, kind, land_use, access, label, source, note, instrument, auto_for) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+/** `auto` marks the row as the daily refresh's to replace. */
+function compArgs(c: CompInput, instrument: string, auto: boolean): Bind[] {
+  return [
+    c.lat, c.lng, c.area_m2, Math.round(c.price), c.date, c.kind, c.land_use, c.access,
+    c.label, c.source, c.note, instrument, auto ? instrument : null,
+  ];
+}
+
+export async function addComp(instrument: string, c: CompInput) {
+  await q(INSERT_COMP).run(...compArgs(c, instrument, false));
+}
+
+/** Several comps for one plot in one round trip — an import of listings, typically. */
+export async function addComps(instrument: string, list: CompInput[]) {
+  if (list.length === 0) return;
+  const stmt = q(INSERT_COMP);
+  await db().batch(list.map((c) => stmt.bound(...compArgs(c, instrument, false))));
+}
+
+/** Swap a plot's auto-kept comps for a fresh set, atomically: a failed insert can't leave
+ *  the plot with its old rows gone and no new ones. */
+export async function replaceAutoComps(instrument: string, list: CompInput[]) {
+  const stmt = q(INSERT_COMP);
+  await db().batch([
+    q("DELETE FROM property_comps WHERE auto_for=?").bound(instrument),
+    ...list.map((c) => stmt.bound(...compArgs(c, instrument, true))),
+  ]);
+}
+
+/** Editing a comp adopts it: it stops being the auto-refresh's to replace, since a comp
+ *  you've corrected by hand is one you mean to keep. */
+export async function updateComp(id: number, c: CompInput) {
+  await q(
+    "UPDATE property_comps SET lat=?, lng=?, area_m2=?, price=?, date=?, kind=?, land_use=?, access=?, label=?, source=?, note=?, auto_for=NULL WHERE id=?",
+  ).run(c.lat, c.lng, c.area_m2, Math.round(c.price), c.date, c.kind, c.land_use, c.access, c.label, c.source, c.note, id);
+}
+
+export async function deleteComp(id: number) {
+  await q("DELETE FROM property_comps WHERE id=?").run(id);
+}
+
+export async function listPropertyIndex(instrument?: string): Promise<PropertyIndexPoint[]> {
+  return instrument
+    ? q("SELECT * FROM property_index WHERE instrument=? ORDER BY date").all<PropertyIndexPoint>(instrument)
+    : q("SELECT * FROM property_index ORDER BY instrument, date").all<PropertyIndexPoint>();
+}
+
+/** One reading per date: a second one on the same day replaces the first. */
+export async function savePropertyIndexPoint(instrument: string, date: string, level: number, source: string | null) {
+  await q(
+    "INSERT INTO property_index(instrument, date, level, source) VALUES (?,?,?,?) ON CONFLICT(instrument, date) DO UPDATE SET level=excluded.level, source=excluded.source",
+  ).run(instrument, date, level, source);
+}
+
+export async function deletePropertyIndexPoint(instrument: string, date: string) {
+  await q("DELETE FROM property_index WHERE instrument=? AND date=?").run(instrument, date);
+}
+
+export async function listValuations(): Promise<PropertyValuation[]> {
+  return q("SELECT * FROM property_valuations ORDER BY instrument, date").all<PropertyValuation>();
+}
+
+/** Each manually-valued holding's dated values, oldest first — the steps `lib/pnl.ts`
+ *  values a past day from. */
+export async function valuationsByInstrument(): Promise<Record<string, [string, number][]>> {
+  const out: Record<string, [string, number][]> = {};
+  for (const v of await listValuations()) (out[v.instrument] ??= []).push([v.date, v.value]);
+  return out;
+}
+
+/**
+ * Book a value for a holding as of today.
+ *
+ * The first booking also records `previous` — the value it replaces — dated at the first
+ * purchase, because that's what the holding was carried at until today. Without that row the
+ * days before today would fall back to the first booking, which is the very back-dating this
+ * table exists to stop. `manual_value` is set in the same batch, so today's figure and the
+ * history can never disagree.
+ */
+export async function recordValuation(
+  instrument: string, value: number, source: ValuationSource, previous: number | null,
+) {
+  const today = todayIso();
+  const [existing, first] = await Promise.all([
+    q("SELECT 1 FROM property_valuations WHERE instrument=? LIMIT 1").get(instrument),
+    q("SELECT MIN(date) AS d FROM transactions WHERE instrument=?").get<{ d: string | null }>(instrument),
+  ]);
+  const v = Math.round(value);
+  const stmts: D1PreparedStatement[] = [];
+  if (!existing && previous != null && first?.d && first.d < today)
+    stmts.push(q(
+      "INSERT INTO property_valuations(instrument, date, value, source) VALUES (?,?,?,'initial') ON CONFLICT DO NOTHING",
+    ).bound(instrument, first.d, Math.round(previous)));
+  stmts.push(
+    q(
+      `INSERT INTO property_valuations(instrument, date, value, source) VALUES (?,?,?,?)
+       ON CONFLICT(instrument, date) DO UPDATE SET value=excluded.value, source=excluded.source`,
+    ).bound(instrument, today, v, source),
+    q("UPDATE instruments SET manual_value=?, updated_at=? WHERE name=?").bound(v, nowIso(), instrument),
+  );
+  await db().batch(stmts);
+  await bumpHistory();
+}
+
+/** Undo a booking: its row goes, and the holding falls back to the latest one left. */
+export async function deleteValuation(instrument: string, date: string) {
+  await db().batch([
+    q("DELETE FROM property_valuations WHERE instrument=? AND date=?").bound(instrument, date),
+    q(
+      `UPDATE instruments SET updated_at=?, manual_value=(
+         SELECT value FROM property_valuations WHERE instrument=? ORDER BY date DESC LIMIT 1)
+       WHERE name=? AND EXISTS (SELECT 1 FROM property_valuations WHERE instrument=?)`,
+    ).bound(nowIso(), instrument, instrument, instrument),
+  ]);
+  await bumpHistory();
+}
+
+/** What you paid for each Real Estate holding and when you started paying: the net of its
+ *  transactions and the first one's date — the anchor a valuation shrinks toward. */
+export async function realEstateAnchors(): Promise<Record<string, { cost: number; date: string }>> {
+  const rows = await q(
+    `SELECT t.instrument AS name, SUM(t.amount) AS cost, MIN(t.date) AS date
+     FROM transactions t JOIN instruments i ON i.name = t.instrument
+     WHERE i.asset_type = 'Real Estate' GROUP BY t.instrument`,
+  ).all<{ name: string; cost: number; date: string }>();
+  return Object.fromEntries(rows.map((r) => [r.name, { cost: r.cost, date: r.date }]));
+}
+
+/**
+ * Every Real Estate holding that has a prediction, at its estimate beside its booked value.
+ *
+ * For the "predicted" figures on the dashboard and Investments, which sit *beside* the actual
+ * ones and never replace them: net worth keeps counting only what you booked. The estimate's
+ * middle, not its low end — booking is where the caution goes; this is the best guess.
+ */
+export async function realEstatePredictions(): Promise<PredictedHolding[]> {
+  const [instruments, properties, comps, index, anchors] = await Promise.all([
+    listInstruments(), listProperties(), listComps(), listPropertyIndex(), realEstateAnchors(),
+  ]);
+  const today = todayIso();
+  return instruments.flatMap((inst) => {
+    const property = properties.find((p) => p.instrument === inst.name);
+    if (inst.asset_type !== "Real Estate" || inst.archived || !property) return [];
+    const v = estimate(
+      property, comps.filter((c) => c.instrument === inst.name),
+      index.filter((p) => p.instrument === inst.name), anchors[inst.name] ?? null, today,
+    );
+    return hasPrediction(v) ? [{ name: inst.name, booked: holdingValue(inst), predicted: v.mid }] : [];
+  });
 }
 
 // ---------- instruments ----------

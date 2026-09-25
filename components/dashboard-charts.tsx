@@ -11,6 +11,7 @@ import { NetWorthPanel } from "@/components/net-worth";
 import { GoalStrip } from "@/components/goal-strip";
 import { StreakCard } from "@/components/streak-card";
 import type { Streak } from "@/lib/score";
+import type { PredictedHolding } from "@/lib/realestate";
 import { SummaryCards, type Stat } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
 import { QuickActions } from "@/components/quick-actions";
@@ -32,6 +33,7 @@ export function DashboardCharts({
   streak,
   historyStamp,
   instruments,
+  predictions,
 }: {
   payload: Payload;
   savings: number;
@@ -47,6 +49,8 @@ export function DashboardCharts({
   historyStamp: string;
   /** Live holdings, for the header's Add transaction dialog. */
   instruments: InstrumentOption[];
+  /** Real Estate holdings with a predicted value — the hero's second, predicted figure. */
+  predictions: PredictedHolding[];
 }) {
   const { series, holdings: holdingSeries, live, asOf, error: seriesError } = usePnlHistory(historyStamp);
 
@@ -153,6 +157,7 @@ export function DashboardCharts({
         debts={debts}
         todayDelta={todayDelta}
         todayFrom={todayFrom}
+        predictions={predictions}
       />
 
       <SummaryCards stats={kpis} />

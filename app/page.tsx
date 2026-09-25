@@ -13,7 +13,7 @@ export default async function Dashboard() {
   // Everything below is independent, so it goes out as one fan-out rather than eight
   // sequential round trips. On better-sqlite3 that ordering was free; on D1 each call is
   // a network hop, and in series they were the slowest thing on the page.
-  const [payload, pending, savings, debtPayments, debts, fundsCash, goalRows, invested, historyStamp, instruments] =
+  const [payload, pending, savings, debtPayments, debts, fundsCash, goalRows, invested, historyStamp, instruments, predictions] =
     await Promise.all([
       db.buildPayload(),
       db.pendingFundUnits(),
@@ -25,6 +25,7 @@ export default async function Dashboard() {
       db.investedByMonth(),
       db.historyStamp(),
       db.listInstruments(),
+      db.realEstatePredictions(),
     ]);
 
   // Live holdings only, as on /transactions: a new buy against an archived holding is
@@ -75,6 +76,7 @@ export default async function Dashboard() {
       streak={streakView}
       historyStamp={historyStamp}
       instruments={options}
+      predictions={predictions}
     />
   );
 }

@@ -11,7 +11,7 @@
  */
 import {
   listInstruments, listPriceSources, livePayload, pnlTransactions, priceHistoryByInstrument,
-  recentCloses, todayIso, txRollup, txUnitPrices,
+  recentCloses, todayIso, txRollup, txUnitPrices, valuationsByInstrument,
 } from "./db";
 import type { HoldingDayPnl, HoldingPnlPoint, LivePayload, PnlPoint } from "./types";
 import { NAV_STRATEGIES } from "./types";
@@ -41,6 +41,25 @@ function priceLookup(points: [string, number][]) {
 }
 
 /**
+ * A manually-valued holding's value on `ds`: its latest dated valuation on or before that
+ * day, or the earliest one for a day before any. With no valuations at all it's today's
+ * `manual_value` on every day, as it always was — which is what put a booked gain on the
+ * purchase day, and why a Real Estate booking now writes a dated row (`recordValuation`).
+ *
+ * `buildDaily` and `buildLatest` both value manual holdings through this, and must: see the
+ * agreement note on `buildLatest`.
+ */
+function manualAt(steps: [string, number][] | undefined, fallback: number, ds: string): number {
+  if (!steps?.length) return fallback;
+  let v = steps[0][1];
+  for (const [d, val] of steps) {
+    if (d > ds) break;
+    v = val;
+  }
+  return v;
+}
+
+/**
  * Core daily reconstruction. Produces both the aggregate P&L series and a
  * per-holding breakdown of each day's move; the breakdown for a day sums (up to
  * rounding) to that day's aggregate P&L delta.
@@ -49,11 +68,12 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
   // All four reads are independent, and the price sources are pulled as one list rather
   // than looked up per instrument inside the loop below — on D1 that loop would have been
   // a query per holding.
-  const [txs, history, instruments, sources] = await Promise.all([
+  const [txs, history, instruments, sources, valuations] = await Promise.all([
     pnlTransactions(),
     priceHistoryByInstrument(),
     listInstruments(),
     listPriceSources(),
+    valuationsByInstrument(),
   ]);
   if (!txs.length) return { series: [], holdings: [] };
 
@@ -80,7 +100,7 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
     lastClose: string;
   }
   const tracked: Record<string, Tracked> = {};
-  const manual: { name: string; type: string; value: number; first: string }[] = [];
+  const manual: { name: string; type: string; value: number; steps?: [string, number][]; first: string }[] = [];
 
   for (const inst of instruments) {
     const instTxs = txs.filter((t) => t.instrument === inst.name);
@@ -109,7 +129,10 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
         lastClose: points[points.length - 1][0],
       };
     } else {
-      manual.push({ name: inst.name, type: inst.asset_type, value: inst.manual_value ?? 0, first });
+      manual.push({
+        name: inst.name, type: inst.asset_type, value: inst.manual_value ?? 0,
+        steps: valuations[inst.name], first,
+      });
     }
   }
 
@@ -184,7 +207,7 @@ export async function buildDaily(): Promise<{ series: PnlPoint[]; holdings: Hold
       prevValue[name] = v;
     }
     for (const m of manual) {
-      const v = ds >= m.first ? m.value : 0;
+      const v = ds >= m.first ? manualAt(m.steps, m.value, ds) : 0;
       if (v !== 0) { held += 1; settled += 1; } // static value is always settled
       value += v;
       const pnl = v - prevValue[m.name] - (contribToday[m.name] ?? 0);
@@ -245,10 +268,11 @@ export async function buildLatest(): Promise<{
   live: LivePayload;
 }> {
   const end = todayIso();
-  const [rollups, instruments, sources] = await Promise.all([
+  const [rollups, instruments, sources, valuations] = await Promise.all([
     txRollup(end),
     listInstruments(),
     listPriceSources(),
+    valuationsByInstrument(),
   ]);
   // The cost basis is not a function of today, so it comes straight off the rollup.
   const costByInstrument: Record<string, number> = {};
@@ -347,11 +371,12 @@ export async function buildLatest(): Promise<{
       if (v !== 0 || pnl !== 0)
         trackedRows.push({ name: inst.name, type: inst.asset_type, value: v, pnl });
     } else {
-      // No close on or before today: valued at its static figure, as `buildDaily`'s
-      // `manual` branch does.
+      // No close on or before today: valued at its dated valuations (else its static
+      // figure), exactly as `buildDaily`'s `manual` branch does.
+      const steps = valuations[inst.name];
       const mv = inst.manual_value ?? 0;
-      const v = end >= r.first_date ? mv : 0;
-      const vYest = prevDs && prevDs >= r.first_date ? mv : 0;
+      const v = end >= r.first_date ? manualAt(steps, mv, end) : 0;
+      const vYest = prevDs && prevDs >= r.first_date ? manualAt(steps, mv, prevDs) : 0;
       value += v;
       const pnl = v - vYest - r.today_amount;
       if (v !== 0 || pnl !== 0)

@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { fmtVND, MONTHS } from "@/lib/format";
+import { predictionDelta, type PredictedHolding } from "@/lib/realestate";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -48,6 +50,7 @@ export function NetWorthPanel({
   debts,
   todayDelta,
   todayFrom,
+  predictions = [],
 }: {
   investments: number;
   savings: number;
@@ -60,8 +63,14 @@ export function NetWorthPanel({
    *  because a feed hasn't settled a close since. Labels the badge honestly instead of
    *  letting a multi-day move read as today's. */
   todayFrom?: string | null;
+  /** Real Estate holdings with a prediction. They add a second, *predicted* figure under the
+   *  actual one — never replacing it: net worth counts only the value you booked. */
+  predictions?: PredictedHolding[];
 }) {
   const net = investments + savings + funds - debts;
+  // Rounded before the test, so a plot booked at exactly its estimate doesn't leave a
+  // predicted line that repeats the figure above it.
+  const landDelta = Math.round(predictionDelta(predictions));
 
   // Flash the figure — up or down — whenever it moves. A price refresh re-renders this
   // panel with a new total; we compare against the last one we showed and, on a real
@@ -167,6 +176,18 @@ export function NetWorthPanel({
       >
         {fmtVND(net)}
       </div>
+
+      {landDelta !== 0 && (
+        <div className="-mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-body-sm sm:-mt-4">
+          <span>Predicted</span>
+          <span className="font-mono text-body-lg font-semibold whitespace-nowrap text-hero-strong">
+            {fmtVND(net + landDelta)}
+          </span>
+          <Link href="/real-estate" className="opacity-80 underline-offset-2 hover:underline">
+            with land at its estimate ({landDelta > 0 ? "+" : "−"}{fmtVND(Math.abs(landDelta))})
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 border-t border-hero-divider pt-6 min-[480px]:grid-cols-2 @3xl:grid-cols-[repeat(auto-fit,minmax(160px,1fr))]">
         {parts.map((p) => (

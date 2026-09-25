@@ -6,10 +6,13 @@ import {
   refreshAll, refreshHistory, refreshRecentHistory, testPriceSource as runPriceSourceTest,
 } from "@/lib/prices";
 import { fmtVND } from "@/lib/format";
+import { listingComp, nearbyListings, refreshAutoComps, type Listing } from "@/lib/listings";
+import { estimate, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
-  BILLING_CYCLES, GOAL_METRICS, PRICE_REFRESH_INTERVALS, SUBSCRIPTION_CATEGORIES,
-  TARGET_CURRENCIES, normalizePriceRefreshMs,
-  type BillingCycle, type GoalMetric, type SubscriptionCategory, type TargetCurrency,
+  BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, PRICE_REFRESH_INTERVALS, ROAD_ACCESS,
+  SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, normalizePriceRefreshMs,
+  type BillingCycle, type CompInput, type CompKind, type GoalMetric, type Instrument, type LandUse,
+  type RoadAccess, type SubscriptionCategory, type TargetCurrency,
 } from "@/lib/types";
 
 function num(v: FormDataEntryValue | null): number | null {
@@ -25,6 +28,8 @@ function str(v: FormDataEntryValue | null): string {
 function revalidateAll() {
   for (const p of ["/", "/investments", "/transactions", "/savings", "/debts", "/subscriptions", "/goals", "/forecast", "/settings/price-sources"])
     revalidatePath(p);
+  // "layout", so every plot's page under it (/real-estate/<name>) is refreshed too.
+  revalidatePath("/real-estate", "layout");
 }
 
 // ---------- transactions ----------
@@ -502,6 +507,223 @@ export async function deleteGoal(id: number) {
   return { ok: true, message: "Goal deleted." };
 }
 
+// ---------- real estate (land valuation) ----------
+
+const oneOf = <T extends string>(list: readonly T[], v: string, fallback: T): T =>
+  (list as readonly string[]).includes(v) ? (v as T) : fallback;
+
+/** Hosts a shared map link may pass through on its way to the coordinates. Anything else is
+ *  refused rather than fetched — this runs on the server, with whatever the form says. */
+const MAP_HOSTS = /(^|\.)(goo\.gl|google\.com|google\.com\.vn)$/;
+
+/**
+ * Coordinates from what was pasted. A link shared from the Google Maps app is a short
+ * `maps.app.goo.gl` one with no coordinates in it until it's followed, so the server follows
+ * it — a few redirects at most, and only through Google's own hosts.
+ */
+async function resolveLocation(input: string): Promise<LatLng | null> {
+  const direct = parseLatLng(input);
+  if (direct) return direct;
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch {
+    return null;
+  }
+  for (let hop = 0; hop < 4 && MAP_HOSTS.test(url.hostname); hop++) {
+    try {
+      const res = await fetch(url, { redirect: "manual" });
+      const next = res.headers.get("location");
+      if (!next) return null;
+      const hit = parseLatLng(next);
+      if (hit) return hit;
+      url = new URL(next, url);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+const LOCATION_HELP = "Paste coordinates (10.4012, 107.2345) or a Google Maps link.";
+
+export async function saveProperty(instrument: string, fd: FormData) {
+  const inst = await db.getInstrument(instrument);
+  if (!inst || inst.asset_type !== "Real Estate")
+    return { ok: false, message: "That isn't a Real Estate holding." };
+  const at = await resolveLocation(str(fd.get("location")));
+  if (!at) return { ok: false, message: LOCATION_HELP };
+  const area = num(fd.get("area_m2"));
+  if (area == null || area <= 0) return { ok: false, message: "A positive area (m²) is required." };
+  const radius = num(fd.get("radius_km")) ?? 3;
+  if (radius <= 0 || radius > 50) return { ok: false, message: "Radius must be between 0 and 50 km." };
+  const auto = Math.round(num(fd.get("auto_comps")) ?? 0);
+  if (auto < 0 || auto > 50) return { ok: false, message: "Auto-comps must be between 0 and 50." };
+  await db.saveProperty(
+    instrument, at.lat, at.lng, area,
+    oneOf<LandUse>(LAND_USES, str(fd.get("land_use")), "residential"),
+    oneOf<RoadAccess>(ROAD_ACCESS, str(fd.get("access")), "alley"),
+    radius, auto, str(fd.get("note")) || null,
+  );
+  // Refreshed now rather than at the next daily run, so a changed pin, radius or count
+  // shows its comps straight away. Turning it off removes the set: those rows were only
+  // ever the refresh's, and nothing would keep them current any more.
+  const errors = auto > 0 ? await refreshAutoComps(instrument) : (await db.replaceAutoComps(instrument, []), []);
+  revalidateAll();
+  if (errors.length) return { ok: true, message: `Location saved, but the comps didn't refresh: ${errors[0]}` };
+  return { ok: true, message: auto > 0 ? `Location saved. Keeping the ${auto} nearest listings.` : "Location saved." };
+}
+
+export async function deleteProperty(instrument: string) {
+  await db.deleteProperty(instrument);
+  revalidateAll();
+  return { ok: true, message: "Location removed. The holding keeps its value." };
+}
+
+async function parseComp(
+  fd: FormData,
+): Promise<{ ok: true; value: CompInput } | { ok: false; message: string }> {
+  const at = await resolveLocation(str(fd.get("location")));
+  if (!at) return { ok: false, message: LOCATION_HELP };
+  const area = num(fd.get("area_m2"));
+  if (area == null || area <= 0) return { ok: false, message: "A positive area (m²) is required." };
+  const price = num(fd.get("price"));
+  if (price == null || price <= 0) return { ok: false, message: "A positive price is required." };
+  return {
+    ok: true,
+    value: {
+      lat: at.lat,
+      lng: at.lng,
+      area_m2: area,
+      price,
+      date: str(fd.get("date")) || db.todayIso(),
+      kind: oneOf<CompKind>(COMP_KINDS, str(fd.get("kind")), "asking"),
+      land_use: oneOf<LandUse>(LAND_USES, str(fd.get("land_use")), "residential"),
+      access: oneOf<RoadAccess>(ROAD_ACCESS, str(fd.get("access")), "alley"),
+      label: str(fd.get("label")) || null,
+      source: str(fd.get("source")) || null,
+      note: str(fd.get("note")) || null,
+    },
+  };
+}
+
+export async function addComp(instrument: string, fd: FormData) {
+  if (!await db.getProperty(instrument)) return { ok: false, message: "Set the location first." };
+  const p = await parseComp(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  await db.addComp(instrument, p.value);
+  revalidateAll();
+  return { ok: true, message: "Comp added." };
+}
+
+export async function updateComp(id: number, fd: FormData) {
+  if (!await db.getComp(id)) return { ok: false, message: "Not found." };
+  const p = await parseComp(fd);
+  if (!p.ok) return { ok: false, message: p.message };
+  await db.updateComp(id, p.value);
+  revalidateAll();
+  return { ok: true, message: "Comp updated." };
+}
+
+export async function deleteComp(id: number) {
+  await db.deleteComp(id);
+  revalidateAll();
+  return { ok: true, message: "Comp deleted." };
+}
+
+/** Nhà Tốt listings around a placed plot, each flagged if it's already one of *this plot's*
+ *  comps (matched on its listing URL, which is what an import stores as `source`). */
+export async function findListings(
+  instrument: string,
+): Promise<{ ok: true; listings: (Listing & { added: boolean })[] } | { ok: false; message: string }> {
+  const property = await db.getProperty(instrument);
+  if (!property) return { ok: false, message: "Set the location first." };
+  const [found, comps] = await Promise.all([
+    nearbyListings(property, property.radius_km), db.listComps(instrument),
+  ]);
+  if (!found.ok) return found;
+  const have = new Set(comps.map((c) => c.source));
+  return { ok: true, listings: found.listings.map((l) => ({ ...l, added: have.has(l.url) })) };
+}
+
+/**
+ * Save the chosen listings as asking-price comps. Takes ids, not listings: the search is run
+ * again here, so what's stored is what Nhà Tốt says rather than whatever the browser sent.
+ */
+export async function importListings(instrument: string, ids: number[]) {
+  const property = await db.getProperty(instrument);
+  if (!property) return { ok: false, message: "Set the location first." };
+  const [found, comps] = await Promise.all([
+    nearbyListings(property, property.radius_km), db.listComps(instrument),
+  ]);
+  if (!found.ok) return found;
+  const want = new Set(ids);
+  const have = new Set(comps.map((c) => c.source));
+  const picked = found.listings.filter((l) => want.has(l.id) && !have.has(l.url));
+  await db.addComps(instrument, picked.map(listingComp));
+  revalidateAll();
+  const gone = ids.length - picked.length;
+  return {
+    ok: true,
+    message: `Added ${picked.length} comp${picked.length === 1 ? "" : "s"} from Nhà Tốt.` +
+      (gone > 0 ? ` ${gone} had already been added or were taken down.` : ""),
+  };
+}
+
+export async function addIndexPoint(instrument: string, fd: FormData) {
+  if (!await db.getProperty(instrument)) return { ok: false, message: "Set the location first." };
+  const level = num(fd.get("level"));
+  if (level == null || level <= 0) return { ok: false, message: "A positive index level is required." };
+  await db.savePropertyIndexPoint(instrument, str(fd.get("date")) || db.todayIso(), level, str(fd.get("source")) || null);
+  revalidateAll();
+  return { ok: true, message: "Index reading saved." };
+}
+
+export async function deleteIndexPoint(instrument: string, date: string) {
+  await db.deletePropertyIndexPoint(instrument, date);
+  revalidateAll();
+  return { ok: true, message: "Index reading deleted." };
+}
+
+/**
+ * Book the estimate's *low* end as the holding's value. Recomputed here rather than taken
+ * from the client, so what's written is what the evidence says right now. The low end,
+ * because net worth is a number you plan against — the same reason goals assume 0% return.
+ */
+export async function applyEstimate(instrument: string) {
+  const [inst, property, comps, index, anchors] = await Promise.all([
+    db.getInstrument(instrument), db.getProperty(instrument), db.listComps(instrument),
+    db.listPropertyIndex(instrument), db.realEstateAnchors(),
+  ]);
+  if (!inst || !property) return { ok: false, message: "Set the location first." };
+  // `holdingValue` prefers units × price whenever both exist, so a manual value written
+  // under them would be saved and then silently never read.
+  if (inst.quantity != null && inst.last_price != null)
+    return { ok: false, message: "This holding is valued by units × price, not a manual value." };
+  const v = estimate(property, comps, index, anchors[instrument] ?? null, db.todayIso());
+  if (v.method === "none" || v.low <= 0) return { ok: false, message: "Nothing to estimate from yet." };
+  await db.recordValuation(inst.name, v.low, "estimate", inst.manual_value);
+  revalidateAll();
+  return { ok: true, message: `${inst.name} now valued at ${fmtVND(v.low)} from today.` };
+}
+
+/** Undo a booking. The holding goes back to the latest value booked before it. */
+export async function deleteValuation(instrument: string, date: string) {
+  await db.deleteValuation(instrument, date);
+  revalidateAll();
+  return { ok: true, message: "Booking removed." };
+}
+
+/**
+ * A Real Estate value typed on Investments is a booking too, dated today — or the history
+ * would treat it the old way and move the change onto the purchase day. Other manually-valued
+ * holdings keep the one flat figure they always had.
+ */
+async function recordManualEdit(before: Instrument | undefined, assetType: string, manual: number | null) {
+  if (!before || assetType !== "Real Estate" || manual == null || manual === before.manual_value) return;
+  await db.recordValuation(before.name, manual, "manual", before.manual_value);
+}
+
 // ---------- holdings ----------
 
 export async function addHolding(fd: FormData) {
@@ -521,15 +743,19 @@ export async function addHolding(fd: FormData) {
 }
 
 export async function updateHolding(name: string, fd: FormData) {
-  if (!await db.getInstrument(name)) return { ok: false, message: "Holding not found." };
+  const before = await db.getInstrument(name);
+  if (!before) return { ok: false, message: "Holding not found." };
+  const assetType = str(fd.get("asset_type")) || "Funds";
+  const manual = num(fd.get("manual_value"));
   await db.updateInstrumentFields(
     name,
-    str(fd.get("asset_type")) || "Funds",
+    assetType,
     str(fd.get("price_source")) || "manual",
     str(fd.get("symbol")) || null,
     num(fd.get("quantity")),
-    num(fd.get("manual_value")),
+    manual,
   );
+  await recordManualEdit(before, assetType, manual);
   revalidateAll();
   return { ok: true, message: "Holding updated." };
 }
@@ -551,17 +777,23 @@ export async function deleteHolding(name: string) {
 
 export async function saveHoldings(fd: FormData) {
   const rows = Number(fd.get("rows") ?? 0);
+  // Read once up front: a Real Estate row whose value changed is booked, which needs the
+  // value it had before this save overwrote it.
+  const before = new Map((await db.listInstruments()).map((i) => [i.name, i]));
   for (let i = 0; i < rows; i++) {
     const name = str(fd.get(`inst_${i}`));
     if (!name) continue;
+    const assetType = str(fd.get(`type_${i}`)) || "Funds";
+    const manual = num(fd.get(`manual_${i}`));
     await db.updateInstrumentFields(
       name,
-      str(fd.get(`type_${i}`)) || "Funds",
+      assetType,
       str(fd.get(`source_${i}`)) || "manual",
       str(fd.get(`symbol_${i}`)) || null,
       num(fd.get(`qty_${i}`)),
-      num(fd.get(`manual_${i}`)),
+      manual,
     );
+    await recordManualEdit(before.get(name), assetType, manual);
   }
   revalidateAll();
   return { ok: true, message: "Holdings saved." };
