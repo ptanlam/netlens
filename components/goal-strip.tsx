@@ -166,8 +166,10 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
             <div className="flex items-center justify-between gap-3 @2xl:contents">
               {/* Only once it has a column of its own does this refuse to break: on a phone
                   the figures need to be able to wrap under themselves, or a foreign amount
-                  shoves the status chip off the card. */}
-              <span className="font-mono text-body-sm font-semibold tabular-nums @2xl:text-right @2xl:whitespace-nowrap">
+                  shoves the status chip off the card. `min-w-0` + clip is for Hide amounts:
+                  the mask turns every glyph into a dot, spaces too, so the figures become
+                  one unbreakable run that would push the chip out just the same. */}
+              <span className="min-w-0 overflow-hidden font-mono text-body-sm font-semibold tabular-nums @2xl:text-right @2xl:whitespace-nowrap">
                 {fmtVND(proj.current)}{" "}
                 <span className="font-normal text-muted-foreground">
                   <span className="whitespace-nowrap">/ {fmtVND(proj.target)}</span>
@@ -180,7 +182,7 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
                   )}
                 </span>
               </span>
-              <GoalStatusChip status={proj.status} className="@2xl:justify-self-end" />
+              <GoalStatusChip status={proj.status} className="shrink-0 @2xl:justify-self-end" />
             </div>
           </Link>
         ))}
