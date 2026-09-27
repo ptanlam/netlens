@@ -362,9 +362,9 @@ export function LivePrices() {
 
   return (
     <div className="flex shrink-0 items-center gap-2 lg:gap-3.5">
-      {/* The rail carries the links now, but the clock still waits for xl — the header's
-          search field is the thing it shares its row with. */}
-      <div className="hidden text-right leading-tight xl:block">
+      {/* From 900px the rail carries the links and the wordmark, so the header row is
+          the price controls' alone and there is room for the clock. */}
+      <div className="hidden text-right leading-tight min-[900px]:block">
         <div className="text-caption text-faint">Prices as of</div>
         <div data-unmask className="font-mono text-caption tabular-nums text-muted-foreground">
           {stampOf(st?.atMs ?? null)}

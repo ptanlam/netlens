@@ -753,8 +753,7 @@ html[data-mask] [data-ts-key*="tick-label:number"] {
    being a top bar — which is gone (see `lib/nav-layout.ts`). Below 900px the drawer takes
    over, and it carries the same grouped links, so the rail is the only navigation the app
    has at any width. */
-[data-side-rail],
-[data-header-search] {
+[data-side-rail] {
   display: none;
 }
 
@@ -850,11 +849,5 @@ html[data-mask] [data-ts-key*="tick-label:number"] {
   }
   html[data-nav-collapsed] [data-rail-chevron] {
     transform: rotate(180deg);
-  }
-
-  /* The links and the wordmark live in the rail, so the header gives its left side over to
-     the design's search field instead. */
-  [data-header-search] {
-    display: block;
   }
 }

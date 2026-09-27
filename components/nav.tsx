@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { UserMenu } from '@/components/user-menu';
 import { LivePrices, PricePoller } from '@/components/live-prices';
-import { HeaderSearch } from '@/components/header-search';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { MaskToggle } from '@/components/mask-toggle';
 import { toggleNavCollapsed } from '@/lib/nav-layout';
@@ -393,12 +392,8 @@ export function Nav() {
             trigger and the mark — and 70px of sticky chrome for that was most of what made
             the bar look wrong on a phone. */}
         <div data-app-header-inner className='mx-auto flex h-14 w-full max-w-[1200px] items-center justify-between gap-3 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] sm:pl-[max(1.625rem,env(safe-area-inset-left))] sm:pr-[max(1.625rem,env(safe-area-inset-right))] min-[900px]:h-[70px] xl:max-w-[1400px] 2xl:max-w-[1640px]'>
-          {/* display:none until 900px, where the rail takes the links and the wordmark and
-              the header's left side is free for the search field. */}
-          <HeaderSearch />
-
           {/* Narrow only: the way into the drawer, and the mark. From 900px the rail
-              carries both and the search field takes this side of the row instead. */}
+              carries both and this side of the row is left empty. */}
           <div className='flex min-w-0 items-center gap-2.5 min-[900px]:hidden'>
             <MobileNav pathname={pathname} />
             <Wordmark />
@@ -410,7 +405,7 @@ export function Nav() {
               answers the narrow row on its own — the clock waits for xl, and both controls
               drop their words below sm to a dot + interval and a bare refresh glyph — so
               the phone gets the same three controls, spelt shorter. */}
-          <div className='flex shrink-0 items-center gap-1.5 sm:gap-2'>
+          <div className='ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
             <LivePrices />
             <MaskToggle />
             <ThemeToggle />
