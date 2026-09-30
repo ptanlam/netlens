@@ -12,6 +12,8 @@ export interface Stat {
   tone?: StatTone;
   /** A count rather than an amount, so "Hide amounts" leaves it readable. */
   unmask?: boolean;
+  /** The line under the figure carries an amount (a delta, a per-month pace), so it hides too. */
+  subAmount?: boolean;
 }
 
 /**
@@ -56,7 +58,7 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
             {/* Wise's 24px sub-display: Inter 600 with tight tracking. `whitespace-nowrap`
                 keeps a signed VND amount from stranding its minus sign on a line of its own. */}
             <div
-              data-unmask={s.unmask || undefined}
+              data-amount={!s.unmask || undefined}
               className={cn(
                 "font-mono text-body-lg leading-[1.3] font-semibold tracking-[-0.02em] whitespace-nowrap sm:text-display-xs",
                 tone,
@@ -65,7 +67,7 @@ export function SummaryCards({ stats, className }: { stats: Stat[]; className?: 
               {s.value}
             </div>
             {s.sub && (
-              <div className={cn("text-body-sm font-semibold", tone ?? "text-muted-foreground")}>{s.sub}</div>
+              <div data-amount={s.subAmount || undefined} className={cn("text-body-sm font-semibold", tone ?? "text-muted-foreground")}>{s.sub}</div>
             )}
           </div>
         );

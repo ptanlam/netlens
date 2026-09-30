@@ -81,7 +81,7 @@ const compColumns: ColumnDef<PlotComp>[] = [
     meta: { align: "right" },
     cell: ({ row }) => (
       <div className="text-right">
-        <div className="font-mono tabular-nums">{fmtVND(Math.round(row.original.perM2))}</div>
+        <div data-amount className="font-mono tabular-nums">{fmtVND(Math.round(row.original.perM2))}</div>
         <div className="text-caption text-muted-foreground tabular-nums">
           {row.original.comp.area_m2.toLocaleString("de-DE")} m²
         </div>
@@ -213,15 +213,17 @@ export function RealEstateDetail({
 
       <SummaryCards
         stats={predicted ? [
-          { label: "Estimate", value: fmtVND(v.mid), sub: fmtPerM2(v.perM2) },
+          { label: "Estimate", value: fmtVND(v.mid), sub: fmtPerM2(v.perM2), subAmount: true },
           {
             label: "Range",
             value: v.low === v.high ? "—" : fmtVND(v.low),
+            subAmount: v.low !== v.high,
             sub: v.low === v.high ? "No comps to spread it" : `to ${fmtVND(v.high)}`,
           },
           {
             label: "Booked in net worth",
             value: fmtVND(booked),
+            subAmount: diff !== 0,
             sub: diff === 0 ? "Matches the low end" : `Low end is ${diff > 0 ? "+" : "−"}${fmtVND(Math.abs(diff))}`,
           },
         ] : [
@@ -262,7 +264,7 @@ export function RealEstateDetail({
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
-                      <div className="font-mono tabular-nums">{fmtPerM2(s.perM2)}</div>
+                      <div data-amount className="font-mono tabular-nums">{fmtPerM2(s.perM2)}</div>
                       <div className="text-caption text-muted-foreground tabular-nums">
                         {Math.round((s.weight / totalW) * 100)}% weight
                       </div>

@@ -19,6 +19,7 @@ import { PanelHead } from "@/components/panel-head";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { Amt } from "@/components/amt";
 
 /** A year of columns. Twelve because a saving habit is worth looking at over a year —
  *  shorter and a single good quarter reads as one. */
@@ -134,13 +135,13 @@ function MonthColumn({
           <span className="block font-semibold">
             {monthLong(m.month)} · {STATUS_WORD[m.status]}
           </span>
-          <span className="block font-mono tabular-nums">
+          <span data-amount className="block font-mono tabular-nums">
             {fmtVND(m.total)} of {fmtVND(bar)}
           </span>
           {LEVERS.filter((l) => Math.round(m.levers[l]) !== 0).map((l) => (
             <span key={l} className="mt-0.5 flex items-center gap-1.5 font-mono text-caption tabular-nums">
               <span className="size-[7px] shrink-0 rounded-[2px]" style={{ background: LEVER_COLOR[l] }} />
-              {LEVER_LABELS[l]} {fmtVND(m.levers[l])}
+              {LEVER_LABELS[l]} <Amt>{fmtVND(m.levers[l])}</Amt>
             </span>
           ))}
         </span>
@@ -220,7 +221,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
         }
         actions={
           best > current ? (
-            <Badge data-unmask variant="secondary" className="font-mono tabular-nums">
+            <Badge variant="secondary" className="font-mono tabular-nums">
               Best {best}
             </Badge>
           ) : null
@@ -233,7 +234,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
       <div className="mt-4 flex flex-wrap items-start gap-x-7 gap-y-5">
         <div className="min-w-0 flex-[1_1_180px]">
           <div className="flex items-baseline gap-2">
-            <span data-unmask className="font-mono text-[34px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
+            <span className="font-mono text-[34px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
               {current}
             </span>
             <span className="text-body-sm text-muted-foreground">
@@ -252,7 +253,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
           >
             {shortfall > 0 ? (
               <>
-                {fmtVND(shortfall)} more makes {monthShort(now.month)}
+                <Amt>{fmtVND(shortfall)}</Amt> more makes {monthShort(now.month)}
               </>
             ) : now.status === "carried" ? (
               // It counts, but not on its own figure — and a month that reads "in" while
@@ -260,13 +261,13 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
               <>{monthShort(now.month)} is in on the 3-month average</>
             ) : (
               <>
-                {monthShort(now.month)} is in · {fmtVND(now.total)} so far
+                {monthShort(now.month)} is in · <Amt>{fmtVND(now.total)}</Amt> so far
               </>
             )}
           </div>
 
           <div className="mt-3.5 border-t border-divider pt-3 font-mono text-caption text-faint">
-            {fmtVND(bar)}/month ·{" "}
+            <Amt>{fmtVND(bar)}</Amt>/month ·{" "}
             {streak.barSource === "recurring" ? "your recurring rules" : "your goal plans"}
           </div>
 
@@ -331,7 +332,6 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
             {cells.map((m, i) => (
               <span
                 key={m?.month ?? `lab-${i}`}
-                data-unmask
                 className={cn(
                   "truncate text-center font-mono text-caption",
                   m?.month === open

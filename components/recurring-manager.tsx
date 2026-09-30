@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { type InstrumentOption } from "@/components/tx-form";
+import { Amt } from "@/components/amt";
 
 type ActionResult = { ok: boolean; message: string };
 
@@ -164,7 +165,7 @@ function RuleRow({
           {!rule.active && <Badge variant="secondary">paused</Badge>}
         </div>
         <div className="text-body-sm text-muted-foreground">
-          {fmtVND(rule.amount)} · {rule.freq} · since {rule.start_date}
+          <Amt>{fmtVND(rule.amount)}</Amt> · {rule.freq} · since {rule.start_date}
           {nextDue && ` · next ${nextDue}`}
         </div>
       </div>

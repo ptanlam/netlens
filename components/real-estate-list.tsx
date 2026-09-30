@@ -48,7 +48,7 @@ const columns: ColumnDef<EstateRow>[] = [
     accessorKey: "booked",
     size: 150,
     meta: { align: "right" },
-    cell: ({ row }) => <span className="font-mono tabular-nums">{fmtVND(row.original.booked)}</span>,
+    cell: ({ row }) => <span data-amount className="font-mono tabular-nums">{fmtVND(row.original.booked)}</span>,
   },
   {
     id: "estimate",
@@ -63,9 +63,9 @@ const columns: ColumnDef<EstateRow>[] = [
       const v = r.valuation!;
       return (
         <div className="text-right">
-          <div className="font-mono tabular-nums">{fmtVND(mid)}</div>
+          <div data-amount className="font-mono tabular-nums">{fmtVND(mid)}</div>
           {v.low !== v.high && (
-            <div className="font-mono text-caption text-muted-foreground tabular-nums">
+            <div data-amount className="font-mono text-caption text-muted-foreground tabular-nums">
               {fmtVND(v.low)} – {fmtVND(v.high)}
             </div>
           )}
@@ -87,7 +87,7 @@ const columns: ColumnDef<EstateRow>[] = [
       if (mid == null) return <span className="text-muted-foreground">—</span>;
       const d = mid - row.original.booked;
       return (
-        <span className={cn("font-mono tabular-nums", d > 0 ? "text-accent-brand" : d < 0 && "text-destructive")}>
+        <span data-amount className={cn("font-mono tabular-nums", d > 0 ? "text-accent-brand" : d < 0 && "text-destructive")}>
           {d > 0 ? "+" : d < 0 ? "−" : ""}{fmtVND(Math.abs(d))}
         </span>
       );
@@ -152,6 +152,7 @@ export function RealEstateList({ rows }: { rows: EstateRow[] }) {
           {
             label: "Predicted",
             value: fmtVND(predicted),
+            subAmount: diff !== 0,
             sub: diff === 0 ? "Matches what's booked" : `${diff > 0 ? "+" : "−"}${fmtVND(Math.abs(diff))} vs booked`,
             tone: diff > 0 ? "gain" : diff < 0 ? "loss" : undefined,
           },

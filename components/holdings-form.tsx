@@ -15,6 +15,7 @@ import { RefreshPricesButton } from "@/components/live-prices";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Amt } from "@/components/amt";
 
 interface HoldingRow {
   inst: Instrument;
@@ -130,7 +131,7 @@ const makeColumns = (sources: string[]): ColumnDef<HoldingRow>[] => [
       const { inst, value } = row.original;
       return (
         <span className="font-mono tabular-nums">
-          {value ? fmtVND(value) : "—"}{" "}
+          <Amt>{value ? fmtVND(value) : "—"}</Amt>{" "}
           {inst.quantity != null && inst.last_price != null && (
             <Badge variant="accent">live</Badge>
           )}

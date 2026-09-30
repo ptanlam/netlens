@@ -217,7 +217,7 @@ export function TransactionsView({
         size: 145,
         meta: { align: "right" },
         cell: ({ row }) => (
-          <span className="font-mono text-caption text-muted-foreground tabular-nums">
+          <span data-amount className="font-mono text-caption text-muted-foreground tabular-nums">
             {row.original.quantity != null ? fmtUnits(row.original.quantity) : "—"}
           </span>
         ),
@@ -244,7 +244,7 @@ export function TransactionsView({
         size: 160,
         meta: { align: "right" },
         cell: ({ row }) => (
-          <span className="font-mono text-caption tabular-nums">{fmtVND(row.original.amount)}</span>
+          <span data-amount className="font-mono text-caption tabular-nums">{fmtVND(row.original.amount)}</span>
         ),
       },
       {
@@ -372,7 +372,7 @@ function SummaryTile({
       {/* Same label/figure recipe as <StatCard>, one step smaller: "Best month" carries a
           month label as well as an amount, so it's the widest thing in the grid — the whole
           row steps down rather than letting that one tile wrap. */}
-      <div data-unmask={unmask || undefined} className={cn("mt-1.5 font-mono text-body font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-body-lg", valueCls)}>
+      <div data-amount={!unmask || undefined} className={cn("mt-1.5 font-mono text-body font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-body-lg", valueCls)}>
         {value}
       </div>
     </div>

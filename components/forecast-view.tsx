@@ -339,6 +339,7 @@ export function ForecastView({
               : assumed
                 ? `${fmtVND(end.net)} at 0% · assumes ${rate}%/yr`
                 : `${change >= 0 ? "+" : "−"}${fmtVND(Math.abs(change))} from today`,
+            subAmount: true,
             tone: change >= 0 ? "gain" : "loss",
           },
           {
@@ -354,6 +355,7 @@ export function ForecastView({
               : pace > 0
                 ? `${fmtVND(pace)}/month · ${PACE_LABEL[paceSource]}`
                 : PACE_LABEL.none,
+            subAmount: !assumed && pace > 0,
             tone: assumed ? (end.growth >= 0 ? "gain" : "loss") : undefined,
           },
         ]}
@@ -495,8 +497,9 @@ export function ForecastView({
           ].map((row) => (
             <div key={row.label}>
               <div className="text-caption text-muted-foreground">{row.label}</div>
-              <div className="mt-1 font-mono text-body-sm tabular-nums">{fmtVND(row.then)}</div>
+              <div data-amount className="mt-1 font-mono text-body-sm tabular-nums">{fmtVND(row.then)}</div>
               <div
+                data-amount
                 className={cn(
                   "mt-0.5 font-mono text-caption tabular-nums",
                   row.then - row.now >= 0 ? "text-accent-brand" : "text-destructive",
@@ -560,6 +563,7 @@ export function ForecastView({
                       </div>
                       {e.amount != null && (
                         <span
+                          data-amount
                           className={cn(
                             "shrink-0 font-mono text-body-sm tabular-nums",
                             e.outside && "text-faint",

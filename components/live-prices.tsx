@@ -366,7 +366,7 @@ export function LivePrices() {
           the price controls' alone and there is room for the clock. */}
       <div className="hidden text-right leading-tight min-[900px]:block">
         <div className="text-caption text-faint">Prices as of</div>
-        <div data-unmask className="font-mono text-caption tabular-nums text-muted-foreground">
+        <div className="font-mono text-caption tabular-nums text-muted-foreground">
           {stampOf(st?.atMs ?? null)}
         </div>
       </div>

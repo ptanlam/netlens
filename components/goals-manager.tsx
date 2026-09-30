@@ -31,6 +31,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Amt } from "@/components/amt";
 
 type ActionResult = { ok: boolean; message: string };
 
@@ -255,7 +256,7 @@ function LinkedDeposits({ deposits }: { deposits: Saving[] }) {
               {s.rate}%/yr · {s.term_months}mo · matures {maturityDate(s)}
             </span>
           </span>
-          <span className="shrink-0 font-mono text-caption text-accent-brand tabular-nums">
+          <span data-amount className="shrink-0 font-mono text-caption text-accent-brand tabular-nums">
             {fmtVND(currentValue(s))}
           </span>
         </div>
@@ -305,7 +306,7 @@ function FundPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-body-sm font-semibold text-muted-foreground">
           Cash set aside{" "}
-          <span className="text-muted-foreground">{fmtVND(cash)}</span>
+          <span data-amount className="text-muted-foreground">{fmtVND(cash)}</span>
         </span>
         {!archived && (
           <div className="flex flex-wrap gap-1.5">
@@ -384,6 +385,7 @@ function FundPanel({
               </span>
               <span className="flex shrink-0 items-center gap-1.5">
                 <span
+                  data-amount
                   className={cn(
                     "font-mono text-caption tabular-nums",
                     c.amount < 0 ? "text-destructive" : "text-accent-brand",
@@ -518,7 +520,7 @@ function GoalCard({
             {!archived && <GoalStatusChip status={proj.status} />}
           </div>
           <div className="mt-1 font-mono text-caption text-muted-foreground tabular-nums">
-            {fmtVND(proj.current)} / {fmtVND(proj.target)}
+            <Amt>{fmtVND(proj.current)} / {fmtVND(proj.target)}</Amt>
             {goal.target_date && ` · by ${goal.target_date}`}
             {goal.note && ` · ${goal.note}`}
           </div>
@@ -588,7 +590,7 @@ function GoalCard({
             {proj.status !== "hit" && (
               <>
                 {" · "}
-                {proj.remaining > 0 ? `${fmtVND(proj.remaining)} to go` : "target met"}
+                {proj.remaining > 0 ? <><Amt>{fmtVND(proj.remaining)}</Amt> to go</> : "target met"}
               </>
             )}
           </div>
@@ -596,13 +598,13 @@ function GoalCard({
             {proj.paceSource === "schedule"
               ? "Following the repayment schedule"
               : proj.pace > 0
-                ? `${fmtVND(proj.pace)}/mo from ${PACE_SOURCE_NOTE[proj.paceSource]}`
+                ? <><Amt>{fmtVND(proj.pace)}/mo</Amt> from {PACE_SOURCE_NOTE[proj.paceSource]}</>
                 : "No pace set"}
           </div>
           {proj.requiredPerMonth != null && proj.requiredPerMonth > 0 && (
             <div className="text-muted-foreground sm:col-span-2">
               Needs{" "}
-              <span className="font-mono text-foreground tabular-nums">
+              <span data-amount className="font-mono text-foreground tabular-nums">
                 {fmtVND(proj.requiredPerMonth)}/mo
               </span>{" "}
               {/* On a debt's own schedule this is money ON TOP of the payments already
@@ -612,7 +614,7 @@ function GoalCard({
               {gap > 0 && (
                 <span className="text-destructive">
                   {" — "}
-                  <span className="font-mono tabular-nums">{fmtVND(gap)}/mo</span> more than your
+                  <span data-amount className="font-mono tabular-nums">{fmtVND(gap)}/mo</span> more than your
                   current pace
                 </span>
               )}

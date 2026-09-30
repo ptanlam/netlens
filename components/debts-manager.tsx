@@ -33,6 +33,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Amt } from "@/components/amt";
 
 type ActionResult = { ok: boolean; message: string };
 
@@ -255,7 +256,7 @@ function PaymentRow({ payment }: { payment: DebtPayment }) {
   return (
     <div className="flex items-center gap-3 border-b py-1.5 text-body-sm last:border-0">
       <span className="tabular-nums text-muted-foreground">{payment.date}</span>
-      <span className="font-mono font-semibold tabular-nums text-accent-brand">
+      <span data-amount className="font-mono font-semibold tabular-nums text-accent-brand">
         −{fmtVND(payment.amount)}
       </span>
       <span className="flex-1 truncate text-muted-foreground">{payment.note}</span>
@@ -337,10 +338,10 @@ function PaymentDialog({
         <DialogHeader>
           <DialogTitle>Payments — {debt.lender ?? "Loan"}</DialogTitle>
           <DialogDescription>
-            Currently owed {fmtVND(owed)} · paid so far {fmtVND(totalPaid)}
-            {debt.kind === "credit" && debt.monthly_payment
-              ? ` · monthly ${fmtVND(debt.monthly_payment)}`
-              : ""}
+            Currently owed <Amt>{fmtVND(owed)}</Amt> · paid so far <Amt>{fmtVND(totalPaid)}</Amt>
+            {debt.kind === "credit" && debt.monthly_payment ? (
+              <> · monthly <Amt>{fmtVND(debt.monthly_payment)}</Amt></>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
 
@@ -485,7 +486,7 @@ const columns: ColumnDef<DebtRow>[] = [
         <div>
           <div className="font-semibold">{d.lender ?? "Loan"}</div>
           <div className="text-caption text-muted-foreground">
-            {fmtVND(d.principal)} · {row.original.isCredit ? `since ${d.start_date}` : `${d.term_months}mo`}
+            <Amt>{fmtVND(d.principal)}</Amt> · {row.original.isCredit ? `since ${d.start_date}` : `${d.term_months}mo`}
           </div>
         </div>
       );
@@ -526,7 +527,7 @@ const columns: ColumnDef<DebtRow>[] = [
     meta: { align: "right" },
     cell: ({ row }) => (
       // Nothing outstanding isn't a liability, so it loses the red.
-      <span className={cn(
+      <span data-amount className={cn(
         "font-mono font-semibold tabular-nums",
         row.original.owed > 0 ? "text-destructive" : "text-muted-foreground",
       )}>
@@ -541,7 +542,7 @@ const columns: ColumnDef<DebtRow>[] = [
     size: 120,
     meta: { align: "right" },
     cell: ({ row }) => (
-      <span className="font-mono tabular-nums text-muted-foreground">
+      <span data-amount={row.original.paid ? true : undefined} className="font-mono tabular-nums text-muted-foreground">
         {row.original.paid ? fmtVND(row.original.paid) : "—"}
       </span>
     ),
@@ -754,7 +755,7 @@ export function DebtsManager({
           <summary className="cursor-pointer list-none px-[18px] py-3.5 text-body-sm font-semibold">
             Settled · {settled.length} debt{settled.length > 1 ? "s" : ""} ·{" "}
             <span className="font-normal text-muted-foreground">
-              {fmtVND(settled.reduce((a, r) => a + r.paid, 0))} repaid
+              <Amt>{fmtVND(settled.reduce((a, r) => a + r.paid, 0))}</Amt> repaid
             </span>
           </summary>
           <div className="border-t border-divider-soft panel-body">

@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { Amt } from "@/components/amt";
 
 type ActionResult = { ok: boolean; message: string };
 
@@ -289,7 +290,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
           <div className="min-w-0">
             <div className="truncate font-semibold">{s.name}</div>
             <div className="truncate text-caption text-muted-foreground">
-              {fmtVND(s.amount)} / {BILLING_CYCLE_UNITS[s.cycle]}
+              <Amt>{fmtVND(s.amount)}</Amt> / {BILLING_CYCLE_UNITS[s.cycle]}
               {s.payment_method ? ` · ${s.payment_method}` : ""}
             </div>
           </div>
@@ -337,6 +338,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
       // A cancelled plan costs nothing from here on, so it loses the emphasis — the figure
       // stays visible as what it *used* to commit you to.
       <span
+        data-amount
         className={cn(
           "font-mono font-semibold tabular-nums",
           row.original.cancelled ? "text-muted-foreground line-through" : "text-destructive",
@@ -353,7 +355,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
     size: 130,
     meta: { align: "right" },
     cell: ({ row }) => (
-      <span className="font-mono tabular-nums text-muted-foreground">
+      <span data-amount className="font-mono tabular-nums text-muted-foreground">
         {fmtVND(row.original.yearly)}
       </span>
     ),
@@ -365,7 +367,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
     size: 130,
     meta: { align: "right" },
     cell: ({ row }) => (
-      <span className="font-mono tabular-nums text-muted-foreground">
+      <span data-amount className="font-mono tabular-nums text-muted-foreground">
         {row.original.spent ? fmtVND(row.original.spent) : "—"}
       </span>
     ),
@@ -723,7 +725,7 @@ export function SubscriptionsManager({
           <div>
             <div className="text-body-sm font-semibold">
               {soon.length} renewal{soon.length > 1 ? "s" : ""} in the next {SOON_DAYS} days ·{" "}
-              {fmtVND(soonTotal)}
+              <Amt>{fmtVND(soonTotal)}</Amt>
             </div>
             <div className="mt-0.5 text-caption text-muted-foreground">
               {soon
@@ -749,6 +751,8 @@ export function SubscriptionsManager({
           {
             label: "Next charge",
             value: nextUp?.next ?? "—",
+            unmask: true,
+            subAmount: !!nextUp,
             sub: nextUp
               ? `${nextUp.sub.name} · ${fmtVND(nextUp.sub.amount)}`
               : "Nothing scheduled",
@@ -789,7 +793,7 @@ export function SubscriptionsManager({
           <summary className="cursor-pointer list-none px-[18px] py-3.5 text-body-sm font-semibold">
             Cancelled · {cancelled.length} subscription{cancelled.length > 1 ? "s" : ""} ·{" "}
             <span className="font-normal text-muted-foreground">
-              {fmtVND(cancelled.reduce((a, r) => a + r.spent, 0))} spent · {fmtVND(cancelled.reduce((a, r) => a + r.monthly, 0))}/mo saved
+              <Amt>{fmtVND(cancelled.reduce((a, r) => a + r.spent, 0))}</Amt> spent · <Amt>{fmtVND(cancelled.reduce((a, r) => a + r.monthly, 0))}</Amt>/mo saved
             </span>
           </summary>
           <div className="border-t border-divider-soft panel-body">

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { SummaryCards } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
+import { Amt } from "@/components/amt";
 
 type ActionResult = { ok: boolean; message: string };
 
@@ -177,13 +178,13 @@ function SavingRow({ saving, funds, now }: { saving: Saving; funds: FundOption[]
           {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
         </div>
         <div className="mt-1 font-mono text-caption text-muted-foreground tabular-nums">
-          {fmtVND(saving.principal)} · {saving.rate}%/yr · {saving.term_months}mo · {saving.start_date} → {maturityDate(saving)}
+          <Amt>{fmtVND(saving.principal)}</Amt> · {saving.rate}%/yr · {saving.term_months}mo · {saving.start_date} → {maturityDate(saving)}
         </div>
       </div>
       <div className="flex items-center gap-[18px]">
         <div className="text-right">
-          <div className="font-mono text-body-sm tabular-nums">{fmtVND(cur)}</div>
-          <div className="mt-1 font-mono text-caption tabular-nums">
+          <div data-amount className="font-mono text-body-sm tabular-nums">{fmtVND(cur)}</div>
+          <div data-amount className="mt-1 font-mono text-caption tabular-nums">
             <span className={interest >= 0 ? "text-accent-brand" : "text-destructive"}>
               {interest >= 0 ? "+" : ""}{fmtVND(interest)}
             </span>{" "}

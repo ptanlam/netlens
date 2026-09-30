@@ -223,7 +223,7 @@ function HoldingForm({
           ) : liveValue != null ? (
             <>
               Currently <span className="font-semibold">ignored</span>: a live price is active, so this
-              holding is valued at <span className="font-mono">{fmtVND(liveValue)}</span> (quantity ×
+              holding is valued at <span data-amount className="font-mono">{fmtVND(liveValue)}</span> (quantity ×
               last price). It is only used if the price feed stops returning a price.
             </>
           ) : holding ? (

@@ -218,6 +218,8 @@ function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
           // automatic right margin is measured from these labels, so it always fits them.
           decorative(
             text(data, {
+              // Named so "Hide amounts" can blur it: SVG text ignores `text-security`.
+              id: "pnl-bar-figure",
               x: () => 1,
               y: "name",
               text: (r) => fmtSigned(r.pnl),
@@ -795,7 +797,7 @@ export function PnlCalendar({
               <div className="text-caption text-muted-foreground">
                 {view === "year" ? "Year P&L" : "Month P&L"}
               </div>
-              <div className={cn("mt-1 font-mono text-body font-semibold tabular-nums", periodTotal < 0 ? "text-destructive" : "text-accent-brand")}>
+              <div data-amount className={cn("mt-1 font-mono text-body font-semibold tabular-nums", periodTotal < 0 ? "text-destructive" : "text-accent-brand")}>
                 {fmtSigned(periodTotal)}
               </div>
             </div>
@@ -864,7 +866,7 @@ export function PnlCalendar({
                 </div>
               </div>
               {selHas && (
-                <div className={cn("font-mono text-body-lg tracking-[-0.01em] tabular-nums", selCell!.delta < 0 ? "text-destructive" : "text-accent-brand")}>
+                <div data-amount className={cn("font-mono text-body-lg tracking-[-0.01em] tabular-nums", selCell!.delta < 0 ? "text-destructive" : "text-accent-brand")}>
                   {fmtSigned(selCell!.delta)}
                 </div>
               )}

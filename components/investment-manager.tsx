@@ -23,6 +23,7 @@ import { EntityAvatar } from "@/components/entity-avatar";
 import { instrumentLogo } from "@/lib/logos";
 import { cn } from "@/lib/utils";
 import { estateHref, predictionDelta, type PredictedHolding } from "@/lib/realestate";
+import { Amt } from "@/components/amt";
 
 export interface HoldingView {
   inst: Instrument;
@@ -160,7 +161,7 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
             </div>
             <div className="mt-1 font-mono text-caption text-faint tabular-nums">
               {inst.quantity != null && inst.last_price != null
-                ? `${fmtUnits(inst.quantity)} × ${inst.last_price.toLocaleString("de-DE")}`
+                ? <Amt>{fmtUnits(inst.quantity)} × {inst.last_price.toLocaleString("de-DE")}</Amt>
                 : "manual value"}
               {" · "}{txCount} tx{txCount === 1 ? "" : "s"}
               {rules.length > 0 && ` · ${rules.length} rule${rules.length === 1 ? "" : "s"}`}
@@ -168,9 +169,9 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
           </div>
         </div>
         <div className="text-right">
-          <div className="font-mono text-body-sm tabular-nums">{fmtVND(value)}</div>
+          <div data-amount className="font-mono text-body-sm tabular-nums">{fmtVND(value)}</div>
           <div className={cn("mt-1 font-mono text-caption tabular-nums", pnl >= 0 ? "text-accent-brand" : "text-destructive")}>
-            {pnl >= 0 ? "+" : ""}{fmtVND(pnl)}{pnlPct != null && ` (${pnl >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)`}
+            <Amt>{pnl >= 0 ? "+" : ""}{fmtVND(pnl)}</Amt>{pnlPct != null && ` (${pnl >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)`}
           </div>
         </div>
       </div>
@@ -181,7 +182,7 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
           <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-muted-foreground">
             <span>Source: {inst.price_source}</span>
             {inst.symbol && <span>Symbol: {inst.symbol}</span>}
-            <span>Cost: {fmtVND(cost)}</span>
+            <span>Cost: <Amt>{fmtVND(cost)}</Amt></span>
             <div className="ml-auto flex items-center gap-1">
               <EditHoldingDialog holding={inst} sources={sourceKeys} />
               <ArchiveHoldingButton name={inst.name} archived={inst.archived === 1} />
@@ -303,7 +304,7 @@ export function InvestmentManager({
           title={`With land at its estimate (${landDelta > 0 ? "+" : "−"}${fmtVND(Math.abs(landDelta))})`}
           className="underline-offset-2 hover:underline"
         >
-          Predicted <span className="font-mono whitespace-nowrap">{fmtVND(totalValue + landDelta)}</span>
+          Predicted <span data-amount className="font-mono whitespace-nowrap">{fmtVND(totalValue + landDelta)}</span>
         </Link>
       ) : "Live · quantity × price",
     },
@@ -378,8 +379,8 @@ export function InvestmentManager({
                   </span>
                 </div>
                 <div className="flex items-baseline gap-3 font-mono tabular-nums">
-                  <span className="text-body-sm">{fmtVND(group.value)}</span>
-                  <span className={cn("text-caption", group.pnl >= 0 ? "text-accent-brand" : "text-destructive")}>
+                  <span data-amount className="text-body-sm">{fmtVND(group.value)}</span>
+                  <span data-amount className={cn("text-caption", group.pnl >= 0 ? "text-accent-brand" : "text-destructive")}>
                     {group.pnl >= 0 ? "+" : ""}{fmtVND(group.pnl)}
                   </span>
                 </div>

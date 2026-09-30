@@ -7,6 +7,7 @@ import { predictionDelta, type PredictedHolding } from "@/lib/realestate";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { Amt } from "@/components/amt";
 
 /** "2026-07-30" → "Jul 30". Sliced rather than passed through `Date`, which would read the
  *  ISO day as UTC midnight and shift it a day back in every timezone behind it. */
@@ -144,7 +145,7 @@ export function NetWorthPanel({
             ) : (
               <TrendingUp className="size-4 shrink-0" />
             )}
-            <span className="whitespace-nowrap">
+            <span data-amount className="whitespace-nowrap">
               {todayDelta < 0 ? "−" : "+"}
               {fmtVND(Math.abs(todayDelta)).replace("-", "")}
             </span>
@@ -180,11 +181,11 @@ export function NetWorthPanel({
       {landDelta !== 0 && (
         <div className="-mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-body-sm sm:-mt-4">
           <span>Predicted</span>
-          <span className="font-mono text-body-lg font-semibold whitespace-nowrap text-hero-strong">
+          <span data-amount className="font-mono text-body-lg font-semibold whitespace-nowrap text-hero-strong">
             {fmtVND(net + landDelta)}
           </span>
           <Link href="/real-estate" className="opacity-80 underline-offset-2 hover:underline">
-            with land at its estimate ({landDelta > 0 ? "+" : "−"}{fmtVND(Math.abs(landDelta))})
+            with land at its estimate (<Amt>{landDelta > 0 ? "+" : "−"}{fmtVND(Math.abs(landDelta))}</Amt>)
           </Link>
         </div>
       )}
@@ -193,7 +194,7 @@ export function NetWorthPanel({
         {parts.map((p) => (
           <div key={p.label} className="flex flex-col gap-1">
             <span className="text-body-sm">{p.label}</span>
-            <span className="font-mono text-body-lg font-semibold whitespace-nowrap text-hero-strong sm:text-body-lg">
+            <span data-amount className="font-mono text-body-lg font-semibold whitespace-nowrap text-hero-strong sm:text-body-lg">
               {fmtVND(p.value)}
             </span>
           </div>

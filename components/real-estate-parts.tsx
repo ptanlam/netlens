@@ -221,7 +221,7 @@ function CompForm({
             />
           </div>
           <p className="-mt-2 text-caption text-muted-foreground sm:col-span-2">
-            {price > 0 && area > 0 ? <>≈ <span className="font-mono">{fmtPerM2(price / area)}</span></> : "Listings often quote per m²: multiply by the area."}
+            {price > 0 && area > 0 ? <>≈ <span data-amount className="font-mono">{fmtPerM2(price / area)}</span></> : "Listings often quote per m²: multiply by the area."}
           </p>
           <div className="grid gap-2">
             <Label htmlFor={`${id}-kind`}>Price type</Label>
@@ -463,9 +463,9 @@ export function FindListingsDialog({ property }: { property: Property }) {
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
-                      <div className="font-mono text-body-sm tabular-nums">{fmtPerM2(l.price / l.area_m2)}</div>
+                      <div data-amount className="font-mono text-body-sm tabular-nums">{fmtPerM2(l.price / l.area_m2)}</div>
                       <div className="text-caption text-muted-foreground tabular-nums">
-                        <span className="font-mono">{fmtVND(l.price)}</span> · {l.area_m2.toLocaleString("de-DE")} m²
+                        <span data-amount className="font-mono">{fmtVND(l.price)}</span> · {l.area_m2.toLocaleString("de-DE")} m²
                       </div>
                       <a
                         href={l.url} target="_blank" rel="noreferrer"
@@ -539,7 +539,7 @@ export function ValuationList({ holding, rows }: { holding: string; rows: Proper
               <div className="text-caption text-muted-foreground">{VALUATION_SOURCE_LABELS[r.source]}</div>
             </div>
             <div className="flex items-center gap-1">
-              <span className="font-mono tabular-nums">{fmtVND(r.value)}</span>
+              <span data-amount className="font-mono tabular-nums">{fmtVND(r.value)}</span>
               {r.source === "initial" ? (
                 <span className="size-8" aria-hidden />
               ) : (

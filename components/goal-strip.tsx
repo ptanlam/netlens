@@ -5,6 +5,7 @@ import { GOAL_METRIC_LABELS, type GoalMetric } from "@/lib/types";
 import { STATUS_LABELS, verdict, type GoalFx, type GoalStatus, type GoalView } from "@/lib/goals";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Amt } from "@/components/amt";
 
 /** Chip tones reuse the net-worth pill's language: green = fine, rust = not.
  *  `stalled` deliberately stays neutral — "No pace" means you never set a monthly
@@ -104,7 +105,7 @@ function ictStamp(iso: string): string {
 export function FxNote({ fx, className }: { fx: GoalFx; className?: string }) {
   return (
     <div className={cn("mt-0.5 font-mono text-caption text-faint tabular-nums", className)}>
-      {fmtCcy(fx.amount, fx.ccy)} @ {fmtVND(fx.rate)}
+      <Amt>{fmtCcy(fx.amount, fx.ccy)}</Amt> @ {fmtVND(fx.rate)}
       {fx.stale
         ? " · no live rate yet — last known"
         : `${fx.source ? ` · ${fx.source}` : ""}${fx.asOf ? ` · ${ictStamp(fx.asOf)}` : ""}`}
@@ -145,7 +146,7 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
             <div className="flex min-w-0 items-center gap-2">
               {/* The rank you set on /goals — the rail is ordered by it, so showing the
                   number is what makes that order legible rather than arbitrary. */}
-              <span data-unmask className="shrink-0 font-mono text-caption text-faint tabular-nums">{i + 1}</span>
+              <span className="shrink-0 font-mono text-caption text-faint tabular-nums">{i + 1}</span>
               <span className="truncate text-body font-semibold">{goal.name}</span>
               {/* First thing to go when the row gets tight: the bar below already carries
                   this goal's metric as its colour, so the tag is the redundant copy. */}
@@ -169,7 +170,7 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
                   shoves the status chip off the card. `min-w-0` + clip is for Hide amounts:
                   the mask turns every glyph into a dot, spaces too, so the figures become
                   one unbreakable run that would push the chip out just the same. */}
-              <span className="min-w-0 overflow-hidden font-mono text-body-sm font-semibold tabular-nums @2xl:text-right @2xl:whitespace-nowrap">
+              <span data-amount className="min-w-0 overflow-hidden font-mono text-body-sm font-semibold tabular-nums @2xl:text-right @2xl:whitespace-nowrap">
                 {fmtVND(proj.current)}{" "}
                 <span className="font-normal text-muted-foreground">
                   <span className="whitespace-nowrap">/ {fmtVND(proj.target)}</span>

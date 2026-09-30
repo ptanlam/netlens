@@ -9,6 +9,7 @@ import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Amt } from "@/components/amt";
 
 export interface PendingRow {
   tx: Tx;
@@ -28,7 +29,7 @@ function PendingItem({ row }: { row: PendingRow }) {
       <div>
         <div className="text-body-sm font-semibold">{row.tx.instrument}</div>
         <div className="mt-[3px] font-mono text-caption text-muted-foreground tabular-nums">
-          {row.tx.date} · {fmtVND(row.tx.amount)} · expected {row.window[0]} – {row.window[1]}
+          {row.tx.date} · <Amt>{fmtVND(row.tx.amount)}</Amt> · expected {row.window[0]} – {row.window[1]}
         </div>
       </div>
       <div className="flex flex-wrap items-end gap-3.5">

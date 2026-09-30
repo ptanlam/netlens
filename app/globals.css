@@ -513,23 +513,31 @@
 .ts-chart-tooltip__row > span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* ---- Hide amounts (`lib/mask.ts`) ----
-   Keyed off what every figure already carries: `font-mono` (the figure class), `data-amount`
-   for the one figure set in the display face, the value cell of a chart tooltip (which the
-   library builds in JS), and a chart's numeric tick labels. Dates and names stay readable,
-   so the page still makes sense with the mask on. A figure that isn't money but wears
-   `font-mono` anyway (a clock, a month count, a keyboard hint) opts out with `data-unmask`.
+   Opt-in: a figure hides when it carries `data-amount` (or is wrapped in `<Amt>`), plus the
+   value cell of a chart tooltip (which the library builds in JS) and a chart's numeric tick
+   labels. `font-mono` is NOT the key. It only means "tabular numerals" now, and keying off it
+   hid dates, counts and percentages while missing every amount set in a plain span. Dates,
+   names, percentages and counts stay readable, so the page still makes sense masked; a
+   summary tile's figure hides by default and opts out with `data-unmask`.
    `-webkit-text-security` swaps each glyph for a dot, as the design does. Chrome, Safari and
-   current Firefox all support it on ordinary elements. SVG text ignores it, so tick labels
+   current Firefox all support it on ordinary elements. SVG text ignores it, so chart labels
    are blurred instead, and so is everything on an engine without it. */
-html[data-mask] :is(.font-mono, [data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
+html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
   -webkit-text-security: disc;
+  /* One width for every amount: a dot per digit would still say ₫89M from ₫1.7B. Anything
+     longer than the box is clipped, so every real amount reads as the same run of dots. */
+  display: inline-block;
+  max-width: 8ch;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 @supports not (-webkit-text-security: disc) {
-  html[data-mask] :is(.font-mono, [data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
+  html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
     filter: blur(7px);
   }
 }
-html[data-mask] [data-ts-key*="tick-label:number"] {
+html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-step-label"], [data-ts-key^="pnl-cell-figure"], [data-ts-key^="pnl-bar-figure"]) {
   filter: blur(4px);
 }
 

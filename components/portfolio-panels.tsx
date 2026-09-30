@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
+import { Amt } from "@/components/amt";
 
 /**
  * The two portfolio panels — what you hold, split by type and listed one per row.
@@ -180,10 +181,10 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
             into it: it reports on whatever is active, including the legend's hover, and
             nothing about it is chart geometry. */}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-          <span data-unmask className="font-mono text-caption tracking-[0.08em] text-faint">
+          <span className="font-mono text-caption tracking-[0.08em] text-faint">
             {(slice?.type ?? "Total").toUpperCase()}
           </span>
-          <span className="font-mono text-body tabular-nums">
+          <span data-amount className="font-mono text-body tabular-nums">
             {fmtMilVND(slice ? slice.value : total)}
           </span>
           {slice && (
@@ -216,7 +217,7 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
               <span className="text-body-sm">{r.type}</span>
             </span>
             <span className="flex gap-3.5">
-              <span className="font-mono text-caption text-muted-foreground tabular-nums">{fmtMilVND(r.value)}</span>
+              <span data-amount className="font-mono text-caption text-muted-foreground tabular-nums">{fmtMilVND(r.value)}</span>
               <span className="w-[42px] text-right font-mono text-caption tabular-nums">{r.pct.toFixed(1)}%</span>
             </span>
           </button>
@@ -414,11 +415,11 @@ export function HoldingsListCard({
                 </svg>
               )}
               <div className="shrink-0 text-right">
-                <div className="font-mono text-caption tabular-nums">{fmtMilVND(h.value)}</div>
+                <div data-amount className="font-mono text-caption tabular-nums">{fmtMilVND(h.value)}</div>
                 {h.pnl !== 0 && (
                   <div className={cn("font-mono text-caption tabular-nums", neg ? "text-destructive" : "text-accent-brand")}>
                     {neg ? "↘ " : "↗ "}
-                    {pct != null ? `${Math.abs(pct).toFixed(1)}%` : fmtSigned(h.pnl)}
+                    {pct != null ? `${Math.abs(pct).toFixed(1)}%` : <Amt>{fmtSigned(h.pnl)}</Amt>}
                   </div>
                 )}
               </div>
@@ -431,7 +432,7 @@ export function HoldingsListCard({
           would resize the panel, which is the thing paging is here to stop. The arrows just
           go dead instead. */}
       <div className="mt-auto flex items-center justify-between gap-3 border-t border-divider pt-3">
-        <span data-unmask className="font-mono text-caption text-faint tabular-nums">
+        <span className="font-mono text-caption text-faint tabular-nums">
           {rows.length} holding{rows.length === 1 ? "" : "s"}
         </span>
         <div className="flex items-center gap-1.5">
@@ -442,7 +443,7 @@ export function HoldingsListCard({
           >
             <ChevronLeft className="size-3.5" />
           </PagerButton>
-          <span data-unmask className="min-w-[38px] text-center font-mono text-caption text-muted-foreground tabular-nums">
+          <span className="min-w-[38px] text-center font-mono text-caption text-muted-foreground tabular-nums">
             {safePage + 1} / {pageCount}
           </span>
           <PagerButton
