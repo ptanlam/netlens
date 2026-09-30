@@ -17,6 +17,7 @@ import { scaleUtc } from "d3-scale";
 import { Download } from "lucide-react";
 import type { Tx } from "@/lib/types";
 import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
+import { readMasked } from "@/lib/mask";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-table";
@@ -836,7 +837,9 @@ function DeployedByMonth({
             return {
               // Isolated, the column *is* the rows below, so quoting the month's full flow
               // would be a number the chart isn't showing — the month alone is honest.
-              title: only === null ? flows.join(" · ") : first.full,
+              // A title is one string, so CSS can't mask the amounts in it and leave the month:
+              // under "Hide amounts" it is the month alone.
+              title: only === null && !readMasked() ? flows.join(" · ") : first.full,
               rows: points.map((point) => ({
                 label: point.datum.side === "buy" ? point.datum.name : `${point.datum.name} · sold`,
                 value: fmtVND(point.datum.amount),

@@ -9,6 +9,7 @@ import { tooltip } from "@tanstack/charts/tooltip";
 import { portal } from "@tanstack/charts/tooltip/portal";
 import type { HoldingPnlPoint, LivePayload } from "@/lib/types";
 import { fmtMilVND, fmtSigned } from "@/lib/format";
+import { readMasked } from "@/lib/mask";
 import { sparkPaths } from "@/components/net-worth";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { PanelHead } from "@/components/panel-head";
@@ -144,7 +145,8 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
           const inside = byType.get(s.type) ?? [];
           const extra = inside.length - SLICE_TIP_ROWS;
           return {
-            title: `${s.type} · ${fmtMilVND(s.value)}`,
+            // Masked, the type alone: the amount in a title string is out of CSS's reach.
+            title: readMasked() ? s.type : `${s.type} · ${fmtMilVND(s.value)}`,
             rows: [
               ...inside.slice(0, SLICE_TIP_ROWS).map((h) => ({
                 label: h.name,

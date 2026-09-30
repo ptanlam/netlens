@@ -527,10 +527,26 @@ html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not
   /* One width for every amount: a dot per digit would still say ₫89M from ₫1.7B. Anything
      longer than the box is clipped, so every real amount reads as the same run of dots. */
   display: inline-block;
-  max-width: 8ch;
+  /* Nine dots exactly (a disc advances 0.5655em), so the clip lands between two dots and
+     never through one. That only holds if the advance is the same everywhere: Inter's disc
+     narrows with weight and with optical size, so both are pinned, and tracking is zeroed. */
+  max-width: 5.1em;
+  font-weight: 400;
+  font-optical-sizing: none;
+  letter-spacing: 0;
   overflow: hidden;
   white-space: nowrap;
   vertical-align: bottom;
+}
+/* A figure that is its own line (a stacked value over its interest) has to stay a line:
+   inline-block would set two of them side by side at different sizes. The doubled `[data-mask]` outranks the rule above. A right-aligned
+   parent's `text-align` can't move a shrink-wrapped block, so it gets an auto margin. */
+html[data-mask][data-mask] :is(div, p)[data-amount]:not([data-unmask]) {
+  display: block;
+  width: fit-content;
+}
+html[data-mask][data-mask] :is(.text-right, .text-end) > :is(div, p)[data-amount]:not([data-unmask]) {
+  margin-inline-start: auto;
 }
 @supports not (-webkit-text-security: disc) {
   html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {

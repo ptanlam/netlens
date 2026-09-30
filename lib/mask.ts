@@ -35,7 +35,9 @@ function subscribe(cb: () => void) {
   };
 }
 
-function readMasked(): boolean {
+/** For text a chart builds in JS (a tooltip's title), where CSS can't pick the amount out of
+ *  a string that also holds a month. Read it at hover time, not at render. */
+export function readMasked(): boolean {
   return document.documentElement.dataset.mask === "1";
 }
 
