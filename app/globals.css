@@ -527,16 +527,21 @@ html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not
   /* One width for every amount: a dot per digit would still say ₫89M from ₫1.7B. Anything
      longer than the box is clipped, so every real amount reads as the same run of dots. */
   display: inline-block;
-  /* Nine dots exactly (a disc advances 0.5655em), so the clip lands between two dots and
-     never through one. That only holds if the advance is the same everywhere: Inter's disc
-     narrows with weight and with optical size, so both are pinned, and tracking is zeroed. */
-  max-width: 5.1em;
+  /* Nine dots exactly, so the clip lands between two dots and never through one. That needs
+     the advance to be known: Inter's disc (0.5655em) narrows with weight and with optical
+     size, so both are pinned, and tracking is zeroed. Another face has its own advance: set
+     `--amt-dot` where one is used (the display face below). */
+  max-width: calc(9 * var(--amt-dot, 0.5655em) + 0.01em);
   font-weight: 400;
   font-optical-sizing: none;
   letter-spacing: 0;
   overflow: hidden;
   white-space: nowrap;
   vertical-align: bottom;
+}
+/* The display face (Wise Sans) sets its disc at 0.4488em. */
+html[data-mask] [data-amount].font-display {
+  --amt-dot: 0.4488em;
 }
 /* A figure that is its own line (a stacked value over its interest) has to stay a line:
    inline-block would set two of them side by side at different sizes. The doubled `[data-mask]` outranks the rule above. A right-aligned
