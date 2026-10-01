@@ -11,6 +11,10 @@
 
 import * as React from "react";
 
+/** What a figure becomes where CSS can't dot it out: text a chart draws in SVG. Nine dots,
+ *  like every other hidden amount (`app/globals.css`), so the width says nothing. */
+export const MASKED_FIGURE = "•••••••••";
+
 export const MASK_KEY = "pf.mask-amounts";
 
 export const MASK_PREF_SCRIPT = `try{if(localStorage.getItem(${JSON.stringify(

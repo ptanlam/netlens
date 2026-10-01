@@ -523,21 +523,37 @@
    current Firefox all support it on ordinary elements. SVG text ignores it, so chart labels
    are blurred instead, and so is everything on an engine without it. */
 html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
-  -webkit-text-security: disc;
-  /* One width for every amount: a dot per digit would still say ₫89M from ₫1.7B. Anything
-     longer than the box is clipped, so every real amount reads as the same run of dots. */
+  /* One width for every amount: a dot per digit would still say ₫89M from ₫1.7B, and ₫0 from
+     either. So the real text is shoved out of the box (`text-indent`, clipped by `overflow`)
+     and the box paints a fixed run of nine dots of its own, in `::before` below. Short
+     figures, the compact `51mil` a phone gets, and a full amount all read the same. */
+  position: relative;
   display: inline-block;
-  /* Nine dots exactly, so the clip lands between two dots and never through one. That needs
+  /* Nine dots exactly, so the box ends between two dots and never through one. That needs
      the advance to be known: Inter's disc (0.5655em) narrows with weight and with optical
      size, so both are pinned, and tracking is zeroed. Another face has its own advance: set
      `--amt-dot` where one is used (the display face below). */
-  max-width: calc(9 * var(--amt-dot, 0.5655em) + 0.01em);
+  width: calc(9 * var(--amt-dot, 0.5655em) + 0.01em);
   font-weight: 400;
   font-optical-sizing: none;
   letter-spacing: 0;
   overflow: hidden;
   white-space: nowrap;
+  /* Left-aligned whatever the element asked for, or a right-aligned figure would trail back
+     into the box. */
+  text-align: left;
+  text-indent: -200vw;
   vertical-align: bottom;
+}
+html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask])::before {
+  /* Any nine glyphs: `text-security` swaps each for a disc, as the design does. Chrome,
+     Safari and current Firefox support it on ordinary elements. */
+  content: "000000000";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  text-indent: 0;
+  -webkit-text-security: disc;
 }
 /* The display face (Wise Sans) sets its disc at 0.4488em. */
 html[data-mask] [data-amount].font-display {
@@ -545,20 +561,26 @@ html[data-mask] [data-amount].font-display {
 }
 /* A figure that is its own line (a stacked value over its interest) has to stay a line:
    inline-block would set two of them side by side at different sizes. The doubled `[data-mask]` outranks the rule above. A right-aligned
-   parent's `text-align` can't move a shrink-wrapped block, so it gets an auto margin. */
+   parent's `text-align` can't move a fixed-width block, so it gets an auto margin. */
 html[data-mask][data-mask] :is(div, p)[data-amount]:not([data-unmask]) {
   display: block;
-  width: fit-content;
 }
 html[data-mask][data-mask] :is(.text-right, .text-end) > :is(div, p)[data-amount]:not([data-unmask]) {
   margin-inline-start: auto;
 }
+/* SVG text ignores `text-security`, and so does an engine without it: show the real figure,
+   blurred, as before. */
 @supports not (-webkit-text-security: disc) {
   html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
+    width: auto;
+    text-indent: 0;
     filter: blur(7px);
   }
+  html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask])::before {
+    content: none;
+  }
 }
-html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-step-label"], [data-ts-key^="pnl-cell-figure"], [data-ts-key^="pnl-bar-figure"]) {
+html[data-mask] :is([data-ts-key*="tick-label:number"]) {
   filter: blur(4px);
 }
 

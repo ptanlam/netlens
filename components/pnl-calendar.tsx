@@ -18,6 +18,7 @@ import { fmtMil, fmtVND, MONTHS } from "@/lib/format";
 import { PanelHead } from "@/components/panel-head";
 import { bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
+import { MASKED_FIGURE, useMasked } from "@/lib/mask";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -184,6 +185,7 @@ const MIN_BAR = 0.015;
  * Mount with a `key` on the selection so the bars re-draw when you pick another.
  */
 function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
+  const masked = useMasked();
   const data = React.useMemo(() => {
     const max = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
     return rows.map((r) => {
@@ -218,11 +220,11 @@ function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
           // automatic right margin is measured from these labels, so it always fits them.
           decorative(
             text(data, {
-              // Named so "Hide amounts" can blur it: SVG text ignores `text-security`.
+              // SVG text ignores `text-security`, so "Hide amounts" swaps the string itself.
               id: "pnl-bar-figure",
               x: () => 1,
               y: "name",
-              text: (r) => fmtSigned(r.pnl),
+              text: (r) => (masked ? MASKED_FIGURE : fmtSigned(r.pnl)),
               anchor: "start",
               dx: LABEL_GAP,
               fontSize: 14,
@@ -268,7 +270,7 @@ function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
           },
         },
       }),
-    [data],
+    [data, masked],
   );
 
   return (
@@ -340,6 +342,7 @@ export function PnlCalendar({
   }, [series]);
 
   const [view, setView] = React.useState<"month" | "year">("month");
+  const masked = useMasked();
   const [month, setMonth] = React.useState<string | null>(null);
   const active = month ?? bounds?.max ?? null;
   const [year, mon] = active
@@ -591,7 +594,8 @@ export function PnlCalendar({
             // An untracked month says so rather than sitting blank — twelve squares have
             // the room, and a year with a gap in it should look deliberate. A month of
             // days does not: 31 em dashes read as noise.
-            text: (c) => (c.tracked ? fmtCompact(c.delta) : isYear ? "—" : ""),
+            // SVG text ignores `text-security`, so "Hide amounts" swaps the string itself.
+            text: (c) => (c.tracked ? (masked ? MASKED_FIGURE : fmtCompact(c.delta)) : isYear ? "—" : ""),
             dy: isYear ? 13 : 10,
             fontSize: isYear ? 14 : 12,
             fontWeight: 600,
@@ -636,7 +640,7 @@ export function PnlCalendar({
         scale: ramp,
         // The library reads the ramp's own boundaries off the scale and draws the swatches
         // and their labels; all that is ours is the wording of the numbers.
-        legend: colorLegend({ format: fmtBoundary, width: 260, placement: "bottom" }),
+        legend: colorLegend({ format: masked ? () => "•••" : fmtBoundary, width: 260, placement: "bottom" }),
       },
       theme: CHART_THEME,
       // Zero on the sides, so the plot spans the host exactly and the hand-rolled weekday
@@ -660,7 +664,7 @@ export function PnlCalendar({
       // detail belongs to the block below, which a click fills in and which stays put.
       tooltip: false,
     });
-  }, [bands, cells, rowKeys, ramp, selKey, view]);
+  }, [bands, cells, rowKeys, ramp, selKey, view, masked]);
 
   /** What a square is, for every bit of copy under the grid. */
   const unit = view === "year" ? "month" : "day";
