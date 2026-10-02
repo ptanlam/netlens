@@ -22,7 +22,6 @@ import {
   addSubscription, cancelSubscription, deleteSubscription, updateSubscription,
 } from "@/app/actions";
 import { fmtMil, fmtVND, MONTHS } from "@/lib/format";
-import { readMasked } from "@/lib/mask";
 import {
   daysUntil, monthlyCost, monthlyForecast, nextRenewal, spentToDate, summarize, yearlyCost,
 } from "@/lib/subscriptions";
@@ -590,10 +589,7 @@ function ForecastPanel({
               // means, and the rows beneath it are what add up to it. Isolated, the column
               // height *is* the row below, so the month's full commitment would be a number
               // the chart isn't showing — the date alone is honest.
-              // A title is one string, so CSS can't mask the amount in it and leave the date:
-              // under "Hide amounts" it is the date alone.
-              title:
-                only === null && !readMasked() ? `${first.full} · ${fmtVND(first.total)}` : first.full,
+              title: only === null ? `${first.full} · ${fmtVND(first.total)}` : first.full,
               rows: points.map((point) => ({
                 label: point.datum.sub.name,
                 value: fmtVND(point.datum.amount),
@@ -715,7 +711,9 @@ export function SubscriptionsManager({
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    // "Hide amounts" leaves this page alone: what you pay for Netflix says nothing about
+    // what you're worth, and a list of plans with every price smudged out is no list at all.
+    <div data-unmask className="flex flex-col gap-4">
       <PageHeader title="Subscriptions" actions={<AddSubscriptionDialog today={today} />}>
         Everything on a recurring charge — streaming, software, insurance, the gym. They
         aren&apos;t assets, so they stay out of net worth; what they commit you to is a rate
