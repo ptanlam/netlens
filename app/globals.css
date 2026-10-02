@@ -519,26 +519,22 @@
    hid dates, counts and percentages while missing every amount set in a plain span. Dates,
    names, percentages and counts stay readable, so the page still makes sense masked; a
    summary tile's figure hides by default and opts out with `data-unmask`.
-   `-webkit-text-security` swaps each glyph for a dot, as the design does. Chrome, Safari and
-   current Firefox all support it on ordinary elements. SVG text ignores it, so chart labels
-   are blurred instead, and so is everything on an engine without it. */
+   A hidden figure is a blur, the same smudge on a page figure as on a chart's axis. */
 html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
-  /* One width for every amount: a dot per digit would still say ₫89M from ₫1.7B, and ₫0 from
-     either. So the real text is shoved out of the box (`text-indent`, clipped by `overflow`)
-     and the box paints a fixed run of nine dots of its own, in `::before` below. Short
+  /* One shape for every amount: blurring the real figure would still say ₫89M from ₫1.7B by
+     its width, and ₫0 from either. So the real text is shoved out of the box (`text-indent`)
+     and the box paints a fixed stand-in of its own, blurred, in `::before` below. Short
      figures, the compact `51mil` a phone gets, and a full amount all read the same. */
   position: relative;
   display: inline-block;
-  /* Nine dots exactly, so the box ends between two dots and never through one. That needs
-     the advance to be known: Inter's disc (0.5655em) narrows with weight and with optical
-     size, so both are pinned, and tracking is zeroed. Another face has its own advance: set
-     `--amt-dot` where one is used (the display face below). */
-  width: calc(9 * var(--amt-dot, 0.5655em) + 0.01em);
-  font-weight: 400;
-  font-optical-sizing: none;
+  /* Eight digits wide, which is what the stand-in is: `ch` is the advance of a zero. */
+  width: 8ch;
   letter-spacing: 0;
-  overflow: hidden;
   white-space: nowrap;
+  /* A clip rather than `overflow: hidden`, so it can reach past the box: the blur spreads
+     about a third of an em beyond the glyphs and would otherwise be cut off square. The
+     shoved-out text is 200vw away, far outside it. */
+  clip-path: inset(-0.6em);
   /* Left-aligned whatever the element asked for, or a right-aligned figure would trail back
      into the box: right alignment pins the line to the end edge, so no indent moves it.
      `!important` because the chart tooltip writes `text-align: right` inline on its value
@@ -548,18 +544,16 @@ html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not
   vertical-align: bottom;
 }
 html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask])::before {
-  /* Any nine glyphs: `text-security` swaps each for a disc, as the design does. Chrome,
-     Safari and current Firefox support it on ordinary elements. */
-  content: "000000000";
+  /* Any eight digits: blurred, one figure looks like another. Sized in em, so the hero net
+     worth smudges as much, for its size, as a 12px table cell. */
+  content: "00000000";
   position: absolute;
   inset-block-start: 0;
   inset-inline-start: 0;
   text-indent: 0;
-  -webkit-text-security: disc;
-}
-/* The display face (Wise Sans) sets its disc at 0.4488em. */
-html[data-mask] [data-amount].font-display {
-  --amt-dot: 0.4488em;
+  font-variant-numeric: tabular-nums;
+  filter: blur(0.3em);
+  pointer-events: none;
 }
 /* A figure that is its own line (a stacked value over its interest) has to stay a line:
    inline-block would set two of them side by side at different sizes. The doubled `[data-mask]` outranks the rule above. A right-aligned
@@ -570,21 +564,11 @@ html[data-mask][data-mask] :is(div, p)[data-amount]:not([data-unmask]) {
 html[data-mask][data-mask] :is(.text-right, .text-end) > :is(div, p)[data-amount]:not([data-unmask]) {
   margin-inline-start: auto;
 }
-/* SVG text ignores `text-security`, and so does an engine without it: show the real figure,
-   blurred, as before. */
-@supports not (-webkit-text-security: disc) {
-  html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask]) {
-    width: auto;
-    text-indent: 0;
-    filter: blur(7px);
-  }
-  html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not(input, select, textarea, [data-unmask])::before {
-    content: none;
-  }
-}
-/* A reference to the SVG filter in `app/layout.tsx`, not `blur(4px)`: WebKit draws SVG text
+/* Chart text is SVG, which a pseudo-element can't stand in for: the axis figures blur the
+   real thing, and the P&L calendar swaps in `MASKED_FIGURE` (`lib/mask.ts`) and blurs that.
+   A reference to the SVG filter in `app/layout.tsx`, not `blur(4px)`: WebKit draws SVG text
    sharp under a CSS filter function, so on an iPhone the axis figures weren't masked at all. */
-html[data-mask] :is([data-ts-key*="tick-label:number"]) {
+html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-step-label"], [data-ts-key^="pnl-cell-figure"], [data-ts-key^="pnl-bar-figure"]) {
   filter: url(#mask-blur);
 }
 

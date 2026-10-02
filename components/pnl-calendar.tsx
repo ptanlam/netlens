@@ -220,7 +220,7 @@ function ContribChart({ rows }: { rows: { name: string; pnl: number }[] }) {
           // automatic right margin is measured from these labels, so it always fits them.
           decorative(
             text(data, {
-              // SVG text ignores `text-security`, so "Hide amounts" swaps the string itself.
+              // "Hide amounts" swaps in a stand-in, which `app/globals.css` blurs by this id.
               id: "pnl-bar-figure",
               x: () => 1,
               y: "name",
@@ -594,7 +594,7 @@ export function PnlCalendar({
             // An untracked month says so rather than sitting blank — twelve squares have
             // the room, and a year with a gap in it should look deliberate. A month of
             // days does not: 31 em dashes read as noise.
-            // SVG text ignores `text-security`, so "Hide amounts" swaps the string itself.
+            // "Hide amounts" swaps in a stand-in, which `app/globals.css` blurs by this id.
             text: (c) => (c.tracked ? (masked ? MASKED_FIGURE : fmtCompact(c.delta)) : isYear ? "—" : ""),
             dy: isYear ? 13 : 10,
             fontSize: isYear ? 14 : 12,
@@ -640,7 +640,7 @@ export function PnlCalendar({
         scale: ramp,
         // The library reads the ramp's own boundaries off the scale and draws the swatches
         // and their labels; all that is ours is the wording of the numbers.
-        legend: colorLegend({ format: masked ? () => "•••" : fmtBoundary, width: 260, placement: "bottom" }),
+        legend: colorLegend({ format: masked ? () => "000" : fmtBoundary, width: 260, placement: "bottom" }),
       },
       theme: CHART_THEME,
       // Zero on the sides, so the plot spans the host exactly and the hand-rolled weekday

@@ -82,7 +82,7 @@ export default function RootLayout({
         <ThemeProvider>
           <TooltipProvider delay={200} closeDelay={0}>
             {process.env.NODE_ENV !== 'production' && <SafeAreaDebug />}
-            {/* The blur "Hide amounts" puts on a chart's axis figures (`app/globals.css`).
+            {/* The blur "Hide amounts" puts on figures a chart draws in SVG (`app/globals.css`).
                 WebKit ignores `filter: blur()` on SVG text and only honours a reference to
                 an SVG filter, so the figures sat in the clear on every iPhone. Sized to zero
                 rather than `display: none`, which unhooks the reference in some engines. The

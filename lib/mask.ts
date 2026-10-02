@@ -11,9 +11,11 @@
 
 import * as React from "react";
 
-/** What a figure becomes where CSS can't dot it out: text a chart draws in SVG. Nine dots,
- *  like every other hidden amount (`app/globals.css`), so the width says nothing. */
-export const MASKED_FIGURE = "•••••••••";
+/** What a figure becomes in text a chart draws in SVG, where CSS can't swap in a stand-in of
+ *  its own. Blurred there like every other hidden amount (`app/globals.css`), so it reads as
+ *  a smudge, and the same smudge whatever the real figure was: the width says nothing. Five
+ *  digits because a calendar day is ~38px wide. */
+export const MASKED_FIGURE = "00000";
 
 export const MASK_KEY = "pf.mask-amounts";
 
