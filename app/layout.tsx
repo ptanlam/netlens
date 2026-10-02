@@ -82,6 +82,16 @@ export default function RootLayout({
         <ThemeProvider>
           <TooltipProvider delay={200} closeDelay={0}>
             {process.env.NODE_ENV !== 'production' && <SafeAreaDebug />}
+            {/* The blur "Hide amounts" puts on a chart's axis figures (`app/globals.css`).
+                WebKit ignores `filter: blur()` on SVG text and only honours a reference to
+                an SVG filter, so the figures sat in the clear on every iPhone. Sized to zero
+                rather than `display: none`, which unhooks the reference in some engines. The
+                region is padded well past the label's box, or the blur is cut off square. */}
+            <svg aria-hidden width='0' height='0' className='absolute'>
+              <filter id='mask-blur' x='-50%' y='-150%' width='200%' height='400%'>
+                <feGaussianBlur stdDeviation='4' />
+              </filter>
+            </svg>
             <Nav />
             {/* Mounted here rather than in the nav: the gesture belongs to the page, and
                 this is the one place every route passes through. */}

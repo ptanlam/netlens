@@ -540,8 +540,10 @@ html[data-mask] :is([data-amount], .ts-chart-tooltip__row > span:last-child):not
   overflow: hidden;
   white-space: nowrap;
   /* Left-aligned whatever the element asked for, or a right-aligned figure would trail back
-     into the box. */
-  text-align: left;
+     into the box: right alignment pins the line to the end edge, so no indent moves it.
+     `!important` because the chart tooltip writes `text-align: right` inline on its value
+     cell, and an inline style outranks any selector here. */
+  text-align: left !important;
   text-indent: -200vw;
   vertical-align: bottom;
 }
@@ -580,8 +582,10 @@ html[data-mask][data-mask] :is(.text-right, .text-end) > :is(div, p)[data-amount
     content: none;
   }
 }
+/* A reference to the SVG filter in `app/layout.tsx`, not `blur(4px)`: WebKit draws SVG text
+   sharp under a CSS filter function, so on an iPhone the axis figures weren't masked at all. */
 html[data-mask] :is([data-ts-key*="tick-label:number"]) {
-  filter: blur(4px);
+  filter: url(#mask-blur);
 }
 
 /* Figures: Inter with tabular numerals, so a column of amounts lines up the way the old
