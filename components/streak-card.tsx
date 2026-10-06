@@ -43,7 +43,7 @@ const LEVER_COLOR: Record<Lever, string> = {
   deposit: "var(--chart-2)",
 };
 
-/** The actual average. Blue from the fixed palette, solid where the commitment is dashed, so the
+/** The actual average. Blue from the fixed palette, dotted where the commitment is dashed, so the
  *  two lines read apart even where they cross or sit close together. */
 const AVG_COLOR = "var(--chart-4)";
 
@@ -305,7 +305,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
               </span>
               {avg !== null && (
                 <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
-                  <span className="w-3.5 border-t-2" style={{ borderColor: AVG_COLOR }} />
+                  <span className="w-3.5 border-t-2 border-dotted" style={{ borderColor: AVG_COLOR }} />
                   Average
                 </span>
               )}
@@ -326,7 +326,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
             />
             {avg !== null && (
               <div
-                className="pointer-events-none absolute inset-x-0 z-10 border-t-2"
+                className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-dotted"
                 style={{ bottom: px(avg), borderColor: AVG_COLOR }}
                 aria-hidden
               />
