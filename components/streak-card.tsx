@@ -43,6 +43,10 @@ const LEVER_COLOR: Record<Lever, string> = {
   deposit: "var(--chart-2)",
 };
 
+/** The actual average. Blue from the fixed palette, solid where the commitment is dashed, so the
+ *  two lines read apart even where they cross or sit close together. */
+const AVG_COLOR = "var(--chart-4)";
+
 const STATUS_WORD: Record<MonthStatus, string> = {
   met: "Met",
   carried: "Carried by the 3-month average",
@@ -195,7 +199,13 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
   // One scale for the whole plot, spanning the deepest sell-off to the biggest month, with
   // the commitment guaranteed a place on it. Drawn to a common scale rather than each column
   // to its own, because the comparison between months is the entire point.
-  const range = Math.max(bar * HEADROOM, ...shown.map((m) => m.total)) || 1;
+  // The actual average: finished months only. The month in progress is a part-month, and
+  // averaging it in would drag the line down on the 1st of every month for no reason. Months
+  // in the window with nothing recorded count as zero — they are months you didn't invest.
+  const done = shown.filter((m) => m.month !== now.month);
+  const avg = done.length > 0 ? done.reduce((a, m) => a + m.total, 0) / done.length : null;
+
+  const range = Math.max(bar * HEADROOM, avg ?? 0, ...shown.map((m) => m.total)) || 1;
   const px = (v: number) => (v / range) * PLOT;
 
   // Only the levers this year actually used. A legend naming four when you used two is four
@@ -271,6 +281,13 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
             {streak.barSource === "recurring" ? "your recurring rules" : "your goal plans"}
           </div>
 
+          {avg !== null && (
+            <div className="mt-1 font-mono text-caption text-faint">
+              <Amt>{fmtVND(avg)}</Amt>/month · actual average, last {done.length}{" "}
+              {done.length === 1 ? "month" : "months"}
+            </div>
+          )}
+
           {used.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-x-3.5 gap-y-1.5">
               {used.map((l) => (
@@ -286,6 +303,12 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
                 <span className="w-3.5 border-t-2 border-dashed border-(--chart-5) dark:border-[#ff8a3d]" />
                 Commitment
               </span>
+              {avg !== null && (
+                <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
+                  <span className="w-3.5 border-t-2" style={{ borderColor: AVG_COLOR }} />
+                  Average
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -301,6 +324,13 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
               style={{ bottom: px(bar) }}
               aria-hidden
             />
+            {avg !== null && (
+              <div
+                className="pointer-events-none absolute inset-x-0 z-10 border-t-2"
+                style={{ bottom: px(avg), borderColor: AVG_COLOR }}
+                aria-hidden
+              />
+            )}
             <div className="grid h-full grid-cols-12 items-end gap-1 sm:gap-1.5">
               {cells.map((m, i) => (
                 <MonthColumn
