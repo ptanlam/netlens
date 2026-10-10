@@ -801,12 +801,14 @@ export function ruleNextDue(rule: RecurringRule): string | null {
 
 // ---------- pending fund units (T+1 / T+2 business days) ----------
 
+// amount > 0 only: a sale isn't "awaiting units", and confirming one would
+// add units to the holding rather than remove them.
+const AWAITING_UNITS = "asset_type='Funds' AND quantity IS NULL AND amount > 0";
+
 export async function pendingFundUnits(days = 14): Promise<Tx[]> {
   const cutoff = isoOf(new Date(Date.now() - days * 86400000));
   return q(
-    // amount > 0 only: a sale isn't "awaiting units", and confirming one would
-    // add units to the holding rather than remove them.
-    "SELECT * FROM transactions WHERE asset_type='Funds' AND quantity IS NULL AND amount > 0 AND date >= ? ORDER BY date DESC, id DESC",
+    `SELECT * FROM transactions WHERE ${AWAITING_UNITS} AND date >= ? ORDER BY date DESC, id DESC`,
   ).all<Tx>(cutoff);
 }
 
@@ -935,7 +937,9 @@ export async function deletePriceHistory(instrument: string, dates: string[]) {
 export async function pnlTransactions(): Promise<
   { date: string; instrument: string; amount: number; quantity: number | null }[]
 > {
-  return q("SELECT date, instrument, amount, quantity FROM transactions ORDER BY date, id")
+  // A fund purchase still awaiting its units is left out until confirmed: its units aren't in
+  // `instruments.quantity` yet, so counting its amount booked the whole of it as a loss.
+  return q(`SELECT date, instrument, amount, quantity FROM transactions WHERE NOT (${AWAITING_UNITS}) ORDER BY date, id`)
     .all<{ date: string; instrument: string; amount: number; quantity: number | null }>();
 }
 
@@ -1054,6 +1058,7 @@ export async function txRollup(endIso: string): Promise<TxRollup[]> {
                      THEN amount ELSE 0 END)                   AS today_amount_unqty,
             COUNT(CASE WHEN date > ?1 THEN 1 END)              AS future_count
        FROM transactions
+      WHERE NOT (${AWAITING_UNITS})
       GROUP BY instrument`,
   ).all<TxRollup>(endIso);
 }
@@ -1122,7 +1127,7 @@ export async function txUnitPrices(instruments: string[]): Promise<
               WHERE p.instrument = t.instrument
               ORDER BY p.date ASC LIMIT 1)  AS px_first
        FROM transactions t
-      WHERE t.instrument IN (${holes})
+      WHERE t.instrument IN (${holes}) AND NOT (${AWAITING_UNITS})
       ORDER BY t.date, t.id`,
   ).all(...instruments);
 }
