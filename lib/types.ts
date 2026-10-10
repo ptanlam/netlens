@@ -447,12 +447,29 @@ export function normalizePriceRefreshMs(ms: number): number {
   return PRICE_REFRESH_INTERVALS.some((i) => i.ms === ms) ? ms : DEFAULT_PRICE_REFRESH_MS;
 }
 
+/** A refresh schedule in cron: one 5-field expression per line (see `lib/cron.ts`), read in
+ *  the app timezone. A refresh runs on any minute a line matches. While `enabled`, it
+ *  replaces the flat cadence. */
+export interface PriceRefreshSchedule {
+  enabled: boolean;
+  cron: string;
+}
+
+/** Every 5 minutes on weekdays 09:00–14:55, hourly otherwise. */
+export const DEFAULT_PRICE_SCHEDULE: PriceRefreshSchedule = {
+  enabled: false,
+  cron: "*/5 9-14 * * 1-5\n0 * * * *",
+};
+
 /** What the server is doing about prices, as the client sees it. `atMs` is epoch
  *  milliseconds rather than the stored string because `meta` holds UTC with the "Z"
  *  trimmed off — parsed in the browser that reads as local time and lands hours out. */
 export interface PriceStatus {
   /** When the last refresh *ran* (success or not), or null if none ever has. */
   atMs: number | null;
-  /** The account's cadence. 0 = the server refreshes nothing on its own. */
+  /** The account's flat cadence. 0 = the server refreshes nothing on its own. Ignored while
+   *  `scheduled`. */
   intervalMs: number;
+  /** A cron schedule is on and decides when the server refreshes. */
+  scheduled: boolean;
 }

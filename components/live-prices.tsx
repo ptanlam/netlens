@@ -4,7 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { refreshPrices, setPriceRefresh } from "@/app/actions";
+import { refreshPrices, setPriceRefresh, setPriceScheduleEnabled } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { PRICE_REFRESH_INTERVALS, type PriceStatus } from "@/lib/types";
@@ -65,7 +65,7 @@ export function usePriceStatus() {
  *  decide to re-read at the same moment, and they all want the same answer. */
 let statusPending: Promise<void> | null = null;
 
-function fetchStatus(): Promise<void> {
+export function fetchStatus(): Promise<void> {
   if (statusPending) return statusPending;
   statusPending = (async () => {
     try {
@@ -269,7 +269,8 @@ export function PricePoller() {
   // Ask again on the poll delay, but never while the tab is hidden — the handler below
   // catches up on return, and a backgrounded PWA polling all night is the sort of thing
   // that is invisible until it shows up on a bill.
-  const delay = pollDelay(st?.intervalMs ?? 0);
+  // Under a cron schedule the next run could be any minute, so ask once a minute.
+  const delay = st?.scheduled ? 60_000 : pollDelay(st?.intervalMs ?? 0);
   React.useEffect(() => {
     if (!delay) return; // the account refreshes nothing on its own; there is no stamp coming
     let id: ReturnType<typeof setTimeout>;
@@ -317,6 +318,9 @@ export function PricePoller() {
 
 const p2 = (n: number) => String(n).padStart(2, "0");
 
+/** The picker's value for "follow the schedule" rather than a flat cadence. */
+const SCHEDULE = "schedule";
+
 /** The stamp, in the reader's own timezone. Not a live clock: it changes when prices do,
  *  which is the only thing it is there to say. (It used to tick once a second showing the
  *  current time — a clock that was always right and never informative.) */
@@ -341,20 +345,32 @@ export function LivePrices() {
   const { pending, run } = useRefreshPrices();
   const st = usePriceStatus();
   const intervalMs = st?.intervalMs ?? 0;
-  const live = intervalMs > 0;
+  const scheduled = st?.scheduled ?? false;
+  const live = scheduled || intervalMs > 0;
 
-  const onIntervalChange = (ms: number) => {
-    if (!st || ms === st.intervalMs) return;
+  const onIntervalChange = (v: string) => {
+    if (!st) return;
+    if (v === SCHEDULE) {
+      if (scheduled) return;
+      void setPriceScheduleEnabled(true).then((res) => {
+        void fetchStatus();
+        if (res.ok) toast.success(res.message);
+        else toast.error(res.message);
+      });
+      return;
+    }
+    const ms = Number(v);
+    if (!scheduled && ms === intervalMs) return;
     // Optimistic: the select is a preference control and must answer the click, not the
     // round trip. A failed write is corrected by the next poll.
-    setStatus({ ...st, intervalMs: ms });
+    setStatus({ ...st, intervalMs: ms, scheduled: false });
     void setPriceRefresh(ms).then((res) => {
-      if (res.ms !== ms) setStatus({ ...st, intervalMs: res.ms });
+      if (res.ms !== ms) setStatus({ ...st, intervalMs: res.ms, scheduled: false });
       toast.success(res.message);
     });
   };
 
-  const label = PRICE_REFRESH_INTERVALS.find((i) => i.ms === intervalMs)?.label;
+  const label = scheduled ? "Cron" : PRICE_REFRESH_INTERVALS.find((i) => i.ms === intervalMs)?.label;
 
   // A phone can't hold the full row, so both controls drop their words below `sm`:
   // the pill keeps the dot + interval ("● 1m" / "● Off") and Refresh becomes its icon.
@@ -372,14 +388,16 @@ export function LivePrices() {
       </div>
 
       <Select
-        value={String(intervalMs)}
-        onValueChange={(v) => v != null && onIntervalChange(Number(v))}
+        value={scheduled ? SCHEDULE : String(intervalMs)}
+        onValueChange={(v) => v != null && onIntervalChange(v)}
       >
         <SelectTrigger
           size="sm"
           disabled={!st}
           aria-label={
-            live ? `Server refreshes prices every ${label}` : "Server price refresh off"
+            scheduled
+              ? "Server refreshes prices on a cron schedule"
+              : live ? `Server refreshes prices every ${label}` : "Server price refresh off"
           }
           className={cn(
             "gap-1.5 rounded-full px-3 text-caption font-semibold data-[size=sm]:h-9 sm:px-3.5",
@@ -405,6 +423,8 @@ export function LivePrices() {
               {i.ms === 0 ? "Off" : `Every ${i.label}`}
             </SelectItem>
           ))}
+          {/* The cron lines themselves are written in Settings → Price refresh. */}
+          <SelectItem value={SCHEDULE}>Cron schedule</SelectItem>
         </SelectContent>
       </Select>
 

@@ -19,7 +19,8 @@
  *
  * Live prices work the same way now. The tick is every minute, but `refreshScheduled`
  * fetches only when the account's stored cadence says it is due (`meta.price_refresh_ms`,
- * set from the header pill) — so one cron expression serves every cadence on the menu, and
+ * set from the header pill, or the cron lines in `meta.price_refresh_schedule`, set in
+ * Settings → Price refresh) — so one cron expression serves every cadence on the menu, and
  * a browser opening the app no longer spends a round of upstream calls to see fresh
  * figures. **This is the only thing that fetches prices on a schedule.**
  */
@@ -47,7 +48,7 @@ export default {
     return handler.fetch(request, env, ctx);
   },
 
-  async scheduled(_event, env, ctx) {
+  async scheduled(event, env, ctx) {
     // A cron tick never goes through the adapter's fetch handler, so the Cloudflare
     // context `lib/db` normally reads is not there — without this the very first query
     // throws and the whole schedule is silently dead. See `bindD1`.
@@ -59,7 +60,7 @@ export default {
         try {
           // `null` = this minute wasn't due under the account's cadence, and says so by
           // logging nothing: most ticks are skips now that the trigger runs every minute.
-          const live = await refreshScheduled();
+          const live = await refreshScheduled(new Date(event.scheduledTime));
           const errors = live ? live[1] : [];
           // Deep backfill (12h) plus a narrow sweep (30m) of the last few days, so a
           // close that settles mid-gate lands within the half hour instead of waiting

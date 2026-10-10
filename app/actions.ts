@@ -5,6 +5,7 @@ import * as db from "@/lib/db";
 import {
   refreshAll, refreshHistory, refreshRecentHistory, testPriceSource as runPriceSourceTest,
 } from "@/lib/prices";
+import { cronLines, parseCron } from "@/lib/cron";
 import { fmtVND } from "@/lib/format";
 import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
 import { estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
@@ -12,7 +13,7 @@ import {
   BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, PRICE_REFRESH_INTERVALS, ROAD_ACCESS,
   SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, normalizePriceRefreshMs,
   type BillingCycle, type CompInput, type CompKind, type GoalMetric, type Instrument, type LandUse,
-  type RoadAccess, type SubscriptionCategory, type TargetCurrency,
+  type PriceRefreshSchedule, type RoadAccess, type SubscriptionCategory, type TargetCurrency,
 } from "@/lib/types";
 
 function num(v: FormDataEntryValue | null): number | null {
@@ -903,8 +904,29 @@ export async function setPriceRefresh(ms: number) {
   return {
     ok: true,
     ms: value,
+    // `setPriceRefreshMs` also turns a schedule off — a flat pick replaces it.
     message: value ? `Prices refresh every ${label}, on every device.` : "Automatic price refresh off.",
   };
+}
+
+/** Save the cron schedule (Settings → Price refresh). Every line must parse — a typo is
+ *  refused here rather than silently never matching. Nothing server-rendered reads it; the
+ *  header picks it up from `/api/price-status`. */
+export async function savePriceSchedule(input: PriceRefreshSchedule) {
+  const cron = String(input.cron ?? "").trim();
+  const lines = cronLines(cron);
+  if (input.enabled && !lines.length) return { ok: false, message: "Add at least one cron line." };
+  for (const line of lines) {
+    try { parseCron(line); } catch (e) { return { ok: false, message: (e as Error).message }; }
+  }
+  const enabled = input.enabled === true;
+  await db.setPriceSchedule({ enabled, cron });
+  return { ok: true, message: enabled ? "Prices now refresh on your cron schedule." : "Schedule saved, off." };
+}
+
+/** Turn the saved schedule on or off — the header pill's "On schedule" item. */
+export async function setPriceScheduleEnabled(enabled: boolean) {
+  return savePriceSchedule({ ...(await db.getPriceSchedule()), enabled });
 }
 
 /**

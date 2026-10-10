@@ -10,11 +10,12 @@
  */
 import {
   deletePriceHistory, isDormant, listInstruments, listPriceSources, markPricesRefreshed,
-  metaGet, metaSet, priceStatus, setFxRates, syncFxTargets, todayIso, updatePrice,
+  appCronMoment, metaGet, metaSet, priceSchedulingState, setFxRates, syncFxTargets, todayIso, updatePrice,
   upsertPriceHistory,
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
 import { MANUAL_SOURCE } from "./types";
+import { cronLines, cronMatches, parseCron } from "./cron";
 
 /** Price sources keyed by `key`. One query instead of a `getPriceSource()` per holding —
  *  on D1 that per-row lookup would be a network round trip each time round the loop. */
@@ -315,14 +316,29 @@ const DUE_SKEW_MS = 20_000;
  * actually due, which is what lets one cron expression serve every cadence on the menu —
  * and what lets "Off" mean off, rather than "off in this browser".
  *
+ * With a cron schedule on (`meta.price_refresh_schedule`), the minute is due when one of its
+ * lines matches `at` in the app timezone instead — the tick passes its own `scheduledTime`,
+ * so a late-running invocation is still judged by the minute it was for.
+ *
  * Returns `null` — not `[0, []]` — for a tick that wasn't due, so the caller can stay quiet
  * about it. Most ticks are skips, and a log line a minute saying nothing happened is how a
  * log stops being read.
  */
-export async function refreshScheduled(): Promise<[number, string[]] | null> {
-  const { intervalMs, atMs } = await priceStatus();
+export async function refreshScheduled(at = new Date()): Promise<[number, string[]] | null> {
+  const { status: { intervalMs, atMs }, schedule } = await priceSchedulingState();
+  if (schedule.enabled) {
+    // Cron: due on any minute a line matches. A line that no longer parses (saved before a
+    // rule changed, or hand-edited) is skipped rather than stopping the others.
+    const moment = appCronMoment(at);
+    const due = cronLines(schedule.cron).some((line) => {
+      try { return cronMatches(parseCron(line), moment); } catch { return false; }
+    });
+    // A manual refresh moments ago already did this minute's work.
+    if (!due || (atMs != null && at.valueOf() - atMs < 30_000)) return null;
+    return refreshAll();
+  }
   if (!intervalMs) return null;
-  if (atMs != null && Date.now() - atMs < intervalMs - DUE_SKEW_MS) return null;
+  if (atMs != null && at.valueOf() - atMs < intervalMs - DUE_SKEW_MS) return null;
   return refreshAll();
 }
 

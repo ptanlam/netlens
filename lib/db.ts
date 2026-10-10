@@ -18,12 +18,13 @@
  * The schema lives in `migrations/`, not in a string here — see `migrations/0001_init.sql`.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, Subscription, Tx, ValuationSource } from "./types";
-import { normalizePriceRefreshMs } from "./types";
+import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, Subscription, Tx, ValuationSource } from "./types";
+import { DEFAULT_PRICE_SCHEDULE, normalizePriceRefreshMs } from "./types";
 import { fundCashAt, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
 import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
 import { instrumentLogo } from "./logos";
+import type { CronMoment } from "./cron";
 
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
 export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, Property, PropertyComp, PropertyIndexPoint, RecurringRule, Saving, Subscription, Tx } from "./types";
@@ -1157,23 +1158,77 @@ const PRICE_INTERVAL_KEY = "price_refresh_ms";
  *  clock, and a feed that is down must not be retried every single minute. */
 const PRICES_REFRESHED_AT_KEY = "prices_refreshed_at";
 
+/** The cron schedule (JSON, `PriceRefreshSchedule`). Kept even while disabled, so turning it
+ *  back on from the header restores the lines you wrote. */
+const PRICE_SCHEDULE_KEY = "price_refresh_schedule";
+
+const parseSchedule = (raw: string | null | undefined): PriceRefreshSchedule => {
+  try {
+    const v = JSON.parse(raw ?? "null") as Partial<PriceRefreshSchedule> | null;
+    return typeof v?.cron === "string" ? { enabled: v.enabled === true, cron: v.cron } : DEFAULT_PRICE_SCHEDULE;
+  } catch {
+    return DEFAULT_PRICE_SCHEDULE;
+  }
+};
+
 /** The schedule and its last run, in one query — the two are never wanted apart, and on D1
  *  a second `metaGet` is a second network round trip. */
 export async function priceStatus(): Promise<PriceStatus> {
-  const rows = await q("SELECT key, value FROM meta WHERE key IN (?,?)")
-    .all<{ key: string; value: string }>(PRICE_INTERVAL_KEY, PRICES_REFRESHED_AT_KEY);
+  return (await priceSchedulingState()).status;
+}
+
+/** `priceStatus`, plus the schedule itself for the cron tick that has to apply it. */
+export async function priceSchedulingState(): Promise<{ status: PriceStatus; schedule: PriceRefreshSchedule }> {
+  const rows = await q("SELECT key, value FROM meta WHERE key IN (?,?,?)")
+    .all<{ key: string; value: string }>(PRICE_INTERVAL_KEY, PRICES_REFRESHED_AT_KEY, PRICE_SCHEDULE_KEY);
   const by = new Map(rows.map((r) => [r.key, r.value]));
   const at = by.get(PRICES_REFRESHED_AT_KEY);
   // `nowIso` trims the "Z", so put it back before parsing or this reads as local time.
   const atMs = at ? Date.parse(at + "Z") : NaN;
+  const schedule = parseSchedule(by.get(PRICE_SCHEDULE_KEY));
   return {
-    atMs: Number.isFinite(atMs) ? atMs : null,
-    intervalMs: normalizePriceRefreshMs(Number(by.get(PRICE_INTERVAL_KEY))),
+    status: {
+      atMs: Number.isFinite(atMs) ? atMs : null,
+      intervalMs: normalizePriceRefreshMs(Number(by.get(PRICE_INTERVAL_KEY))),
+      scheduled: schedule.enabled,
+    },
+    schedule,
   };
 }
 
+const clockFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: APP_TIMEZONE, weekday: "short", month: "numeric", day: "numeric",
+  hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+});
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** `at` as cron sees it in the app timezone — not the runtime's, which is UTC on the Worker
+ *  (see `APP_TIMEZONE`). */
+export function appCronMoment(at: Date): CronMoment {
+  const parts = Object.fromEntries(clockFormatter.formatToParts(at).map((p) => [p.type, p.value]));
+  return [
+    Number(parts.minute), Number(parts.hour), Number(parts.day), Number(parts.month),
+    WEEKDAYS.indexOf(parts.weekday),
+  ];
+}
+
+/** A flat cadence. Picking one turns the schedule off — otherwise the pick would do nothing
+ *  until the schedule was turned off somewhere else. */
 export async function setPriceRefreshMs(ms: number) {
-  await metaSet(PRICE_INTERVAL_KEY, String(normalizePriceRefreshMs(ms)));
+  const schedule = await getPriceSchedule();
+  const set = q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)");
+  await db().batch([
+    set.bound(PRICE_INTERVAL_KEY, String(normalizePriceRefreshMs(ms))),
+    set.bound(PRICE_SCHEDULE_KEY, JSON.stringify({ ...schedule, enabled: false })),
+  ]);
+}
+
+export async function getPriceSchedule(): Promise<PriceRefreshSchedule> {
+  return parseSchedule(await metaGet(PRICE_SCHEDULE_KEY));
+}
+
+export async function setPriceSchedule(s: PriceRefreshSchedule) {
+  await metaSet(PRICE_SCHEDULE_KEY, JSON.stringify(s));
 }
 
 export async function markPricesRefreshed() {

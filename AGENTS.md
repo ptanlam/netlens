@@ -67,6 +67,12 @@ default 5m, `Off` allowed), written by the header pill via `setPriceRefresh` and
 function decides whether the minute is due — which is why the cadence is a setting rather
 than a `wrangler.jsonc` edit, and why nothing below a minute is on the menu.
 
+A **cron schedule** can replace the flat cadence (Settings → Price refresh, `meta`
+`price_refresh_schedule` = `{enabled, cron}`): one 5-field line per row, read in
+`APP_TIMEZONE`, and a minute is due when any line matches the tick's `scheduledTime`. The
+matcher is `lib/cron.ts` (self-check: `node scripts/check-cron.mjs`). Picking an interval in
+the header pill turns the schedule off; its "Cron schedule" item turns it back on.
+
 `components/live-prices.tsx` only *watches*: it polls `GET /api/price-status` (one `meta`
 read) and, when `meta.prices_refreshed_at` moves, bumps the refresh count and
 `router.refresh()`es a route that draws prices. The two paths still allowed to fetch from a
