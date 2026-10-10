@@ -23,7 +23,8 @@ export default async function InvestmentsPage() {
   const costBy: Record<string, number> = {};
   const txCountBy: Record<string, number> = {};
   for (const tx of txs) {
-    costBy[tx.instrument] = (costBy[tx.instrument] ?? 0) + tx.amount;
+    // A fund buy awaiting units isn't in the holding's quantity yet, so it isn't cost either.
+    if (!db.awaitingUnits(tx)) costBy[tx.instrument] = (costBy[tx.instrument] ?? 0) + tx.amount;
     txCountBy[tx.instrument] = (txCountBy[tx.instrument] ?? 0) + 1;
   }
 

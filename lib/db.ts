@@ -805,6 +805,11 @@ export function ruleNextDue(rule: RecurringRule): string | null {
 // add units to the holding rather than remove them.
 const AWAITING_UNITS = "asset_type='Funds' AND quantity IS NULL AND amount > 0";
 
+/** `AWAITING_UNITS` for a row already in hand. */
+export function awaitingUnits(tx: Pick<Tx, "asset_type" | "quantity" | "amount">): boolean {
+  return tx.asset_type === "Funds" && tx.quantity == null && tx.amount > 0;
+}
+
 export async function pendingFundUnits(days = 14): Promise<Tx[]> {
   const cutoff = isoOf(new Date(Date.now() - days * 86400000));
   return q(
@@ -1548,8 +1553,8 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
  * them separately would eventually disagree and make the KPI tiles contradict the
  * allocation donut beside them.
  *
- * `costByInstrument` is `SUM(amount) GROUP BY instrument` over *all* transactions —
- * unfiltered by date, which is what the cost basis means. Note this is a different
+ * `costByInstrument` is `SUM(amount) GROUP BY instrument` over all transactions but fund
+ * buys awaiting units — unfiltered by date, which is what the cost basis means. Note this is a different
  * valuation basis from `lib/pnl.ts`: here a holding is `quantity × last_price`
  * (`holdingValue`), whereas the P&L series prices a NAV fund at its stored close because
  * its `last_price` is a past valuation day's NAV. Both are right in their own place; don't
@@ -1599,7 +1604,7 @@ export function livePayload(
 
 export async function buildPayload(): Promise<Payload> {
   const [costRows, instruments] = await Promise.all([
-    q("SELECT instrument, SUM(amount) c FROM transactions GROUP BY instrument")
+    q(`SELECT instrument, SUM(amount) c FROM transactions WHERE NOT (${AWAITING_UNITS}) GROUP BY instrument`)
       .all<{ instrument: string; c: number }>(),
     listInstruments(),
   ]);
