@@ -342,15 +342,15 @@ export function InvestmentManager({
       {/* The overview band, moved here from the dashboard. It belongs beside the holdings it
           describes: the dashboard's job is net worth and the shape of the year, and "how is
           the portfolio split" is a question about this page.
-          Side by side rather than stacked, wrapping on content. The allocation donut is a
-          fixed 172px — given a whole page width it would sit in the middle of an empty card,
-          while the list is the panel that wants the extra measure. `items-stretch` (the
-          default) plus `h-full` inside keeps the pair level while their contents differ. */}
-      <div className="mt-3 flex flex-wrap gap-3 sm:mt-4 sm:gap-4">
-        <div className="flex min-w-0 flex-[1_1_260px] flex-col">
+          Stacked on a phone, then side by side at equal widths; only from `xl` does the list
+          take the extra measure — the allocation donut is a fixed 172px, so given more it would
+          sit in the middle of an empty card. Grid rows stretch, and `h-full` inside keeps the
+          pair level while their contents differ. */}
+      <div className="mt-3 grid gap-3 sm:mt-4 sm:gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className="flex min-w-0 flex-col">
           <AllocationCard payload={figures} />
         </div>
-        <div className="flex min-w-0 flex-[2_1_320px] flex-col">
+        <div className="flex min-w-0 flex-col">
           <HoldingsListCard payload={figures} holdingSeries={holdingSeries} />
         </div>
       </div>
