@@ -1,5 +1,6 @@
 "use client";
 
+import { flushSync } from "react-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { setMasked, useMasked } from "@/lib/mask";
@@ -10,11 +11,19 @@ import { cn } from "@/lib/utils";
 export function MaskToggle({ className }: { className?: string }) {
   const masked = useMasked();
   const label = masked ? "Show amounts" : "Hide amounts";
+  // Cross-fade the page through a view transition, so every figure smudges out (or comes
+  // back) together. flushSync makes React's re-render (chart text, the P&L calendar) land
+  // inside the transition's "after" snapshot.
+  const toggle = () => {
+    const apply = () => flushSync(() => setMasked(!masked));
+    if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) apply();
+    else document.startViewTransition(apply);
+  };
   return (
     <IconTooltip label={label}>
       <button
         type="button"
-        onClick={() => setMasked(!masked)}
+        onClick={toggle}
         aria-label={label}
         aria-pressed={masked}
         className={cn(

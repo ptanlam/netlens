@@ -511,6 +511,17 @@
    its figures are the strong line, as in the design's hover card. */
 .ts-chart-tooltip__title { font-weight: 600; }
 .ts-chart-tooltip__row > span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The library moves the tooltip by `left`/`top` on every hover step: easing those makes it
+   glide between points instead of jumping. Shown from `hidden` (display: none) there is no
+   "before" position, so it appears in place, fading up via `@starting-style`. */
+@media (prefers-reduced-motion: no-preference) {
+  .ts-chart-tooltip {
+    transition: left 160ms cubic-bezier(0.215, 0.61, 0.355, 1), top 160ms cubic-bezier(0.215, 0.61, 0.355, 1), opacity 160ms ease-out, scale 160ms ease-out;
+  }
+  @starting-style {
+    .ts-chart-tooltip { opacity: 0; scale: 0.96; }
+  }
+}
 
 /* ---- Hide amounts (`lib/mask.ts`) ----
    Opt-in: a figure hides when it carries `data-amount` (or is wrapped in `<Amt>`), plus the
