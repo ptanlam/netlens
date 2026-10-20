@@ -61,10 +61,17 @@ the browser login, so it gets an Access **service token**, scoped to that one pa
    reminder in your calendar.
 2. Zero Trust → Access → Applications → **Add a self-hosted application** for
    `netlens.lamphan.com`, path `api/fund-units`. Give it one policy, action **Service Auth**,
-   include **Service Token = netlens-gmail**. The most specific path wins, so this app
+   include **Service Token = netlens-gmail**. The action has to be Service Auth. With Allow, Access
+   ignores the token headers and redirects the script to the login page (a 302). The most specific path wins, so this app
    (not the main one) guards that path, and the token opens that path and nothing else.
 3. In the Apps Script project, Project Settings → Script Properties: `CF_ACCESS_CLIENT_ID`
    and `CF_ACCESS_CLIENT_SECRET`. Never put them in the script's source.
+
+The script reads VPBankS and Dragon Capital confirmations. Both are HTML only, so it parses
+the HTML itself rather than Gmail's plain-text rendering. Each email is matched to its exact
+buy by date: VPBankS states it ("cho kỳ mua ngày 16/10/2026"), and Dragon Capital's Order ID
+starts with it as YYMMDD (the email's "trading date" is the NAV day, not the buy's). The
+parsers have a self-check: `node scripts/check-gmail-fund-units.mjs`.
 
 A leaked token can, at worst, set units on buys still awaiting them. It can't browse
 your data, and it can't overwrite units that are already set (`setTransactionQuantity` only
