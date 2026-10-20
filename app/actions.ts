@@ -91,7 +91,7 @@ export async function deleteTx(id: number) {
 export async function setTxQty(id: number, quantity: number, addToHoldings: boolean) {
   const ok = await db.setTransactionQuantity(id, quantity, addToHoldings);
   revalidateAll();
-  return { ok, message: ok ? "Units saved." : "Not found." };
+  return { ok, message: ok ? "Units saved." : "Not found, or already confirmed." };
 }
 
 // ---------- savings (term deposits) ----------

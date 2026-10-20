@@ -838,7 +838,10 @@ export async function setTransactionQuantity(
 ): Promise<boolean> {
   const tx = await getTransaction(id);
   if (!tx) return false;
-  await q("UPDATE transactions SET quantity=? WHERE id=?").run(quantity, id);
+  // Only while still awaiting: a second confirmation of the same buy (a re-run of the Gmail
+  // script, a double-clicked Save) must not add its units to the holding twice.
+  const { changes } = await q("UPDATE transactions SET quantity=? WHERE id=? AND quantity IS NULL").run(quantity, id);
+  if (!changes) return false;
   if (addToHoldings) {
     const inst = await getInstrument(tx.instrument);
     if (inst && inst.quantity != null)

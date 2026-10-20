@@ -50,6 +50,26 @@ already shut, backed by a static secret with no expiry, no rotation and no recor
 used it. If you find `APP_PASSWORD` in an old `.dev.vars` or a stale secret, delete it —
 nothing reads it.
 
+### The fund-units API
+
+`POST /api/fund-units` confirms a fund buy's units for a machine: the Gmail Apps Script in
+`scripts/gmail-fund-units.gs`. It's still Access, not an app secret. A script can't do
+the browser login, so it gets an Access **service token**, scoped to that one path:
+
+1. Zero Trust → Access → Service credentials → **Create service token** (`netlens-gmail`).
+   Copy the Client ID and Secret. The secret is shown once. Pick an expiry and put a
+   reminder in your calendar.
+2. Zero Trust → Access → Applications → **Add a self-hosted application** for
+   `netlens.lamphan.com`, path `api/fund-units`. Give it one policy, action **Service Auth**,
+   include **Service Token = netlens-gmail**. The most specific path wins, so this app
+   (not the main one) guards that path, and the token opens that path and nothing else.
+3. In the Apps Script project, Project Settings → Script Properties: `CF_ACCESS_CLIENT_ID`
+   and `CF_ACCESS_CLIENT_SECRET`. Never put them in the script's source.
+
+A leaked token can, at worst, set units on buys still awaiting them. It can't browse
+your data, and it can't overwrite units that are already set (`setTransactionQuantity` only
+fills a NULL). To revoke it, delete the token.
+
 ## Bringing your data across
 
 The authoritative copy lives on the **Railway** volume (`netlens-volume`, mounted at
