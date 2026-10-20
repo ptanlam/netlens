@@ -8,6 +8,7 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Amt } from "@/components/amt";
+import { SlidingNumber } from "@animate-ui/react/primitives/texts/sliding-number";
 
 /** "2026-07-30" → "Jul 30". Sliced rather than passed through `Date`, which would read the
  *  ISO day as UTC midnight and shift it a day back in every timezone behind it. */
@@ -75,19 +76,17 @@ export function NetWorthPanel({
 
   // Flash the figure — up or down — whenever it moves. A price refresh re-renders this
   // panel with a new total; we compare against the last one we showed and, on a real
-  // change, restart the tick animation (bumping `n` remounts the node so it replays even on
-  // back-to-back refreshes). First mount seeds `prev` with the current value, so nothing
-  // flashes on load. `onAnimationEnd` clears the state; reduced-motion users just see the
-  // number update, since the animation utilities are gated behind that media query.
+  // change, play the tick animation while the digits roll to the new total. The node is not
+  // remounted per flash (that used to replay it), since a remount would reset the rolling
+  // digits; `onAnimationEnd` clears the class so the next refresh adds it afresh. First mount
+  // seeds `prev`, so nothing flashes or rolls on load. Reduced-motion users just see the
+  // number update: the flash utilities are gated behind that media query, and the roll too.
   const prev = React.useRef(net);
-  const seq = React.useRef(0);
-  const [flash, setFlash] = React.useState<{ dir: "up" | "down"; n: number } | null>(null);
+  const [flash, setFlash] = React.useState<"up" | "down" | null>(null);
   React.useEffect(() => {
     if (net === prev.current) return;
-    const dir = net > prev.current ? "up" : "down";
+    setFlash(net > prev.current ? "up" : "down");
     prev.current = net;
-    seq.current += 1;
-    setFlash({ dir, n: seq.current });
   }, [net]);
 
   // The set-aside line only earns its place once there's something in it — an empty row on
@@ -163,7 +162,6 @@ export function NetWorthPanel({
       </div>
 
       <div
-        key={flash?.n ?? "static"}
         data-amount
         onAnimationEnd={() => setFlash(null)}
         className={cn(
@@ -171,11 +169,12 @@ export function NetWorthPanel({
           // phone up to the design's 96px on a wide screen.
           "font-display text-[clamp(34px,10.5cqi,96px)] leading-[0.85] font-black tracking-[-0.01em] whitespace-nowrap text-hero-accent tabular-nums will-change-transform",
           "[--nw-down:var(--hero-neg-fg)] [--nw-rest:var(--hero-accent)] [--nw-up:var(--hero-strong)]",
-          flash?.dir === "up" && "animate-nw-flash-up",
-          flash?.dir === "down" && "animate-nw-flash-down",
+          flash === "up" && "animate-nw-flash-up",
+          flash === "down" && "animate-nw-flash-down",
         )}
       >
-        {fmtVND(net)}
+        {/* fmtVND's shape (sign, ₫, dot grouping), with digits that roll on a refresh. */}
+        {net < 0 && "-"}₫<SlidingNumber number={Math.abs(Math.round(net))} thousandSeparator="." initiallyStable />
       </div>
 
       {landDelta !== 0 && (

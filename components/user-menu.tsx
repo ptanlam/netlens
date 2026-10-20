@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Menu } from "@base-ui/react/menu";
+import { Menu } from "@animate-ui/react/primitives/base-ui/menu";
 import { LogOut, Settings, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -115,7 +115,7 @@ export function UserMenu() {
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner sideOffset={8} align="end" className="z-50 outline-none">
-          <Menu.Popup className="min-w-[210px] origin-(--transform-origin) rounded-xl border border-border bg-card p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.18)] outline-none transition-[transform,opacity] duration-150 ease-out data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:scale-[0.98] data-starting-style:opacity-0">
+          <Menu.Popup className="min-w-[210px] origin-(--transform-origin) rounded-xl border border-border bg-card p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.18)] outline-none">
             {/* Not a `Menu.Item`: it is the menu's subject, not one of its actions, so it
                 must not take focus or answer the arrow keys.
 

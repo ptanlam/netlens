@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { Dialog as DialogPrimitive } from '@animate-ui/react/primitives/base-ui/dialog';
 import {
   Menu, Settings, ChevronsLeft,
   LayoutDashboard, TrendingUp, ArrowLeftRight, PiggyBank, LandPlot, CreditCard, CalendarSync, Target, LineChart,
@@ -248,11 +248,12 @@ function MobileNav({ pathname }: { pathname: string }) {
         </DialogPrimitive.Trigger>
       </IconTooltip>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-(--scrim) duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0' />
+        <DialogPrimitive.Backdrop className='fixed inset-0 z-50 bg-(--scrim)' />
         <DialogPrimitive.Popup
           onTouchStart={onPopupTouchStart}
           onTouchEnd={onPopupTouchEnd}
-          className='panel-surface fixed inset-y-3 left-3 z-50 flex w-[17rem] max-w-[85%] flex-col gap-5 overflow-y-auto rounded-3xl p-4 duration-150 outline-none data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left'>
+          data-side='left'
+          className='panel-surface fixed inset-y-3 left-3 z-50 flex w-[17rem] max-w-[85%] flex-col gap-5 overflow-y-auto rounded-3xl p-4 outline-none'>
           <DialogPrimitive.Title className='flex items-center gap-2.5 px-3 pt-1'>
             <BrandMark />
           </DialogPrimitive.Title>

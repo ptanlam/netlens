@@ -15,7 +15,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Menu } from "@base-ui/react/menu";
+import { Menu } from "@animate-ui/react/primitives/base-ui/menu";
 import {
   ArrowDown,
   ArrowDownAZ,
@@ -44,8 +44,7 @@ type Align = "left" | "right";
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
 
 const MENU_POPUP =
-  "floating-menu z-50 min-w-40 origin-(--transform-origin) rounded-lg p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none " +
-  "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95";
+  "floating-menu z-50 min-w-40 origin-(--transform-origin) rounded-lg p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none";
 
 const MENU_ITEM =
   "relative flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-body-sm outline-none select-none " +
