@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { areaY, defineChart, lineY, rect, ruleY } from "@tanstack/charts";
 import { crosshair } from "@tanstack/charts/crosshair";
@@ -14,12 +15,14 @@ import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { stackRowsY } from "@tanstack/charts/transform/stack";
 import { scaleUtc } from "d3-scale";
-import { Download } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import type { Tx } from "@/lib/types";
 import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
 import { readMasked } from "@/lib/mask";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { IconTooltip } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable } from "@/components/data-table";
 import { AddRecurringDialog } from "@/components/add-recurring-dialog";
 import { AddTxDialog } from "@/components/add-tx-dialog";
@@ -259,10 +262,10 @@ export function TransactionsView({
     [options, logos],
   );
 
-  // Fixed height, not padding: a <select> derives a different intrinsic height from the
-  // same padding as the date fields it sits under.
-  const selectCls =
-    "h-8 rounded-lg border border-field-border bg-card px-3 text-body-sm outline-none hover:border-foreground focus:border-foreground";
+  // Re-reads the page's data without a reload: units confirmed from elsewhere (the Gmail
+  // script, another tab) are written on the server, and an open page only sees them here.
+  const router = useRouter();
+  const [refreshing, startRefresh] = React.useTransition();
 
   return (
     <div>
@@ -273,6 +276,17 @@ export function TransactionsView({
         className="mb-4"
         actions={
           <>
+            <IconTooltip label="Refresh transactions">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Refresh transactions"
+                disabled={refreshing}
+                onClick={() => startRefresh(() => router.refresh())}
+              >
+                <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
+              </Button>
+            </IconTooltip>
             <Button variant="outline" nativeButton={false} render={<a href="/export.csv" download />}>
               <Download className="size-3.5" />
               Export CSV
@@ -303,15 +317,35 @@ export function TransactionsView({
 
         <div className="mt-4 flex flex-wrap items-center gap-2.5">
           <span className="text-caption text-muted-foreground">Filter</span>
-          <select value={filterHolding} onChange={(e) => setFilterHolding(e.target.value)} className={selectCls}>
-            <option value="All">All holdings</option>
-            {holdingNames.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-          <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={selectCls}>
-            <option value="All">All types</option>
-            <option value="Buy">Buy</option>
-            <option value="Sell">Sell</option>
-          </select>
+          {/* The house Select rather than a native one, so the list opens animated like every
+              other picker in the app. `items` gives the "All" value its label. */}
+          <Select
+            value={filterHolding}
+            onValueChange={(v) => setFilterHolding(String(v ?? "All"))}
+            items={{ All: "All holdings", ...Object.fromEntries(holdingNames.map((n) => [n, n])) }}
+          >
+            <SelectTrigger size="sm" aria-label="Holding">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All holdings</SelectItem>
+              {holdingNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select
+            value={filterType}
+            onValueChange={(v) => setFilterType(String(v ?? "All"))}
+            items={{ All: "All types", Buy: "Buy", Sell: "Sell" }}
+          >
+            <SelectTrigger size="sm" aria-label="Type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All types</SelectItem>
+              <SelectItem value="Buy">Buy</SelectItem>
+              <SelectItem value="Sell">Sell</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Summary tiles. Monthly average and Best month are scoped to the selected range
