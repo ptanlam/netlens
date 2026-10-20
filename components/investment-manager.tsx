@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Archive, ArchiveRestore, ArrowRight, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Collapsible } from "@animate-ui/react/primitives/base-ui/collapsible";
 import type { Instrument, LivePayload, RecurringRule } from "@/lib/types";
 import { deleteHolding, setHoldingArchived } from "@/app/actions";
 import { fmtUnits, fmtVND } from "@/lib/format";
@@ -124,11 +125,14 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
   const estate = inst.asset_type === "Real Estate" ? estateHref(inst.name) : null;
 
   return (
-    <div className="border-t border-divider-soft first:border-t-0">
+    // Collapsible for the unfold animation only. The header stays a div that toggles it, not
+    // a Collapsible.Trigger: it holds the Valuation link, and a link can't sit in a <button>.
+    <Collapsible.Root open={open} onOpenChange={setOpen} className="border-t border-divider-soft first:border-t-0">
       <div
         onClick={() => setOpen((o) => !o)}
         role="button"
         tabIndex={0}
+        aria-expanded={open}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o); } }}
         className="flex cursor-pointer items-center justify-between gap-3 px-[18px] py-3.5"
       >
@@ -176,7 +180,7 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
         </div>
       </div>
 
-      {open && (
+      <Collapsible.Panel>
         <div className="border-t border-divider-soft bg-pane-sunk px-[18px] py-4 pl-[41px]">
           {soldOut && <SoldOutPrompt name={inst.name} />}
           <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-muted-foreground">
@@ -225,8 +229,8 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
             <RecurringManager rules={rules} instruments={[option]} showAddForm={false} />
           </section>
         </div>
-      )}
-    </div>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   );
 }
 
@@ -431,20 +435,16 @@ function ArchivedHoldings({
 }) {
   const [open, setOpen] = React.useState(false);
   return (
-    <section className="mt-8">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2.5 px-1 pb-2.5 text-left"
-      >
+    <Collapsible.Root open={open} onOpenChange={setOpen} render={<section />} className="mt-8">
+      <Collapsible.Trigger className="flex w-full items-center gap-2.5 px-1 pb-2.5 text-left">
         <Archive className="size-3.5 text-faint" />
         <span className="text-body-sm font-semibold text-muted-foreground">Archived</span>
         <span className="text-caption text-faint">
           {holdings.length} holding{holdings.length === 1 ? "" : "s"}
         </span>
         <span className={cn("ml-1 font-mono text-caption text-faint transition-transform", open && "rotate-90")}>▸</span>
-      </button>
-      {open && (
+      </Collapsible.Trigger>
+      <Collapsible.Panel>
         <div className="overflow-hidden card-surface opacity-80">
           {holdings.map((h) => (
             <HoldingRow
@@ -456,7 +456,7 @@ function ArchivedHoldings({
             />
           ))}
         </div>
-      )}
-    </section>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   );
 }
