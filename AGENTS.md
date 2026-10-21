@@ -105,6 +105,21 @@ A goal is a target on a metric (`lib/goals.ts`, `GOAL_METRICS`). Four metrics ar
 - **A net-worth goal excludes everything earmarked** (`earmarkedAt` in `lib/goals.ts`): the money is yours, but it's spoken for, so it can't count toward a number you mean to keep.
 - **"Mark as bought"** drains the cash and *un-earmarks* the deposits — it never deletes them. The bank still holds a deposit until you break it; delete it on the Savings page then.
 
+### An apartment you haven't priced yet
+
+A fund with `down_payment_pct` set (migration `0013`) is an apartment goal: its target is that
+share of an **estimated** price, worked out per request like a foreign target is converted.
+
+- The estimate is the land valuation's (`estimate` in `lib/realestate.ts`), with no purchase to
+  anchor to. Its location and comps sit in `properties` / `property_comps` under the key
+  `goal:<id>` (`goalPropertyKey`), so `/goals/<id>` is the plot page (`RealEstateDetail` with
+  `goal`) and "Find listings nearby" works unchanged. Only Nhà Tốt's apartment category
+  (`land_use` "apartment") is searched for it, so only flats are comps for it.
+- `buildGoalWorld` fills `GoalWorld.apartments` with three reads for every apartment goal;
+  `project` takes the target from there. `Goal.target` keeps the figure you typed, which
+  stands in until a comp counts.
+- Deleting the goal deletes its location and comps. Unticking "It's an apartment" keeps them.
+
 ### A target in another currency
 
 A goal can be denominated in foreign money ("Race to $100k"): `goals.target_ccy` + `target_amount` (whole units) hold what you actually said, and `target` is the VND it converts to.

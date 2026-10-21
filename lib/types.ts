@@ -212,14 +212,26 @@ export interface Subscription {
 
 /** A hard match between a plot and its comps — residential land trades at several times the
  *  agricultural land beside it, so mixing the two would average two different markets. */
-export const LAND_USES = ["residential", "agricultural", "mixed"] as const;
+/** "apartment" is a flat, not land: its own market, so only another flat is a comp for one. */
+export const LAND_USES = ["residential", "agricultural", "mixed", "apartment"] as const;
 export type LandUse = (typeof LAND_USES)[number];
 
 export const LAND_USE_LABELS: Record<LandUse, string> = {
   residential: "Residential",
   agricultural: "Agricultural",
   mixed: "Partly residential",
+  apartment: "Apartment",
 };
+
+/** An apartment goal's place in `properties` / `property_comps` (migration 0013). */
+export function goalPropertyKey(goalId: number): string {
+  return `goal:${goalId}`;
+}
+
+export function goalIdOfProperty(key: string): number | null {
+  const m = /^goal:(\d+)$/.exec(key);
+  return m ? Number(m[1]) : null;
+}
 
 /** A soft match: a comp on a different kind of road still counts, for less. */
 export const ROAD_ACCESS = ["street", "alley", "none"] as const;
@@ -349,6 +361,8 @@ export interface Goal {
   baseline: number;
   monthly_plan: number | null;
   target_date: string | null;
+  /** Set on an apartment fund: the target is this % of its estimated price (migration 0013). */
+  down_payment_pct: number | null;
   /** Where you ranked it. Lower comes first, and it beats every other ordering — the whole
    *  point is that you, not a deadline, decide which goal matters most. */
   position: number;

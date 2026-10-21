@@ -4,7 +4,7 @@ import * as React from "react";
 import { ExternalLink, Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  COMP_KINDS, LAND_USE_LABELS, ROAD_ACCESS_LABELS,
+  COMP_KINDS, LAND_USE_LABELS, ROAD_ACCESS_LABELS, goalIdOfProperty,
   type Property, type PropertyComp, type PropertyIndexPoint, type PropertyValuation,
   type ValuationSource,
 } from "@/lib/types";
@@ -162,14 +162,19 @@ export function PropertyForm({
             <Label htmlFor={`p-radius-${holding}`}>Search radius (km)</Label>
             <Input id={`p-radius-${holding}`} name="radius_km" type="number" min="0.1" max="50" step="0.1" defaultValue={property?.radius_km ?? 3} required />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor={`p-use-${holding}`}>Land use</Label>
-            <EnumSelect id={`p-use-${holding}`} name="land_use" labels={LAND_USE_LABELS} defaultValue={property?.land_use ?? "residential"} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor={`p-access-${holding}`}>Road access</Label>
-            <EnumSelect id={`p-access-${holding}`} name="access" labels={ROAD_ACCESS_LABELS} defaultValue={property?.access ?? "alley"} />
-          </div>
+          {/* An apartment goal is a flat by definition (the server sets it), with no road of its own. */}
+          {goalIdOfProperty(holding) == null && (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor={`p-use-${holding}`}>Land use</Label>
+                <EnumSelect id={`p-use-${holding}`} name="land_use" labels={LAND_USE_LABELS} defaultValue={property?.land_use ?? "residential"} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`p-access-${holding}`}>Road access</Label>
+                <EnumSelect id={`p-access-${holding}`} name="access" labels={ROAD_ACCESS_LABELS} defaultValue={property?.access ?? "alley"} />
+              </div>
+            </>
+          )}
           <div className="grid gap-2 sm:col-span-2">
             <Label htmlFor={`p-note-${holding}`}>Note (optional)</Label>
             <Input id={`p-note-${holding}`} name="note" defaultValue={property?.note ?? undefined} />
@@ -233,7 +238,11 @@ function CompForm({
           </div>
           <div className="grid gap-2">
             <Label htmlFor={`${id}-use`}>Land use</Label>
-            <EnumSelect id={`${id}-use`} name="land_use" labels={LAND_USE_LABELS} defaultValue={comp?.land_use ?? "residential"} />
+            <EnumSelect
+              id={`${id}-use`} name="land_use" labels={LAND_USE_LABELS}
+              // An apartment goal's comps are flats, so that's where a new one starts.
+              defaultValue={comp?.land_use ?? (holding && goalIdOfProperty(holding) != null ? "apartment" : "residential")}
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor={`${id}-access`}>Road access</Label>
@@ -412,12 +421,15 @@ export function FindListingsDialog({ property }: { property: Property }) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Land for sale within {property.radius_km} km</DialogTitle>
+          <DialogTitle>
+            {property.land_use === "apartment" ? "Apartments" : "Land"} for sale within {property.radius_km} km
+          </DialogTitle>
         </DialogHeader>
         <p className="text-caption text-muted-foreground">
-          Asking prices from Nhà Tốt, counted at {Math.round((1 - ASKING_DISCOUNT) * 100)}%. Tick
-          the plots that are genuinely like yours. A listing that&apos;s a different land use
-          won&apos;t count toward the estimate.
+          Asking prices from Nhà Tốt, counted at {Math.round((1 - ASKING_DISCOUNT) * 100)}%.{" "}
+          {property.land_use === "apartment"
+            ? "Untick what isn't a real flat like the one you want: social housing, a teaser price for a deposit, or a pin that's miles from the address it gives."
+            : "Tick the plots that are genuinely like yours. A listing that's a different land use won't count toward the estimate."}
         </p>
 
         {searching && (

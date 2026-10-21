@@ -11,7 +11,7 @@ import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/
 import { estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
   BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, PRICE_REFRESH_INTERVALS, ROAD_ACCESS,
-  SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, normalizePriceRefreshMs,
+  SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, goalIdOfProperty, normalizePriceRefreshMs,
   type BillingCycle, type CompInput, type CompKind, type GoalMetric, type Instrument, type LandUse,
   type PriceRefreshSchedule, type RoadAccess, type SubscriptionCategory, type TargetCurrency,
 } from "@/lib/types";
@@ -27,8 +27,10 @@ function str(v: FormDataEntryValue | null): string {
 }
 
 function revalidateAll() {
-  for (const p of ["/", "/investments", "/transactions", "/savings", "/debts", "/subscriptions", "/goals", "/forecast", "/settings/price-sources"])
+  for (const p of ["/", "/investments", "/transactions", "/savings", "/debts", "/subscriptions", "/forecast", "/settings/price-sources"])
     revalidatePath(p);
+  // "layout" for the same reason as below: an apartment goal's page is /goals/<id>.
+  revalidatePath("/goals", "layout");
   // "layout", so every plot's page under it (/real-estate/<name>) is refreshed too.
   revalidatePath("/real-estate", "layout");
 }
@@ -379,6 +381,8 @@ type ParsedGoal = {
   monthly_plan: number | null;
   target_date: string | null;
   note: string | null;
+  /** An apartment fund's down payment %, else null. */
+  down_payment_pct: number | null;
 };
 
 /**
@@ -411,7 +415,11 @@ function parseGoal(
   // to measure from and no baseline field on the form.
   const baseline = isFund ? 0 : (num(fd.get("baseline")) ?? 0);
   const plan = num(fd.get("monthly_plan"));
+  // Only a fund can be an apartment: the money saved for it is the fund's cash and deposits.
+  const downPct = isFund && fd.get("apartment") === "on" ? num(fd.get("down_payment_pct")) : null;
   if (!name) return { ok: false, message: "A goal name is required." };
+  if (isFund && fd.get("apartment") === "on" && (downPct == null || downPct <= 0 || downPct > 100))
+    return { ok: false, message: "The down payment is a percentage, from 1 to 100." };
   if (target == null || target <= 0)
     return { ok: false, message: "A target amount is required." };
   // A debt goal counts DOWN from the baseline, so the two can't be the same number —
@@ -434,6 +442,7 @@ function parseGoal(
       monthly_plan: plan != null && plan > 0 ? plan : null,
       target_date: str(fd.get("target_date")) || null,
       note: str(fd.get("note")) || null,
+      down_payment_pct: downPct,
     },
   };
 }
@@ -442,10 +451,11 @@ export async function addGoal(fd: FormData) {
   const p = parseGoal(fd, (await db.fxRates()).rate);
   if (!p.ok) return { ok: false, message: p.message };
   const g = p.value;
-  await db.addGoal(g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note,
+  const id = await db.addGoal(g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note,
     g.target_ccy, g.target_amount);
+  if (g.down_payment_pct != null) await db.setGoalDownPayment(id, g.down_payment_pct);
   revalidateAll();
-  return { ok: true, message: "Goal saved." };
+  return { ok: true, message: g.down_payment_pct != null ? "Goal saved. Now place the apartment to price it." : "Goal saved." };
 }
 
 export async function updateGoal(id: number, fd: FormData) {
@@ -463,6 +473,8 @@ export async function updateGoal(id: number, fd: FormData) {
     };
   await db.updateGoal(id, g.name, g.metric, g.target, g.baseline, g.monthly_plan, g.target_date, g.note,
     g.target_ccy, g.target_amount);
+  // Turning it off keeps the location and comps, so turning it back on loses nothing.
+  await db.setGoalDownPayment(id, g.down_payment_pct);
   revalidateAll();
   return { ok: true, message: "Goal updated." };
 }
@@ -580,9 +592,16 @@ async function resolveLocation(input: string): Promise<LatLng | null> {
 const LOCATION_HELP = "Paste coordinates (10.4012, 107.2345) or a Google Maps link.";
 
 export async function saveProperty(instrument: string, fd: FormData) {
-  const inst = await db.getInstrument(instrument);
-  if (!inst || inst.asset_type !== "Real Estate")
-    return { ok: false, message: "That isn't a Real Estate holding." };
+  // A Real Estate holding, or an apartment goal's `goal:<id>`.
+  const goalId = goalIdOfProperty(instrument);
+  if (goalId != null) {
+    if ((await db.getGoal(goalId))?.down_payment_pct == null)
+      return { ok: false, message: "That isn't an apartment goal." };
+  } else {
+    const inst = await db.getInstrument(instrument);
+    if (!inst || inst.asset_type !== "Real Estate")
+      return { ok: false, message: "That isn't a Real Estate holding." };
+  }
   const at = await resolveLocation(str(fd.get("location")));
   if (!at) return { ok: false, message: LOCATION_HELP };
   const area = num(fd.get("area_m2"));
@@ -591,7 +610,8 @@ export async function saveProperty(instrument: string, fd: FormData) {
   if (radius <= 0 || radius > 50) return { ok: false, message: "Radius must be between 0 and 50 km." };
   await db.saveProperty(
     instrument, at.lat, at.lng, area,
-    oneOf<LandUse>(LAND_USES, str(fd.get("land_use")), "residential"),
+    // An apartment goal is always an apartment, so only flats are comps for it.
+    goalId != null ? "apartment" : oneOf<LandUse>(LAND_USES, str(fd.get("land_use")), "residential"),
     oneOf<RoadAccess>(ROAD_ACCESS, str(fd.get("access")), "alley"),
     radius, str(fd.get("note")) || null,
   );
@@ -664,7 +684,7 @@ export async function findListings(
   const property = await db.getProperty(instrument);
   if (!property) return { ok: false, message: "Set the location first." };
   const [found, comps] = await Promise.all([
-    nearbyListings(property, property.radius_km), db.listComps(instrument),
+    nearbyListings(property, property.radius_km, property.land_use === "apartment"), db.listComps(instrument),
   ]);
   if (!found.ok) return found;
   const have = new Set(comps.map((c) => c.source));
@@ -679,7 +699,7 @@ export async function importListings(instrument: string, ids: number[]) {
   const property = await db.getProperty(instrument);
   if (!property) return { ok: false, message: "Set the location first." };
   const [found, comps] = await Promise.all([
-    nearbyListings(property, property.radius_km), db.listComps(instrument),
+    nearbyListings(property, property.radius_km, property.land_use === "apartment"), db.listComps(instrument),
   ]);
   if (!found.ok) return found;
   const want = new Set(ids);

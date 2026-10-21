@@ -1,0 +1,12 @@
+-- A sinking fund for an apartment whose price you don't know yet.
+--
+-- The price is estimated the way a Real Estate holding is valued: from comparable listings
+-- near where you want to buy (`lib/realestate.ts`). The goal's location and comps live in
+-- `properties` / `property_comps` under the key `goal:<id>` (see `goalPropertyKey`), so the
+-- same estimator, comp table and "Find listings nearby" serve both. The target is then
+-- this share of the estimated price, worked out on every read like a foreign-currency one;
+-- `target` keeps the figure you typed, which stands in until there are comps.
+--
+-- `down_payment_pct` is a percentage (30 = 30%). NULL on every goal that isn't an apartment.
+-- Additive only.
+ALTER TABLE goals ADD COLUMN down_payment_pct REAL;

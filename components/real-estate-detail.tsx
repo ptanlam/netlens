@@ -110,17 +110,21 @@ const compColumns: ColumnDef<PlotComp>[] = [
   },
 ];
 
-function BackLink() {
+function BackLink({ goal }: { goal: boolean }) {
   return (
     <Link
-      href="/real-estate"
+      href={goal ? "/goals" : "/real-estate"}
       className="inline-flex w-fit items-center gap-1 text-body-sm text-muted-foreground hover:text-foreground"
     >
       <ChevronLeft className="size-4" />
-      Real estate
+      {goal ? "Goals" : "Real estate"}
     </Link>
   );
 }
+
+/** Set when the page prices an apartment goal rather than a holding: nothing to book, and
+ *  the figure that matters is the down payment. */
+export type EstateGoal = { title: string; downPct: number };
 
 /**
  * One plot: what it's predicted to be worth, the evidence behind that, and what's been
@@ -134,6 +138,7 @@ export function RealEstateDetail({
   anchor,
   valuations,
   today,
+  goal,
 }: {
   holding: EstateHolding;
   property: Property | null;
@@ -143,7 +148,9 @@ export function RealEstateDetail({
   valuations: PropertyValuation[];
   /** Fixed by the server — every comp is aged against it. */
   today: string;
+  goal?: EstateGoal;
 }) {
+  const title = goal?.title ?? holding.name;
   const v = React.useMemo(
     () => (property ? estimate(property, comps, index, anchor, today) : null),
     [property, comps, index, anchor, today],
@@ -152,10 +159,11 @@ export function RealEstateDetail({
   if (!property || !v) {
     return (
       <div className="flex flex-col gap-3 sm:gap-4">
-        <BackLink />
-        <PageHeader title={holding.name}>
-          Where is it? Once the app knows the location and size of the plot, it can price it
-          from comparable plots nearby.
+        <BackLink goal={!!goal} />
+        <PageHeader title={title}>
+          {goal
+            ? "Where do you want to buy, and how big? Once the app knows, it can price the apartment from listings nearby."
+            : "Where is it? Once the app knows the location and size of the plot, it can price it from comparable plots nearby."}
         </PageHeader>
         <section className="card-surface panel-body">
           <PropertyForm holding={holding.name} />
@@ -174,9 +182,9 @@ export function RealEstateDetail({
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4">
-      <BackLink />
+      <BackLink goal={!!goal} />
       <PageHeader
-        title={holding.name}
+        title={title}
         actions={
           <>
             <EditLocationDialog holding={holding.name} property={property} />
@@ -185,7 +193,7 @@ export function RealEstateDetail({
               holding={holding.name}
               disabled={!comps.some((c) => listingId(c.source) != null)}
             />
-            <BookLowEndButton holding={holding.name} disabled={!predicted || v.low === booked} />
+            {!goal && <BookLowEndButton holding={holding.name} disabled={!predicted || v.low === booked} />}
             <AddCompDialog holding={holding.name} />
           </>
         }
@@ -194,7 +202,8 @@ export function RealEstateDetail({
             the page itself it has no edge at all. */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span>
-            {LAND_USE_LABELS[property.land_use]} · {ROAD_ACCESS_LABELS[property.access]} ·{" "}
+            {LAND_USE_LABELS[property.land_use]} ·{" "}
+            {property.land_use !== "apartment" && <>{ROAD_ACCESS_LABELS[property.access]} ·{" "}</>}
             {property.area_m2.toLocaleString("de-DE")} m²
           </span>
           {predicted && <Badge variant={conf.variant}>{conf.label}</Badge>}
@@ -212,7 +221,22 @@ export function RealEstateDetail({
       </PageHeader>
 
       <SummaryCards
-        stats={predicted ? [
+        stats={goal ? [
+          predicted
+            ? { label: "Estimated price", value: fmtVND(v.mid), sub: fmtPerM2(v.perM2), subAmount: true }
+            : { label: "Estimated price", value: "Not priced yet", sub: "No apartment listings added", unmask: true },
+          {
+            label: "Range",
+            value: !predicted || v.low === v.high ? "—" : fmtVND(v.low),
+            subAmount: predicted && v.low !== v.high,
+            sub: !predicted || v.low === v.high ? "Needs more than one listing" : `to ${fmtVND(v.high)}`,
+          },
+          {
+            label: `Down payment · ${goal.downPct}%`,
+            value: predicted ? fmtVND((v.mid * goal.downPct) / 100) : "—",
+            sub: "The goal's target",
+          },
+        ] : predicted ? [
           { label: "Estimate", value: fmtVND(v.mid), sub: fmtPerM2(v.perM2), subAmount: true },
           {
             label: "Range",
@@ -240,7 +264,9 @@ export function RealEstateDetail({
       <section className="flex flex-col gap-4 card-surface panel-body">
         <PanelHead
           title="Prediction"
-          info="The weighted median ₫/m² of nearby comps × your area, shrunk toward what you paid while the evidence is thin. The range is the comps' middle half. Net worth only moves when you book a value."
+          info={goal
+            ? "The weighted median ₫/m² of the apartment listings you added × the area you want. Asking prices are discounted, as for land. The range is the comps' middle half."
+            : "The weighted median ₫/m² of nearby comps × your area, shrunk toward what you paid while the evidence is thin. The range is the comps' middle half. Net worth only moves when you book a value."}
         />
         <p className="text-body-sm text-muted-foreground">{basisLine(v, property, anchor, index.length > 0)}</p>
         <div className="grid gap-4 md:grid-cols-[280px_minmax(0,1fr)] md:items-start">
@@ -293,7 +319,7 @@ export function RealEstateDetail({
       </section>
 
       <div className="grid gap-3 sm:gap-4 lg:grid-cols-2 lg:items-start">
-        <ValuationList holding={holding.name} rows={valuations} />
+        {!goal && <ValuationList holding={holding.name} rows={valuations} />}
         <IndexPanel holding={holding.name} points={index} />
       </div>
     </div>

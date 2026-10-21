@@ -81,6 +81,20 @@ export interface GoalWorld {
    *  moves on its own has to say what moved it. */
   ratesAsOf: string | null;
   ratesSource: string | null;
+  /** Each apartment goal's estimated price, by goal id: only those placed, with comps that
+   *  count. Estimated per request, like a foreign target is converted per request. */
+  apartments: Record<number, ApartmentEstimate>;
+}
+
+/** What `estimate` (lib/realestate.ts) made of an apartment goal's comps. */
+export interface ApartmentEstimate {
+  price: number;
+  low: number;
+  high: number;
+  perM2: number;
+  area_m2: number;
+  used: number;
+  confidence: "high" | "medium" | "low";
 }
 
 export interface FundRef {
@@ -122,6 +136,8 @@ export interface GoalProjection {
   target: number;
   /** Set only when the goal is denominated in another currency. */
   fx: GoalFx | null;
+  /** Set on an apartment goal with an estimate: the target is `downPct` of `price`. */
+  apartment: (ApartmentEstimate & { downPct: number }) | null;
   /** The metric's value today. */
   current: number;
   /** 0…1, measured from `baseline` so a payoff bar starts empty. */
@@ -405,7 +421,13 @@ export function project(goal: Goal, w: GoalWorld): GoalProjection {
   // once, here, so everything downstream keeps comparing two figures in the same money and
   // never has to know a currency was involved.
   const fx = goalFx(goal, w);
-  const g: Goal = fx ? { ...goal, target: targetVnd(goal, w) } : goal;
+  // An apartment's target is its share of the estimated price; until there is an estimate,
+  // the figure you typed.
+  const est = goal.down_payment_pct != null ? w.apartments[goal.id] : undefined;
+  const apartment = est ? { ...est, downPct: goal.down_payment_pct! } : null;
+  const g: Goal = apartment
+    ? { ...goal, target: Math.round((apartment.price * apartment.downPct) / 100) }
+    : fx ? { ...goal, target: targetVnd(goal, w) } : goal;
 
   const { pace, paceSource } = resolvePace(g, w);
   // A monthly plan on a *debt* goal is money aimed at the debt, so it stands in for the
@@ -460,6 +482,7 @@ export function project(goal: Goal, w: GoalWorld): GoalProjection {
   return {
     target: g.target,
     fx,
+    apartment,
     current,
     progress: progressOf(g, current),
     remaining,

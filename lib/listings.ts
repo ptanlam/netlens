@@ -14,8 +14,9 @@ import { distanceKm, type LatLng } from "./realestate";
 import type { CompInput, LandUse, RoadAccess } from "./types";
 
 const FEED = "https://gateway.chotot.com/v1/public/ad-listing";
-/** Chợ Tốt's category for land (Đất). */
+/** Chợ Tốt's categories: land (Đất), and apartments (Căn hộ/Chung cư). */
 const LAND_CATEGORY = 1040;
+const APARTMENT_CATEGORY = 1010;
 /** The feed's page size ceiling — asking for more still returns 50. */
 const PAGE = 50;
 /** Enough for any sensible radius; 10 km around Long Điền is ~130 listings. */
@@ -88,13 +89,14 @@ const dayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit", day: "2-digit",
 });
 
-function toListing(ad: RawAd, at: LatLng): Listing | null {
+function toListing(ad: RawAd, at: LatLng, apartment: boolean): Listing | null {
   const { list_id: id, price, size, latitude: lat, longitude: lng, list_time } = ad;
   if (!id || !price || !size || lat == null || lng == null || !list_time) return null;
   if (ad.type !== "s" || ad.is_price_not_valid) return null;
   // Placeholder prices ("1 đồng, call me") and plots too small to be real.
   if (price < 10_000_000 || size < 10) return null;
-  const land_use = landUseOf(ad);
+  // A flat has no land use or road of its own; every one is an "apartment" comp.
+  const land_use = apartment ? "apartment" : landUseOf(ad);
   if (!land_use) return null;
   return {
     id,
@@ -107,13 +109,14 @@ function toListing(ad: RawAd, at: LatLng): Listing | null {
     area_m2: size,
     date: dayFormatter.format(new Date(list_time)),
     land_use,
-    access: accessOf(ad),
+    access: apartment ? "alley" : accessOf(ad),
     place: [ad.ward_name, ad.area_name].filter(Boolean).join(", "),
   };
 }
 
 /**
- * Every land listing within `radiusKm` of `at`, nearest first.
+ * Every land listing (or, with `apartment`, every apartment listing) within `radiusKm` of
+ * `at`, nearest first.
  *
  * The feed takes a whole-km radius, so it's asked for the ceiling and the result trimmed to
  * the exact one here — the same distance the estimate itself uses.
@@ -121,12 +124,13 @@ function toListing(ad: RawAd, at: LatLng): Listing | null {
 export async function nearbyListings(
   at: LatLng,
   radiusKm: number,
+  apartment = false,
 ): Promise<{ ok: true; listings: Listing[] } | { ok: false; message: string }> {
   const out = new Map<number, Listing>();
   for (let page = 0; page < MAX_PAGES; page++) {
     const url = new URL(FEED);
     url.search = new URLSearchParams({
-      cg: String(LAND_CATEGORY),
+      cg: String(apartment ? APARTMENT_CATEGORY : LAND_CATEGORY),
       st: "s,k",
       latitude: String(at.lat),
       longitude: String(at.lng),
@@ -146,7 +150,7 @@ export async function nearbyListings(
       return { ok: false, message: "Couldn't reach Nhà Tốt. Try again in a moment." };
     }
     for (const ad of ads) {
-      const l = toListing(ad, at);
+      const l = toListing(ad, at, apartment);
       if (l && l.distanceKm < radiusKm) out.set(l.id, l);
     }
     if (ads.length < PAGE) break;

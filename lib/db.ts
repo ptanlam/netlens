@@ -19,8 +19,8 @@
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, Subscription, Tx, ValuationSource } from "./types";
-import { DEFAULT_PRICE_SCHEDULE, normalizePriceRefreshMs } from "./types";
-import { fundCashAt, type GoalWorld } from "./goals";
+import { DEFAULT_PRICE_SCHEDULE, goalIdOfProperty, goalPropertyKey, normalizePriceRefreshMs } from "./types";
+import { fundCashAt, type ApartmentEstimate, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
 import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
 import { instrumentLogo } from "./logos";
@@ -1426,11 +1426,12 @@ export async function addGoal(
   // the ones you've already thought about.
   const row = await q("SELECT COALESCE(MAX(position), 0) p FROM goals").get<{ p: number }>();
   const last = row?.p ?? 0;
-  await q(
+  const meta = await q(
     "INSERT INTO goals(name, metric, target, target_ccy, target_amount, baseline, monthly_plan, target_date, position, note) VALUES (?,?,?,?,?,?,?,?,?,?)",
   ).run(name.trim(), metric, Math.round(target), targetCcy,
     targetAmount == null ? null : Math.round(targetAmount), Math.round(baseline),
     monthlyPlan == null ? null : Math.round(monthlyPlan), targetDate, last + 1, note);
+  return meta.last_row_id as number;
 }
 
 export async function updateGoal(
@@ -1488,6 +1489,10 @@ export async function deleteGoal(id: number) {
     // Un-earmark, don't delete: the deposits are real money and outlive the goal.
     q("UPDATE savings SET goal_id=NULL WHERE goal_id=?").bound(id),
     q("DELETE FROM goals WHERE id=?").bound(id),
+    // An apartment goal's location and evidence are its own, so they go with it.
+    q("DELETE FROM properties WHERE instrument=?").bound(goalPropertyKey(id)),
+    q("DELETE FROM property_comps WHERE instrument=?").bound(goalPropertyKey(id)),
+    q("DELETE FROM property_index WHERE instrument=?").bound(goalPropertyKey(id)),
   ]);
 }
 
@@ -1618,7 +1623,7 @@ function addMonthsIso(iso: string, months: number): string {
 export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
   // Independent reads, so they go out together — eight sequential round trips to D1 would
   // otherwise be the slowest thing on the dashboard.
-  const [payments, contribs, funds, savings, debts, byGoal, planned, actual, fx] = await Promise.all([
+  const [payments, contribs, funds, savings, debts, byGoal, planned, actual, fx, apartments] = await Promise.all([
     listDebtPayments(),
     listGoalContributions(),
     q("SELECT id FROM goals WHERE metric='fund'").all<{ id: number }>(),
@@ -1628,6 +1633,7 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
     plannedMonthly(),
     actualMonthly(),
     fxRates(),
+    apartmentEstimates(),
   ]);
 
   const paymentsByDebt: Record<number, Payment[]> = {};
@@ -1653,7 +1659,35 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
     rates: fx.rate,
     ratesAsOf: fx.asOf,
     ratesSource: fx.source,
+    apartments,
   };
+}
+
+/** Every placed apartment goal's estimated price, by goal id (see `GoalWorld.apartments`).
+ *  Three reads for all of them, never one per goal. */
+async function apartmentEstimates(): Promise<Record<number, ApartmentEstimate>> {
+  const like = "goal:%";
+  const [properties, comps, index] = await Promise.all([
+    q("SELECT * FROM properties WHERE instrument LIKE ?").all<Property>(like),
+    q("SELECT * FROM property_comps WHERE instrument LIKE ?").all<PropertyComp>(like),
+    q("SELECT * FROM property_index WHERE instrument LIKE ? ORDER BY date").all<PropertyIndexPoint>(like),
+  ]);
+  const today = todayIso();
+  const out: Record<number, ApartmentEstimate> = {};
+  for (const p of properties) {
+    const id = goalIdOfProperty(p.instrument);
+    // No anchor: you haven't bought it, so there's no price paid to shrink toward.
+    const v = estimate(p, comps.filter((c) => c.instrument === p.instrument),
+      index.filter((i) => i.instrument === p.instrument), null, today);
+    if (id != null && v.used > 0)
+      out[id] = { price: v.mid, low: v.low, high: v.high, perM2: v.perM2, area_m2: p.area_m2, used: v.used, confidence: v.confidence };
+  }
+  return out;
+}
+
+/** An apartment fund's down payment %, or null to make it an ordinary fund. */
+export async function setGoalDownPayment(id: number, pct: number | null) {
+  await q("UPDATE goals SET down_payment_pct=? WHERE id=?").run(pct, id);
 }
 
 // ---------- dashboard payload ----------

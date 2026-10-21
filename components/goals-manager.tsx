@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Archive, ArchiveRestore, ChevronDown, ChevronUp, Minus, Pencil, Plus, ShoppingCart, Trash2,
+  Archive, ArchiveRestore, ArrowRight, ChevronDown, ChevronUp, Minus, Pencil, Plus, ShoppingCart, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -31,6 +31,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Amt } from "@/components/amt";
 
 type ActionResult = { ok: boolean; message: string };
@@ -62,6 +63,7 @@ function GoalForm({
   const [pending, startTransition] = React.useTransition();
   const [metric, setMetric] = React.useState<GoalMetric>(goal?.metric ?? "net_worth");
   const [ccy, setCcy] = React.useState<TargetCurrency>(goal?.target_ccy ?? "VND");
+  const [apartment, setApartment] = React.useState(goal?.down_payment_pct != null);
   const formRef = React.useRef<HTMLFormElement>(null);
 
   // A debt counts DOWN, so its baseline is what you owe today (bar starts empty and
@@ -108,7 +110,9 @@ function GoalForm({
         </Select>
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="g-target">{isDebt ? `Target balance (${ccy})` : `Target amount (${ccy})`}</Label>
+        <Label htmlFor="g-target">
+          {isDebt ? `Target balance (${ccy})` : isFund && apartment ? `Your guess, until it's priced (${ccy})` : `Target amount (${ccy})`}
+        </Label>
         {/* The currency sits *on* the amount field because it changes what the number in it
             means. Pick USD and the goal stores "$100k", not the dong that happens to buy it
             today — the target then follows the rate instead of freezing. */}
@@ -143,6 +147,30 @@ function GoalForm({
           </p>
         )}
       </div>
+      {/* An apartment fund's target is a down payment on a price estimated from listings
+          near where you want to buy, so the number above only stands in until it's priced. */}
+      {isFund && (
+        <div className="grid gap-2 sm:col-span-2">
+          <label className="flex items-center gap-2 text-body-sm">
+            <Checkbox checked={apartment} onCheckedChange={setApartment} />
+            It&apos;s an apartment: price it from listings nearby
+          </label>
+          <input type="hidden" name="apartment" value={apartment ? "on" : ""} />
+          {apartment && (
+            <div className="grid gap-2 sm:w-1/2 sm:pr-2">
+              <Label htmlFor="g-down">Down payment (%)</Label>
+              <Input
+                id="g-down" name="down_payment_pct" type="number" min="1" max="100" step="any"
+                defaultValue={goal?.down_payment_pct ?? 30} required
+              />
+              <p className="text-caption text-muted-foreground">
+                The target becomes this share of the estimated price. After saving, open the
+                goal&apos;s estimate to say where and how big.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       {/* A fund starts empty, so it has no baseline to measure from — and no rate of its
           own: interest comes from the deposits you earmark to it, each on its own terms. */}
       {!isFund && (
@@ -527,6 +555,22 @@ function GoalCard({
           {/* A target that moves on its own has to say why, or "Behind" becomes a number
               nobody can account for. */}
           {proj.fx && <FxNote fx={proj.fx} />}
+          {goal.down_payment_pct != null && (
+            <Link
+              href={`/goals/${goal.id}`}
+              className="mt-1 inline-flex flex-wrap items-center gap-1 text-caption text-accent-brand underline-offset-2 hover:underline"
+            >
+              {proj.apartment ? (
+                <>
+                  {proj.apartment.downPct}% down on <Amt>{fmtVND(proj.apartment.price)}</Amt>, estimated
+                  from {proj.apartment.used} listing{proj.apartment.used === 1 ? "" : "s"}
+                </>
+              ) : (
+                "Not priced yet: say where the apartment is"
+              )}
+              <ArrowRight className="size-3" />
+            </Link>
+          )}
         </div>
         </div>
         <div className="flex gap-1">
