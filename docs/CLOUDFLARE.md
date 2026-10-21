@@ -229,8 +229,10 @@ where a long `UNION ALL` chain returns `too many terms in compound SELECT`.
 
 Every night at 20:00 UTC (03:00 in Vietnam) the second Cron Trigger writes the whole
 database as SQL to the R2 bucket `netlens-backups`, as `netlens-YYYY-MM-DD.sql.gz`
-(`lib/backup.ts`). A dump holds the schema, every row and `d1_migrations`, and is kept
-forever: there is no lifecycle rule, and a year of dumps is a few tens of MB.
+(`lib/backup.ts`). A dump holds the schema, every row and `d1_migrations`. The bucket's
+lifecycle rule `expire-after-1y` deletes each dump after 365 days. It lives on the bucket,
+not in this repo (`npx wrangler r2 bucket lifecycle list netlens-backups`), so a mistake
+older than a year can no longer be undone from a backup.
 
 ```bash
 npx wrangler r2 object list netlens-backups                     # what's there
