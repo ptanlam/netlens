@@ -14,7 +14,7 @@ import { tooltip } from "@tanstack/charts/tooltip";
 import { portal } from "@tanstack/charts/tooltip/portal";
 import { scaleThreshold } from "d3-scale";
 import type { HoldingPnlPoint, PnlDayStatus, PnlPoint } from "@/lib/types";
-import { fmtMil, fmtVND, MONTHS } from "@/lib/format";
+import { BIL_FROM, fmtMil, fmtVND, MONTHS } from "@/lib/format";
 import { PanelHead } from "@/components/panel-head";
 import { bareAxis, CHART_HOST_STYLE, CHART_MOTION, CHART_THEME } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
@@ -124,7 +124,7 @@ const RAMP = [
 function fmtCompact(v: number): string {
   const sign = v > 0 ? "+" : v < 0 ? "−" : "";
   const abs = Math.abs(v);
-  if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(abs >= 1e10 ? 0 : 1)}bil`;
+  if (abs >= BIL_FROM) return `${sign}${(abs / 1e9).toFixed(abs >= 1e10 ? 0 : 1)}bil`;
   if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}mil`;
   if (abs >= 1e3) return `${sign}${Math.round(abs / 1e3)}k`;
   return `${sign}${abs}`;

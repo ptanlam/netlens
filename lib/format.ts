@@ -33,11 +33,16 @@ export function fmtUnits(v: number): string {
   return v.toLocaleString("de-DE", { maximumFractionDigits: 8 });
 }
 
-/** Axis-style short form: 40mil = 40 million VND, 1.2bil = 1.2 billion.
- *  Past a billion the millions read as "1000mil", so step up a unit. */
+/** Where the short forms step up a unit. Just below 1e9 and 1e6 on purpose: anything from
+ *  999.5mil rounds to "1000mil" (a chart tick of 999,999,999.99 included), which should
+ *  read "1bil"; likewise "1000k" should read "1mil". */
+export const BIL_FROM = 999.5e6;
+export const MIL_FROM = 999.5e3;
+
+/** Axis-style short form: 40mil = 40 million VND, 1.2bil = 1.2 billion. */
 export function fmtMil(v: number): string {
   if (v === 0) return "0";
-  if (Math.abs(v) >= 1e9) return `${+(v / 1e9).toFixed(1)}bil`;
+  if (Math.abs(v) >= BIL_FROM) return `${+(v / 1e9).toFixed(1)}bil`;
   return `${Math.round(v / 1e6)}mil`;
 }
 
@@ -46,8 +51,8 @@ export function fmtMil(v: number): string {
  *  an axis tick does not. */
 export function fmtMilVND(v: number): string {
   const abs = Math.abs(v);
-  if (abs >= 1e9) return `${v < 0 ? "−" : ""}₫${+(abs / 1e9).toFixed(1)}bil`;
-  if (abs >= 1e6) return `${v < 0 ? "−" : ""}₫${Math.round(abs / 1e6)}mil`;
+  if (abs >= BIL_FROM) return `${v < 0 ? "−" : ""}₫${+(abs / 1e9).toFixed(1)}bil`;
+  if (abs >= MIL_FROM) return `${v < 0 ? "−" : ""}₫${Math.round(abs / 1e6)}mil`;
   return `${v < 0 ? "−" : ""}₫${Math.round(abs / 1e3)}k`;
 }
 

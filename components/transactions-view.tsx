@@ -17,7 +17,7 @@ import { stackRowsY } from "@tanstack/charts/transform/stack";
 import { scaleUtc } from "d3-scale";
 import { Download, RefreshCw } from "lucide-react";
 import { TX_KIND_LABEL, txKind, type Tx } from "@/lib/types";
-import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
+import { BIL_FROM, fmtUnits, fmtVND, MIL_FROM, MONTHS } from "@/lib/format";
 import { readMasked } from "@/lib/mask";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,8 +54,8 @@ function isoNow(): string {
 }
 function milVND(n: number): string {
   const abs = Math.abs(n);
-  if (abs >= 1e9) return `${n < 0 ? "−" : ""}₫${+(abs / 1e9).toFixed(1)}bil`;
-  if (abs >= 1e6) return `${n < 0 ? "−" : ""}₫${Math.round(abs / 1e6)}mil`;
+  if (abs >= BIL_FROM) return `${n < 0 ? "−" : ""}₫${+(abs / 1e9).toFixed(1)}bil`;
+  if (abs >= MIL_FROM) return `${n < 0 ? "−" : ""}₫${Math.round(abs / 1e6)}mil`;
   if (abs === 0) return "—";
   return `${n < 0 ? "−" : ""}₫${Math.round(abs / 1e3)}k`;
 }
