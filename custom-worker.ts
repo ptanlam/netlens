@@ -28,6 +28,10 @@
 import { default as handler } from "./.open-next/worker.js";
 import { bindD1 } from "./lib/db";
 import { refreshHistory, refreshScheduled, sweepRecentHistory } from "./lib/prices";
+import { backupTo } from "./lib/backup";
+
+/** The backup's own trigger in wrangler.jsonc: 20:00 UTC, 03:00 in Vietnam. */
+const BACKUP_CRON = "0 20 * * *";
 
 export default {
   /**
@@ -53,6 +57,14 @@ export default {
     // context `lib/db` normally reads is not there — without this the very first query
     // throws and the whole schedule is silently dead. See `bindD1`.
     bindD1(env.DB);
+    if (event.cron === BACKUP_CRON) {
+      ctx.waitUntil(
+        backupTo(env.BACKUPS, env.DB, new Date(event.scheduledTime))
+          .then((key) => console.log(`[backup] wrote ${key}`))
+          .catch((e) => console.error("[backup] failed:", e)),
+      );
+      return;
+    }
     // `waitUntil` so the invocation isn't torn down while the upstream feeds are still
     // being polled — several of them are slow, and one is a scraped HTML page.
     ctx.waitUntil(

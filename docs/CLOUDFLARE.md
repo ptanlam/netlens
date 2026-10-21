@@ -225,6 +225,32 @@ npx wrangler d1 execute netlens --remote --command "SELECT COUNT(*) FROM transac
 D1 rejects compound `SELECT`s with many terms — `SELECT (SELECT …) a, (SELECT …) b` works
 where a long `UNION ALL` chain returns `too many terms in compound SELECT`.
 
+### Backups
+
+Every night at 20:00 UTC (03:00 in Vietnam) the second Cron Trigger writes the whole
+database as SQL to the R2 bucket `netlens-backups`, as `netlens-YYYY-MM-DD.sql.gz`
+(`lib/backup.ts`). A dump holds the schema, every row and `d1_migrations`, and is kept
+forever: there is no lifecycle rule, and a year of dumps is a few tens of MB.
+
+```bash
+npx wrangler r2 object list netlens-backups                     # what's there
+npx wrangler r2 object get netlens-backups/netlens-2026-10-21.sql.gz --remote --file dump.sql.gz
+gunzip dump.sql.gz
+```
+
+To restore, load the dump into an **empty** database. Its `CREATE TABLE`s fail on one that
+already has tables, and that is deliberate, so it can't be layered over live data by mistake:
+
+```bash
+npx wrangler d1 create netlens-restore
+npx wrangler d1 execute netlens-restore --remote --file dump.sql
+```
+
+Then check it, and point `database_id` in `wrangler.jsonc` at it (or copy the rows you lost
+back). To take a backup now, outside the schedule, run `npx wrangler dev --test-scheduled`
+and `curl "localhost:8787/__scheduled?cron=0+20+*+*+*"`. That writes to the local bucket from
+the local database. The self-check is `node scripts/check-backup.mjs`.
+
 ## Things that changed, and why
 
 **The schema is in `migrations/`, not a `SCHEMA` string.** Adding a table means adding a

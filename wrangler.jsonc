@@ -59,7 +59,18 @@
   // Note there is deliberately no `TZ` var here. workerd has no local timezone — its
   // `Date` is UTC and it ignores TZ — so setting one only looked like it did something.
   // The app's day boundary is `APP_TIMEZONE` in lib/db.ts, applied via Intl.
+  //
+  // The second line is the nightly backup (`BACKUP_CRON` in custom-worker.ts; it runs
+  // nothing else, and the every-minute tick still fires alongside it).
   "triggers": {
-    "crons": ["* * * * *"]
-  }
+    "crons": ["* * * * *", "0 20 * * *"]
+  },
+  // Nightly SQL dumps of the database (lib/backup.ts). Its own bucket, so nothing else the
+  // Worker might ever store can overwrite or expire one. See docs/CLOUDFLARE.md#backups.
+  "r2_buckets": [
+    {
+      "binding": "BACKUPS",
+      "bucket_name": "netlens-backups"
+    }
+  ]
 }
