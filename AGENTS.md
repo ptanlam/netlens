@@ -52,6 +52,7 @@ Apply the migration with `pnpm db:migrate` (local). Production is handled by `pn
 - **Base UI `<Button render={<Link/>}>`** needs `nativeButton={false}` or it warns.
 - **Animated primitives come from Animate UI.** Dialog, Select, Tooltip, Checkbox and Menu are imported from `@animate-ui/react/primitives/base-ui/<name>` (same API as Base UI, animated with Motion). Don't put `animate-in`/`data-starting-style` CSS animation classes on their popups, because Motion already animates them. For a slide-in panel, put `data-side` on the Dialog popup (see the mobile drawer in `nav.tsx`).
 - **React Compiler lint (`react-hooks/immutability`)** forbids reassigning a captured variable inside a `.map()` in `useMemo` (e.g. `sum += x`). Use prefix sums / `reduce` instead.
+- **Dividends and bonus units are transactions, told apart by shape** (`txKind` in `lib/types.ts`, no column). A cash dividend is `amount < 0` with `quantity` **0**; NULL would price it into units and read it as a sale. A stock dividend or split is `amount` 0 with positive `quantity`. Branch on `txKind`, not on the sign of `amount`.
 - **Money is whole-VND integers** (signed: + in, − out). Format with `fmtVND` / `fmtMil` from `lib/format.ts`. Never hardcode currency.
 - **Verify every change**: `npx tsc --noEmit` + `pnpm lint`, then a headless-Chrome screenshot for UI. Both must be clean. Details in `docs/WORKFLOW.md`.
 

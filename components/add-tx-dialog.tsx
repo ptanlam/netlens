@@ -30,7 +30,7 @@ export function AddTxDialog({
         <DialogHeader>
           <DialogTitle>Add transaction</DialogTitle>
           <DialogDescription>
-            Record a buy or sell. Amounts are whole VND; quantity can be confirmed
+            Record a buy, sell, dividend or bonus units. Amounts are whole VND; quantity can be confirmed
             later for fund purchases.
           </DialogDescription>
         </DialogHeader>

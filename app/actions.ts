@@ -40,7 +40,14 @@ function revalidateAll() {
  *  straight through as signed units, so an unsigned sell quantity would be counted
  *  as *buying* those units. */
 function signedTx(fd: FormData): { amount: number; quantity: number | null } | null {
+  // The two corporate actions carry one figure each; their shapes are `txKind`'s.
+  if (fd.get("direction") === "bonus") {
+    const units = num(fd.get("quantity"));
+    return units != null && units > 0 ? { amount: 0, quantity: units } : null;
+  }
   const amountRaw = num(fd.get("amount"));
+  if (fd.get("direction") === "dividend")
+    return amountRaw != null && amountRaw > 0 ? { amount: -amountRaw, quantity: 0 } : null;
   if (amountRaw == null || amountRaw <= 0) return null;
   const sell = fd.get("direction") === "sell";
   const qtyRaw = num(fd.get("quantity"));
@@ -54,7 +61,7 @@ export async function addTx(fd: FormData) {
   const instrument = str(fd.get("instrument"));
   const signed = signedTx(fd);
   if (!instrument || !signed)
-    return { ok: false, message: "Instrument and a positive amount are required." };
+    return { ok: false, message: "A holding and a positive amount (or units) are required." };
   await db.addTransaction(
     str(fd.get("date")) || db.todayIso(),
     str(fd.get("asset_type")) || "Funds",
@@ -70,7 +77,7 @@ export async function updateTx(id: number, fd: FormData) {
   const instrument = str(fd.get("instrument"));
   const signed = signedTx(fd);
   if (!instrument || !signed)
-    return { ok: false, message: "Instrument and a positive amount are required." };
+    return { ok: false, message: "A holding and a positive amount (or units) are required." };
   await db.updateTransaction(
     id,
     str(fd.get("date")) || db.todayIso(),

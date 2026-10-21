@@ -59,6 +59,27 @@ export interface Tx {
   created_at: string;
 }
 
+/**
+ * What a transaction is, read from its shape: there is no column for it.
+ * - **dividend**: cash paid out by a holding. Money back with no units moved, so it is a
+ *   negative amount with `quantity` 0, never NULL (NULL means "price the amount into units on
+ *   its date", which would read it as a sale). It lowers the holding's net cost, so it lands
+ *   in P&L as realised income.
+ * - **bonus**: units received for nothing, i.e. a stock dividend or a split. `amount` 0 and
+ *   positive `quantity`, so the cost stays put while the units grow.
+ */
+export type TxKind = "buy" | "sell" | "dividend" | "bonus";
+
+export const TX_KIND_LABEL: Record<TxKind, string> = {
+  buy: "Buy", sell: "Sell", dividend: "Dividend", bonus: "Bonus units",
+};
+
+export function txKind(t: Pick<Tx, "amount" | "quantity">): TxKind {
+  if (t.amount === 0 && (t.quantity ?? 0) > 0) return "bonus";
+  if (t.amount < 0 && t.quantity === 0) return "dividend";
+  return t.amount >= 0 ? "buy" : "sell";
+}
+
 export interface Instrument {
   name: string;
   asset_type: string;

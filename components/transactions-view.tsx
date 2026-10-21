@@ -16,7 +16,7 @@ import { tooltip } from "@tanstack/charts/tooltip";
 import { stackRowsY } from "@tanstack/charts/transform/stack";
 import { scaleUtc } from "d3-scale";
 import { Download, RefreshCw } from "lucide-react";
-import type { Tx } from "@/lib/types";
+import { TX_KIND_LABEL, txKind, type Tx } from "@/lib/types";
 import { fmtUnits, fmtVND, MONTHS } from "@/lib/format";
 import { readMasked } from "@/lib/mask";
 import { Badge } from "@/components/ui/badge";
@@ -122,7 +122,7 @@ export function TransactionsView({
       .filter((t) => filterHolding === "All" || t.instrument === filterHolding)
       .filter((t) => {
         if (filterType === "All") return true;
-        return filterType === "Buy" ? t.amount >= 0 : t.amount < 0;
+        return txKind(t) === filterType;
       });
   }, [txs, filterHolding, filterType]);
 
@@ -205,12 +205,12 @@ export function TransactionsView({
         size: 90,
         enableSorting: false,
         cell: ({ row }) => {
-          const isBuy = row.original.amount >= 0;
+          const kind = txKind(row.original);
           return (
-            // Buy/Sell is a kind, so both keep the tag's shape — only the tone moves,
-            // because a sell is the rare event worth spotting down a long column.
-            <Badge variant="tag" className={cn(!isBuy && "bg-accent text-accent-brand")}>
-              {isBuy ? "Buy" : "Sell"}
+            // Every kind keeps the tag's shape — only the tone moves, because anything but
+            // a buy is the rare event worth spotting down a long column.
+            <Badge variant="tag" className={cn(kind !== "buy" && "bg-accent text-accent-brand")}>
+              {TX_KIND_LABEL[kind]}
             </Badge>
           );
         },
@@ -230,11 +230,12 @@ export function TransactionsView({
         id: "price",
         header: "Price",
         size: 145,
-        accessorFn: (t) => (t.quantity ? t.amount / t.quantity : null),
+        // No price without both sides: bonus units cost nothing, a dividend moves no units.
+        accessorFn: (t) => (t.quantity && t.amount ? t.amount / t.quantity : null),
         meta: { align: "right" },
         cell: ({ row }) => {
           const t = row.original;
-          const price = t.quantity ? t.amount / t.quantity : null;
+          const price = t.quantity && t.amount ? t.amount / t.quantity : null;
           return (
             <span className="font-mono text-caption text-muted-foreground tabular-nums">
               {price != null ? Math.round(price).toLocaleString("de-DE") : "—"}
@@ -335,15 +336,16 @@ export function TransactionsView({
           <Select
             value={filterType}
             onValueChange={(v) => setFilterType(String(v ?? "All"))}
-            items={{ All: "All types", Buy: "Buy", Sell: "Sell" }}
+            items={{ All: "All types", ...TX_KIND_LABEL }}
           >
             <SelectTrigger size="sm" aria-label="Type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="All">All types</SelectItem>
-              <SelectItem value="Buy">Buy</SelectItem>
-              <SelectItem value="Sell">Sell</SelectItem>
+              {Object.entries(TX_KIND_LABEL).map(([k, label]) => (
+                <SelectItem key={k} value={k}>{label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -457,7 +459,7 @@ function CumulativeChart({
         at: new Date(t.date),
         v: cum,
         date: t.date,
-        label: `${t.instrument} · ${t.amount >= 0 ? "Buy" : "Sell"}`,
+        label: `${t.instrument} · ${TX_KIND_LABEL[txKind(t)]}`,
         key: `tx:${t.id}`,
       });
     }

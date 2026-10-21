@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import type { Tx } from "@/lib/types";
+import { txKind, type Tx } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,14 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+
+/** The Type picker's labels, also what its closed trigger shows. */
+const TX_TYPES = {
+  buy: "Buy / contribute",
+  sell: "Sell / withdraw",
+  dividend: "Cash dividend",
+  bonus: "Bonus units (stock dividend, split)",
+};
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -34,7 +42,7 @@ export function TxForm({
   const today = new Date().toLocaleDateString("sv-SE");
 
   const [instrument, setInstrument] = React.useState(tx?.instrument ?? instruments[0]?.name ?? "");
-  const [direction, setDirection] = React.useState((tx?.amount ?? 1) < 0 ? "sell" : "buy");
+  const [direction, setDirection] = React.useState<string>(tx ? txKind(tx) : "buy");
   // Asset type is inherited from the chosen holding — a transaction can't drift from it.
   const assetType =
     instruments.find((i) => i.name === instrument)?.asset_type ?? tx?.asset_type ?? "Funds";
@@ -64,14 +72,15 @@ export function TxForm({
         <Input id="date" name="date" type="date" defaultValue={tx?.date ?? today} required />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="direction">Direction</Label>
-        <Select name="direction" value={direction} onValueChange={(v) => v != null && setDirection(v as string)}>
+        <Label htmlFor="direction">Type</Label>
+        <Select name="direction" value={direction} items={TX_TYPES} onValueChange={(v) => v != null && setDirection(v as string)}>
           <SelectTrigger id="direction" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="buy">Buy / contribute</SelectItem>
-            <SelectItem value="sell">Sell / withdraw</SelectItem>
+            {Object.entries(TX_TYPES).map(([v, label]) => (
+              <SelectItem key={v} value={v}>{label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -100,27 +109,33 @@ export function TxForm({
         </div>
         <input type="hidden" name="asset_type" value={assetType} />
       </div>
-      <div className="grid gap-2">
-        <Label htmlFor="amount">Amount (VND)</Label>
-        <CurrencyInput
-          id="amount"
-          name="amount"
-          defaultValue={tx ? Math.abs(tx.amount) : undefined}
-          placeholder="1.000.000"
-          required
-        />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="quantity">Quantity (optional)</Label>
-        <Input
-          id="quantity"
-          name="quantity"
-          type="number"
-          step="any"
-          defaultValue={tx?.quantity != null ? Math.abs(tx.quantity) : undefined}
-          placeholder="units / shares / coins"
-        />
-      </div>
+      {/* A dividend is only money and bonus units are only units, so each hides the other field. */}
+      {direction !== "bonus" && (
+        <div className="grid gap-2">
+          <Label htmlFor="amount">{direction === "dividend" ? "Dividend received (VND)" : "Amount (VND)"}</Label>
+          <CurrencyInput
+            id="amount"
+            name="amount"
+            defaultValue={tx ? Math.abs(tx.amount) : undefined}
+            placeholder="1.000.000"
+            required
+          />
+        </div>
+      )}
+      {direction !== "dividend" && (
+        <div className="grid gap-2">
+          <Label htmlFor="quantity">{direction === "bonus" ? "Units received" : "Quantity (optional)"}</Label>
+          <Input
+            id="quantity"
+            name="quantity"
+            type="number"
+            step="any"
+            defaultValue={tx?.quantity != null ? Math.abs(tx.quantity) : undefined}
+            placeholder={direction === "bonus" ? "e.g. 15 per 100 held → 150" : "units / shares / coins"}
+            required={direction === "bonus"}
+          />
+        </div>
+      )}
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="note">Note (optional)</Label>
         <Input id="note" name="note" defaultValue={tx?.note ?? undefined} />
