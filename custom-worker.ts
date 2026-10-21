@@ -26,8 +26,8 @@
  */
 // Generated at build time by the adapter; typed in types/open-next.d.ts.
 import { default as handler } from "./.open-next/worker.js";
-import { bindD1 } from "./lib/db";
-import { refreshHistory, refreshScheduled, sweepRecentHistory } from "./lib/prices";
+import { bindD1, recordJob } from "./lib/db";
+import { refreshCorporateEvents, refreshHistory, refreshScheduled, sweepRecentHistory } from "./lib/prices";
 import { backupTo } from "./lib/backup";
 
 /** The backup's own trigger in wrangler.jsonc: 20:00 UTC, 03:00 in Vietnam. */
@@ -59,9 +59,11 @@ export default {
     bindD1(env.DB);
     if (event.cron === BACKUP_CRON) {
       ctx.waitUntil(
+        // Recorded either way, so the dashboard can say when a night was missed.
         backupTo(env.BACKUPS, env.DB, new Date(event.scheduledTime))
-          .then((key) => console.log(`[backup] wrote ${key}`))
-          .catch((e) => console.error("[backup] failed:", e)),
+          .then((key) => (console.log(`[backup] wrote ${key}`), recordJob("backup", null, key)))
+          .catch((e) => (console.error("[backup] failed:", e), recordJob("backup", String(e))))
+          .catch((e) => console.error("[backup] couldn't record the outcome:", e)),
       );
       return;
     }
@@ -79,6 +81,7 @@ export default {
           // out the backfill. Both self-throttle, so calling them each tick is cheap.
           await refreshHistory();
           errors.push(...(await sweepRecentHistory())[1]);
+          errors.push(...(await refreshCorporateEvents())); // daily, self-throttled
           if (errors.length)
             console.error(
               `[price-cron] updated ${live?.[0] ?? 0}, ${errors.length} failed:\n  - ${errors.join("\n  - ")}`,

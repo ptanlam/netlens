@@ -1,9 +1,11 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
 import { PendingUnitsCard } from "@/components/pending-units";
+import { CorporateActionsCard } from "@/components/corporate-actions";
 import { TransactionsView } from "@/components/transactions-view";
 import type { InstrumentOption } from "@/components/tx-form";
 import { instrumentLogo } from "@/lib/logos";
+import { missedActions } from "@/lib/corporate-actions";
 
 export default async function TransactionsPage({
   searchParams,
@@ -16,12 +18,15 @@ export default async function TransactionsPage({
   // Investments page makes; whichever page you open first is the one that materialises them.
   await db.materializeRecurring();
 
-  const [{ holding }, instruments, txs, pendingTxs] = await Promise.all([
+  const [{ holding }, instruments, txs, pendingTxs, corp] = await Promise.all([
     searchParams,
     db.listInstruments(),
     db.allTransactions(),
     db.pendingFundUnits(),
+    db.corporateState(),
   ]);
+  // `db.missedCorporateActions` would read the holdings and transactions again.
+  const missed = missedActions(instruments, txs, corp.events, corp.dismissed, db.todayIso());
 
   // The add/edit dialogs offer live holdings only — you can still *see* an archived
   // holding's transactions, and edit them from the table, but a new buy against something
@@ -64,7 +69,12 @@ export default async function TransactionsPage({
       options={options}
       logos={logos}
       initialHolding={initialHolding}
-      banner={pending.length > 0 ? <PendingUnitsCard pending={pending} /> : null}
+      banner={pending.length > 0 || missed.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          {pending.length > 0 && <PendingUnitsCard pending={pending} />}
+          {missed.length > 0 && <CorporateActionsCard actions={missed} />}
+        </div>
+      ) : null}
     />
   );
 }

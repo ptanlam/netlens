@@ -26,8 +26,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Send application/json." }, { status: 415 });
 
   const body = (await request.json().catch(() => null)) as
-    | { instrument?: unknown; quantity?: unknown; amount?: unknown; date?: unknown }
+    | { instrument?: unknown; quantity?: unknown; amount?: unknown; date?: unknown; heartbeat?: unknown; unread?: unknown }
     | null;
+
+  // The script's "I ran" at the end of every run, so the dashboard can tell when it
+  // stopped, or keeps meeting emails it can't read (`unread`).
+  if (body?.heartbeat === true) {
+    const unread = Number(body.unread) || 0;
+    await db.recordJob("gmail", null, unread > 0 ? `${unread} confirmation email${unread > 1 ? "s" : ""} it couldn't read` : null);
+    return NextResponse.json({ ok: true });
+  }
   const instrument = typeof body?.instrument === "string" ? body.instrument.trim() : "";
   const quantity = Number(body?.quantity);
   const amount = body?.amount == null ? null : Number(body.amount);

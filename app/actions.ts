@@ -42,8 +42,9 @@ function revalidateAll() {
 function signedTx(fd: FormData): { amount: number; quantity: number | null } | null {
   // The two corporate actions carry one figure each; their shapes are `txKind`'s.
   if (fd.get("direction") === "bonus") {
+    // Signed: a reconciliation that takes units away is this kind too.
     const units = num(fd.get("quantity"));
-    return units != null && units > 0 ? { amount: 0, quantity: units } : null;
+    return units ? { amount: 0, quantity: units } : null;
   }
   const amountRaw = num(fd.get("amount"));
   if (fd.get("direction") === "dividend")
@@ -99,6 +100,29 @@ export async function setTxQty(id: number, quantity: number, addToHoldings: bool
   const ok = await db.setTransactionQuantity(id, quantity, addToHoldings);
   revalidateAll();
   return { ok, message: ok ? "Units saved." : "Not found, or already confirmed." };
+}
+
+/** Record a suggested dividend or bonus as a transaction. The suggestion is looked up again
+ *  here rather than trusted from the page; only `value` is yours, since the panel lets you
+ *  correct it (a different tax, odd lots, a rights issue you didn't take up). */
+export async function recordCorporateAction(key: string, value: number) {
+  const action = (await db.missedCorporateActions()).find((a) => a.key === key);
+  if (!action) return { ok: false, message: "Already recorded or dismissed." };
+  if (!Number.isFinite(value) || value <= 0) return { ok: false, message: "Enter a positive figure." };
+  const bonus = action.kind === "bonus";
+  await db.addTransaction(
+    action.date, action.asset_type, action.instrument,
+    bonus ? 0 : -Math.round(value), bonus ? value : 0,
+    `${bonus ? "Bonus units" : "Cash dividend"}: ${action.basis}`,
+  );
+  revalidateAll();
+  return { ok: true, message: bonus ? "Bonus units recorded." : "Dividend recorded." };
+}
+
+export async function dismissCorporateAction(key: string) {
+  await db.dismissCorporateAction(key);
+  revalidateAll();
+  return { ok: true, message: "Dismissed." };
 }
 
 // ---------- savings (term deposits) ----------

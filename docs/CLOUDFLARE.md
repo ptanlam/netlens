@@ -73,6 +73,13 @@ buy by date: VPBankS states it ("cho kỳ mua ngày 16/10/2026"), and Dragon Cap
 starts with it as YYMMDD (the email's "trading date" is the NAV day, not the buy's). The
 parsers have a self-check: `node scripts/check-gmail-fund-units.mjs`.
 
+Each run ends with a heartbeat, `{"heartbeat": true, "unread": n}` to the same endpoint
+(`meta` `job:gmail`). The dashboard warns when the heartbeat is more than 3 hours old, or
+when the last run met emails it couldn't read. The backup reports the same way
+(`job:backup`), with a warning when a night failed or none succeeded in 36 hours. A job
+that has never reported raises no warning, so the script's warnings start once its
+updated copy is pasted into Apps Script.
+
 A leaked token can, at worst, set units on buys still awaiting them. It can't browse
 your data, and it can't overwrite units that are already set (`setTransactionQuantity` only
 fills a NULL). To revoke it, delete the token.

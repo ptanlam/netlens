@@ -25,6 +25,7 @@ import { currentValue, type Payment } from "./savings";
 import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
 import { instrumentLogo } from "./logos";
 import type { CronMoment } from "./cron";
+import { missedActions, type CorpEvents, type MissedAction } from "./corporate-actions";
 
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
 export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, Property, PropertyComp, PropertyIndexPoint, RecurringRule, Saving, Subscription, Tx } from "./types";
@@ -1148,6 +1149,60 @@ export async function metaGet(key: string): Promise<string | null> {
 
 export async function metaSet(key: string, value: string) {
   await q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").run(key, value);
+}
+
+// ---------- dividends and splits ----------
+
+/** Yahoo's events per holding (`refreshCorporateEvents`) and the suggestions you dismissed,
+ *  both in `meta`: the events are a cache of someone else's data, and a dismissal is a
+ *  key, so neither needs a table. */
+export async function corporateState(): Promise<{ events: Record<string, CorpEvents>; dismissed: Set<string> }> {
+  const [events, dismissed] = await Promise.all([metaGet("corp_events"), metaGet("corp_dismissed")]);
+  return { events: JSON.parse(events ?? "{}"), dismissed: new Set(JSON.parse(dismissed ?? "[]")) };
+}
+
+/** shortcut: one read-modify-write, so two dismissals at the same instant could lose one;
+ *  fine for one person clicking. */
+export async function dismissCorporateAction(key: string) {
+  const { dismissed } = await corporateState();
+  await metaSet("corp_dismissed", JSON.stringify([...dismissed.add(key)]));
+}
+
+/** The suggestions the /transactions panel and the dashboard alert show. */
+export async function missedCorporateActions(): Promise<MissedAction[]> {
+  const [instruments, txs, { events, dismissed }] = await Promise.all([
+    listInstruments(), allTransactions(), corporateState(),
+  ]);
+  return missedActions(instruments, txs, events, dismissed, todayIso());
+}
+
+// ---------- unattended jobs ----------
+
+/** How the last runs of a job that nobody watches went: the nightly backup, and the Gmail
+ *  script (its heartbeat on /api/fund-units). In `meta` as `job:<name>`. */
+export interface JobStatus {
+  ok_at: string | null;
+  error: string | null;
+  error_at: string | null;
+  /** Something a successful run still wants you to see, e.g. emails it couldn't read. */
+  detail: string | null;
+}
+
+export async function recordJob(name: "backup" | "gmail", error: string | null, detail: string | null = null) {
+  const prev = (await jobStatuses())[name];
+  // With the Z, unlike `nowIso`: these are read back with `new Date`, which takes a bare
+  // timestamp as local time.
+  const now = new Date().toISOString();
+  await metaSet(`job:${name}`, JSON.stringify(
+    error
+      ? { ...prev, error, error_at: now }
+      : { ok_at: now, error: null, error_at: null, detail },
+  ));
+}
+
+export async function jobStatuses(): Promise<Record<"backup" | "gmail", JobStatus | undefined>> {
+  const [backup, gmail] = await Promise.all([metaGet("job:backup"), metaGet("job:gmail")]);
+  return { backup: backup ? JSON.parse(backup) : undefined, gmail: gmail ? JSON.parse(gmail) : undefined };
 }
 
 // ---------- the price refresh schedule ----------

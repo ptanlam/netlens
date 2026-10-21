@@ -14,6 +14,7 @@ import {
   upsertPriceHistory,
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
+import type { CorpEvents } from "./corporate-actions";
 import { MANUAL_SOURCE } from "./types";
 import { cronLines, cronMatches, parseCron } from "./cron";
 
@@ -473,6 +474,48 @@ async function fetchYahooBars(symbol: string, range: string): Promise<DailyBar[]
       out.push({ date: isoFromEpoch(ts, gmtOffset), close: c, volume: volumes[i] ?? 0 });
   });
   return out;
+}
+
+/** The dividends and splits Yahoo lists for a symbol over five years, by ex-date. Its
+ *  dividend amounts are adjusted for later splits; `missedActions` undoes that. */
+export async function fetchYahooEvents(symbol: string): Promise<CorpEvents> {
+  type Events = {
+    dividends?: Record<string, { date: number; amount: number }>;
+    splits?: Record<string, { date: number; numerator: number; denominator: number }>;
+  };
+  const data = await getJson<{ chart: { result?: { meta?: { gmtoffset?: number }; events?: Events }[] } }>(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1mo&range=5y&events=div%2Csplit`,
+  );
+  const result = data.chart.result?.[0];
+  const off = result?.meta?.gmtoffset ?? 0;
+  return {
+    dividends: Object.values(result?.events?.dividends ?? {})
+      .map((d) => ({ date: isoFromEpoch(d.date, off), amount: d.amount })),
+    splits: Object.values(result?.events?.splits ?? {})
+      .map((s) => ({ date: isoFromEpoch(s.date, off), numerator: s.numerator, denominator: s.denominator })),
+  };
+}
+
+/** Re-read every VN stock's dividends and splits into `meta.corp_events`, at most once a
+ *  day. Stamped before fetching, so a feed that's down retries tomorrow rather than every
+ *  minute; a holding that failed keeps what it had. */
+export async function refreshCorporateEvents(maxAgeHours = 24): Promise<string[]> {
+  const last = await metaGet("corp_events_at");
+  if (last && Date.now() - new Date(last).getTime() < maxAgeHours * 3600 * 1000) return [];
+  await metaSet("corp_events_at", new Date().toISOString());
+  // Including archived ones: a holding sold since can still have been owed a dividend.
+  const stocks = (await listInstruments()).filter((i) => /\.VN$/i.test(i.symbol ?? ""));
+  const events: Record<string, CorpEvents> = JSON.parse((await metaGet("corp_events")) ?? "{}");
+  const errors: string[] = [];
+  for (const i of stocks) {
+    try {
+      events[i.name] = await fetchYahooEvents(i.symbol!);
+    } catch (e) {
+      errors.push(`${i.name}: dividends and splits: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+  await metaSet("corp_events", JSON.stringify(events));
+  return errors;
 }
 
 export async function fetchYahooHistory(

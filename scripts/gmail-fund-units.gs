@@ -23,6 +23,7 @@ const CONFIG = {
 function run() {
   const props = PropertiesService.getScriptProperties();
   const label = GmailApp.getUserLabelByName(CONFIG.doneLabel) || GmailApp.createLabel(CONFIG.doneLabel);
+  let unread = 0;
   // Oldest first (search gives newest first): an order without a date pairs with the oldest
   // awaiting buy, so the emails must be handled in the order the buys were made.
   for (const thread of GmailApp.search(CONFIG.query).reverse()) {
@@ -30,7 +31,7 @@ function run() {
     for (const message of thread.getMessages()) {
       const orders = parse(message.getFrom(), htmlToText(message.getBody()));
       // Unreadable: leave it for you (and a fixed `parse`) rather than file it away unseen.
-      if (!orders.length) { console.warn('No order found in: ' + message.getSubject()); allDone = false; }
+      if (!orders.length) { console.warn('No order found in: ' + message.getSubject()); allDone = false; unread++; }
       // Each order is sent once, ever: the API pairs an order with the oldest awaiting buy, so
       // re-sending one (when its thread is retried for another email) would confirm the next.
       // shortcut: these keys are never pruned (~30 bytes each); fine for years of weekly buys.
@@ -44,6 +45,8 @@ function run() {
     // A buy not found yet (not entered in Netlens, or its email came early) is retried next run.
     if (allDone) thread.addLabel(label);
   }
+  // Tells Netlens this run happened, so its dashboard can warn when runs stop.
+  post({ heartbeat: true, unread: unread });
 }
 
 /**
@@ -118,6 +121,15 @@ function isoDate(dmy) {
 
 /** True when the order is settled: confirmed now, or nothing left to do for it. */
 function confirm(order) {
+  const code = post(order);
+  if (code === 200) return true;
+  if (code === 404) return false;
+  return true; // 400/409: a bad parse or already confirmed; retrying the same email won't help.
+}
+
+/** POST `body` to the API and return the status code. Throws when Access turns the token
+ *  away, which stops the run, and Apps Script then emails you that the trigger failed. */
+function post(body) {
   const props = PropertiesService.getScriptProperties();
   const id = (props.getProperty('CF_ACCESS_CLIENT_ID') || '').trim();
   const secret = (props.getProperty('CF_ACCESS_CLIENT_SECRET') || '').trim();
@@ -125,7 +137,7 @@ function confirm(order) {
   const res = UrlFetchApp.fetch(CONFIG.url, {
     method: 'post',
     contentType: 'application/json',
-    payload: JSON.stringify(order),
+    payload: JSON.stringify(body),
     headers: {
       'CF-Access-Client-Id': id,
       'CF-Access-Client-Secret': secret,
@@ -136,14 +148,12 @@ function confirm(order) {
   });
   const code = res.getResponseCode();
   const location = res.getHeaders()['Location'] || res.getHeaders()['location'];
-  console.log(code, JSON.stringify(order), location ? 'redirect to ' + location : res.getContentText().slice(0, 300));
-  if (code === 200) return true;
-  if (code === 404) return false;
+  console.log(code, JSON.stringify(body), location ? 'redirect to ' + location : res.getContentText().slice(0, 300));
   if (code === 302 || code === 401 || code === 403)
     // A redirect to the Access login page means the token wasn't accepted for this path: the
     // policy's action must be Service Auth (not Allow), on an Access app for this exact path.
     throw new Error('Cloudflare Access rejected the service token (' + code + '). See docs/CLOUDFLARE.md#the-fund-units-api.');
-  return true; // 400/409: a bad parse or already confirmed; retrying the same email won't help.
+  return code;
 }
 
 /** Test: log what `run` would send from your real inbox, without sending or labelling. An

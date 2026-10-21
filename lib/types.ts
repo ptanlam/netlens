@@ -65,17 +65,18 @@ export interface Tx {
  *   negative amount with `quantity` 0, never NULL (NULL means "price the amount into units on
  *   its date", which would read it as a sale). It lowers the holding's net cost, so it lands
  *   in P&L as realised income.
- * - **bonus**: units received for nothing, i.e. a stock dividend or a split. `amount` 0 and
- *   positive `quantity`, so the cost stays put while the units grow.
+ * - **bonus**: units that moved with no money, so the cost stays put. A stock dividend or a
+ *   split (positive `quantity`), and also the older "Reconciliation" rows that align a
+ *   holding to its stated units, either way. Hence the label "Units adjustment".
  */
 export type TxKind = "buy" | "sell" | "dividend" | "bonus";
 
 export const TX_KIND_LABEL: Record<TxKind, string> = {
-  buy: "Buy", sell: "Sell", dividend: "Dividend", bonus: "Bonus units",
+  buy: "Buy", sell: "Sell", dividend: "Dividend", bonus: "Units adjustment",
 };
 
 export function txKind(t: Pick<Tx, "amount" | "quantity">): TxKind {
-  if (t.amount === 0 && (t.quantity ?? 0) > 0) return "bonus";
+  if (t.amount === 0 && t.quantity) return "bonus";
   if (t.amount < 0 && t.quantity === 0) return "dividend";
   return t.amount >= 0 ? "buy" : "sell";
 }

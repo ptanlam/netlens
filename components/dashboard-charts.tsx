@@ -22,12 +22,19 @@ import { PnlCalendar } from "@/components/pnl-calendar";
 import { usePnlHistory } from "@/components/use-pnl-history";
 import { cn } from "@/lib/utils";
 
+export interface DashboardAlert {
+  title: string;
+  detail: string;
+  /** Where it's dealt with; none for one fixed outside the app. */
+  href?: string;
+}
+
 export function DashboardCharts({
   payload,
   savings,
   funds,
   debts,
-  pending,
+  alerts,
   goalRows,
   world,
   streak,
@@ -39,7 +46,9 @@ export function DashboardCharts({
   savings: number;
   funds: number;
   debts: number;
-  pending: number;
+  /** Things to act on, each a banner above net worth: units awaiting confirmation, missed
+   *  dividends, an unattended job that failed. */
+  alerts: DashboardAlert[];
   goalRows: Goal[];
   world: GoalWorld;
   /** Finished on the server — nothing a price tick does can move it. Null when no monthly
@@ -131,22 +140,29 @@ export function DashboardCharts({
         Net worth, holdings and daily P&amp;L, priced from the latest close.
       </PageHeader>
 
-      {pending > 0 && (
-        <Link
-          href="/transactions"
-          className="flex items-start gap-3 rounded-2xl bg-warning-bg px-5 py-4 transition-colors hover:bg-[color-mix(in_oklab,var(--warning-bg),var(--warning)_8%)]"
-        >
-          <TriangleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
-          <div>
-            <div className="text-body font-semibold">
-              {pending} fund purchase{pending > 1 ? "s" : ""} awaiting unit confirmation
+      {alerts.map((a) => {
+        const body = (
+          <>
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
+            <div>
+              <div className="text-body font-semibold">{a.title}</div>
+              <div className="mt-0.5 text-body-sm text-muted-foreground">{a.detail}</div>
             </div>
-            <div className="mt-0.5 text-body-sm text-muted-foreground">
-              Enter the confirmed units on the Transactions page so live valuation stays accurate.
-            </div>
-          </div>
-        </Link>
-      )}
+          </>
+        );
+        const cls = "flex items-start gap-3 rounded-2xl bg-warning-bg px-5 py-4";
+        return a.href ? (
+          <Link
+            key={a.title}
+            href={a.href}
+            className={`${cls} transition-colors hover:bg-[color-mix(in_oklab,var(--warning-bg),var(--warning)_8%)]`}
+          >
+            {body}
+          </Link>
+        ) : (
+          <div key={a.title} role="alert" className={cls}>{body}</div>
+        );
+      })}
 
       {/* Net worth leads, full width and in the brand's loudest type, as in the design.
           Everything under it is detail on that one figure. */}

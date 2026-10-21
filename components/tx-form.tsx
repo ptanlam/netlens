@@ -130,7 +130,9 @@ export function TxForm({
             name="quantity"
             type="number"
             step="any"
-            defaultValue={tx?.quantity != null ? Math.abs(tx.quantity) : undefined}
+            // Signed for an adjustment, which can take units away; the other kinds carry
+            // their sign in the Type.
+            defaultValue={tx?.quantity != null ? (direction === "bonus" ? tx.quantity : Math.abs(tx.quantity)) : undefined}
             placeholder={direction === "bonus" ? "e.g. 15 per 100 held → 150" : "units / shares / coins"}
             required={direction === "bonus"}
           />
