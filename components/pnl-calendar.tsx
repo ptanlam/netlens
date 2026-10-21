@@ -703,6 +703,16 @@ export function PnlCalendar({
     ? year === Number(bounds.max.slice(0, 4))
     : active === bounds.max);
 
+  /** A month picked in the year view is the one the month view opens on. Its "YYYY-MM"
+   *  isn't a day, so the selection itself doesn't carry over. */
+  function switchView(next: "month" | "year") {
+    if (next === "month" && view === "year" && selected) {
+      setMonth(selected.slice(0, 7));
+      setSelected(null);
+    }
+    setView(next);
+  }
+
   /** Clearing the override rather than setting today's key, so the panel goes back to
    *  tracking the end of the series — a tick that lands a new month still lands you on it. */
   function goToday() {
@@ -785,7 +795,7 @@ export function PnlCalendar({
                 <button
                   key={v}
                   type="button"
-                  onClick={() => setView(v)}
+                  onClick={() => switchView(v)}
                   className={cn(
                     "rounded-full px-3.5 py-1.5 text-body-sm font-semibold capitalize transition-colors",
                     view === v ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2" : "text-muted-foreground hover:text-foreground",
