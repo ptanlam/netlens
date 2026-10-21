@@ -784,6 +784,14 @@ html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-st
   .animate-pulse-dot {
     animation: pulse-dot 2s ease-in-out infinite;
   }
+  /* The page-switch placeholder (`app/loading.tsx`): held back a beat so a quick switch
+     never flashes it, then shimmering while the page is built. */
+  .animate-loading-in {
+    animation: fade-in 0.25s ease 0.15s both;
+  }
+  .animate-loading-shimmer {
+    animation: pulse-dot 1.6s ease-in-out infinite;
+  }
   .animate-tick-ping {
     animation: tick-ping 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
