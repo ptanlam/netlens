@@ -3,6 +3,7 @@ import { Figtree, Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { Nav } from '@/components/nav';
 import { PullToRefresh } from '@/components/pull-to-refresh';
+import { NavProgress } from '@/components/nav-progress';
 import { ThemeProvider } from '@/components/theme-provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SafeAreaDebug } from '@/components/safe-area-debug';
@@ -96,6 +97,7 @@ export default function RootLayout({
             {/* Mounted here rather than in the nav: the gesture belongs to the page, and
                 this is the one place every route passes through. */}
             <PullToRefresh />
+            <NavProgress />
             {/* The design runs the page on the bare field — no artwork behind it. Depth is
                 the surface step from field to panel, so anything laid between the two would
                 only flatten it. */}

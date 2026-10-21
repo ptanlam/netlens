@@ -697,6 +697,15 @@ html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-st
 }
 
 /* The "live" dot in the header breathes while the price poller is armed. */
+@keyframes nav-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(0.92);
+  }
+}
+
 @keyframes pulse-dot {
   0%,
   100% {
@@ -791,6 +800,13 @@ html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-st
   }
   .animate-loading-shimmer {
     animation: pulse-dot 1.6s ease-in-out infinite;
+  }
+  /* The page-switch bar (`NavProgress`): quick at first, then crawling, so it never looks
+     finished before the page is. Shown after a beat, like the placeholder. */
+  .animate-nav-progress {
+    animation:
+      fade-in 0.2s ease 0.1s both,
+      nav-progress 12s cubic-bezier(0.08, 0.8, 0.2, 1) 0.1s both;
   }
   .animate-tick-ping {
     animation: tick-ping 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
