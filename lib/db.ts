@@ -464,6 +464,12 @@ export async function deleteComp(id: number) {
   await q("DELETE FROM property_comps WHERE id=?").run(id);
 }
 
+/** Several of one plot's comps at once. `instrument` too, so an id can't reach another plot. */
+export async function deleteComps(instrument: string, ids: number[]) {
+  const del = q("DELETE FROM property_comps WHERE id=? AND instrument=?");
+  if (ids.length) await db().batch(ids.map((id) => del.bound(id, instrument)));
+}
+
 export async function listPropertyIndex(instrument?: string): Promise<PropertyIndexPoint[]> {
   return instrument
     ? q("SELECT * FROM property_index WHERE instrument=? ORDER BY date").all<PropertyIndexPoint>(instrument)

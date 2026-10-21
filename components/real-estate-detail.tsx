@@ -19,7 +19,7 @@ import { SummaryCards } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import {
   AddCompDialog, BookLowEndButton, CONFIDENCE_BADGE, CompActions, CompRadar, EditLocationDialog,
-  FindListingsDialog, IndexPanel, PropertyForm, RefreshPricesButton, ValuationList, basisLine,
+  FindListingsDialog, IndexPanel, PropertyForm, RefreshPricesButton, RemoveFarCompsButton, ValuationList, basisLine,
   fmtKm, fmtPerM2,
   type EstateHolding,
 } from "@/components/real-estate-parts";
@@ -192,6 +192,11 @@ export function RealEstateDetail({
             <RefreshPricesButton
               holding={holding.name}
               disabled={!comps.some((c) => listingId(c.source) != null)}
+            />
+            <RemoveFarCompsButton
+              holding={holding.name}
+              radiusKm={property.radius_km}
+              count={v.scored.filter((s) => s.distanceKm > property.radius_km).length}
             />
             {!goal && <BookLowEndButton holding={holding.name} disabled={!predicted || v.low === booked} />}
             <AddCompDialog holding={holding.name} />

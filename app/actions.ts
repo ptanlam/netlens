@@ -8,7 +8,7 @@ import {
 import { cronLines, parseCron } from "@/lib/cron";
 import { fmtVND } from "@/lib/format";
 import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
-import { estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
+import { distanceKm, estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
   BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, PRICE_REFRESH_INTERVALS, ROAD_ACCESS,
   SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, goalIdOfProperty, normalizePriceRefreshMs,
@@ -674,6 +674,19 @@ export async function deleteComp(id: number) {
   await db.deleteComp(id);
   revalidateAll();
   return { ok: true, message: "Comp deleted." };
+}
+
+/** Delete the plot's comps farther out than its radius, which on its own only weighs them
+ *  down (`scoreComp`). For after shrinking the radius: what's left is what a search today
+ *  would find. Distances are worked out here, not taken from the page. */
+export async function removeFarComps(instrument: string) {
+  const property = await db.getProperty(instrument);
+  if (!property) return { ok: false, message: "Set the location first." };
+  const far = (await db.listComps(instrument)).filter((c) => distanceKm(property, c) > property.radius_km);
+  if (!far.length) return { ok: false, message: `No comps beyond ${property.radius_km} km.` };
+  await db.deleteComps(instrument, far.map((c) => c.id));
+  revalidateAll();
+  return { ok: true, message: `Removed ${far.length} comp${far.length === 1 ? "" : "s"} beyond ${property.radius_km} km.` };
 }
 
 /** Nhà Tốt listings around a placed plot, each flagged if it's already one of *this plot's*

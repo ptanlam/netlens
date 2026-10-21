@@ -10,7 +10,7 @@ import {
 } from "@/lib/types";
 import {
   addComp, addIndexPoint, applyEstimate, deleteComp, deleteIndexPoint, deleteProperty,
-  deleteValuation, findListings, importListings, refreshCompPrices, saveProperty, updateComp,
+  deleteValuation, findListings, importListings, refreshCompPrices, removeFarComps, saveProperty, updateComp,
 } from "@/app/actions";
 import type { Listing } from "@/lib/listings";
 import { fmtVND } from "@/lib/format";
@@ -634,6 +634,29 @@ export function RefreshPricesButton({ holding, disabled }: { holding: string; di
     >
       <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
       {pending ? "Refreshing…" : "Refresh prices"}
+    </Button>
+  );
+}
+
+/** Delete the comps beyond the plot's radius in one go. `count` is the page's own tally,
+ *  for the label; the server works out which ones again. */
+export function RemoveFarCompsButton({ holding, radiusKm, count }: { holding: string; radiusKm: number; count: number }) {
+  const [pending, startTransition] = React.useTransition();
+  return (
+    <Button
+      variant="outline"
+      disabled={pending || count === 0}
+      onClick={() => {
+        if (!confirm(`Delete the ${count} comp${count === 1 ? "" : "s"} farther than ${radiusKm} km? This can't be undone.`)) return;
+        startTransition(async () => {
+          const res = await removeFarComps(holding);
+          if (res.ok) toast.success(res.message);
+          else toast.error(res.message);
+        });
+      }}
+    >
+      <Trash2 className="size-3.5" />
+      {count === 0 ? `None beyond ${radiusKm} km` : `Remove ${count} beyond ${radiusKm} km`}
     </Button>
   );
 }
