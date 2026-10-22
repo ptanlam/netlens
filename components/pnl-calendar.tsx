@@ -703,13 +703,13 @@ export function PnlCalendar({
     ? year === Number(bounds.max.slice(0, 4))
     : active === bounds.max);
 
-  /** A month picked in the year view is the one the month view opens on. Its "YYYY-MM"
-   *  isn't a day, so the selection itself doesn't carry over. */
+  /** The month you're on carries across both ways: a month picked in the year view is the
+   *  one the month view opens on, and back in the year view that month is the selected
+   *  square, not the latest one. A day isn't a month, so a picked day doesn't carry over. */
   function switchView(next: "month" | "year") {
-    if (next === "month" && view === "year" && selected) {
-      setMonth(selected.slice(0, 7));
-      setSelected(null);
-    }
+    if (next === view) return;
+    if (next === "month" && selected) setMonth(selected.slice(0, 7));
+    setSelected(next === "year" ? month : null);
     setView(next);
   }
 
