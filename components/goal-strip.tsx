@@ -135,13 +135,17 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
           what keeps the bars on a common track — before this, a longer figure (a target with
           its foreign amount spelled out) ate its row's bar down to a stub while the rows above
           kept theirs full width. `max-content` on the last two columns means the list is as
-          wide as its widest number and no wider. */}
-      <div className="@2xl:grid @2xl:grid-cols-[minmax(0,1fr)_minmax(6rem,0.5fr)_max-content_max-content] @2xl:gap-x-5">
+          wide as its widest number and no wider.
+
+          Between @2xl and @4xl (a tablet) a row is two lines instead, name and bar over
+          figures and chip: one line there left the name a few letters wide. The bar column
+          is a fixed width, so the bars still line up without the shared grid. */}
+      <div className="@4xl:grid @4xl:grid-cols-[minmax(0,1fr)_minmax(6rem,0.5fr)_max-content_max-content] @4xl:gap-x-5">
         {goals.map(({ goal, proj }, i) => (
           <Link
             key={goal.id}
             href="/goals"
-            className="flex flex-col gap-2 border-t border-divider px-6 py-4 transition-colors hover:bg-pane/60 @2xl:col-span-4 @2xl:grid @2xl:grid-cols-subgrid @2xl:items-center"
+            className="flex flex-col gap-2 border-t border-divider px-6 py-4 transition-colors hover:bg-pane/60 @2xl:grid @2xl:grid-cols-[minmax(0,1fr)_18rem] @2xl:items-center @2xl:gap-x-5 @4xl:col-span-4 @4xl:grid-cols-subgrid"
           >
             <div className="flex min-w-0 items-center gap-2">
               {/* The rank you set on /goals — the rail is ordered by it, so showing the
@@ -162,15 +166,16 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
               </span>
             </div>
 
-            {/* Stacked on a phone this is one line, figures left and chip right; from @2xl it
-                dissolves (`contents`) so both land in their own shared column. */}
-            <div className="flex items-center justify-between gap-3 @2xl:contents">
+            {/* Stacked on a phone this is one line, figures left and chip right, and the second
+                line of a two-line row; from @4xl it dissolves (`contents`) so both land in
+                their own shared column. */}
+            <div className="flex items-center justify-between gap-3 @2xl:col-span-2 @4xl:contents">
               {/* Only once it has a column of its own does this refuse to break: on a phone
                   the figures need to be able to wrap under themselves, or a foreign amount
                   shoves the status chip off the card. `min-w-0` + clip is for Hide amounts:
                   the mask turns every glyph into a dot, spaces too, so the figures become
                   one unbreakable run that would push the chip out just the same. */}
-              <span data-amount className="min-w-0 overflow-hidden font-mono text-body-sm font-semibold tabular-nums @2xl:text-right @2xl:whitespace-nowrap">
+              <span data-amount className="min-w-0 overflow-hidden font-mono text-body-sm font-semibold tabular-nums @4xl:text-right @4xl:whitespace-nowrap">
                 {fmtVND(proj.current)}{" "}
                 <span className="font-normal text-muted-foreground">
                   <span className="whitespace-nowrap">/ {fmtVND(proj.target)}</span>
@@ -183,7 +188,7 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
                   )}
                 </span>
               </span>
-              <GoalStatusChip status={proj.status} className="shrink-0 @2xl:justify-self-end" />
+              <GoalStatusChip status={proj.status} className="shrink-0 @4xl:justify-self-end" />
             </div>
           </Link>
         ))}
