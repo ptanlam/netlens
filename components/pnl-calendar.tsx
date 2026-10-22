@@ -811,7 +811,9 @@ export function PnlCalendar({
               <div className="text-caption text-muted-foreground">
                 {view === "year" ? "Year P&L" : "Month P&L"}
               </div>
-              <div data-amount className={cn("mt-1 font-mono text-body font-semibold tabular-nums", periodTotal < 0 ? "text-destructive" : "text-accent-brand")}>
+              {/* A fixed slot (up to "−₫1.234.567.890"), so stepping months doesn't shove the
+                  Month/Year toggle beside it back and forth as the figure's length changes. */}
+              <div data-amount className={cn("mt-1 min-w-[15ch] font-mono text-body font-semibold tabular-nums", periodTotal < 0 ? "text-destructive" : "text-accent-brand")}>
                 {fmtSigned(periodTotal)}
               </div>
             </div>
