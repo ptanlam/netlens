@@ -126,6 +126,18 @@ export interface Saving {
   /** Withdrawn — the day it stopped counting. Null while it's still at the bank. Like a
    *  settled debt, not just display: `listSavings()` hides archived deposits by default. */
   archived_date: string | null;
+  /** Top-ups (+) and withdrawals (−), oldest first. Not a column: `listSavings` attaches them. */
+  movements: SavingMovement[];
+}
+
+export interface SavingMovement {
+  id: number;
+  saving_id: number;
+  date: string;
+  /** Signed: + top-up, − withdrawal. */
+  amount: number;
+  note: string | null;
+  created_at: string;
 }
 
 export interface Debt {

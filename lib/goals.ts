@@ -398,9 +398,13 @@ function fundContributionRate(w: GoalWorld, g: Goal): number {
   const cash = (w.contributions[g.id] ?? [])
     .filter((c) => c.amount > 0 && recent(c.date))
     .reduce((a, c) => a + c.amount, 0);
-  const deposited = (w.savingsByGoal[g.id] ?? [])
-    .filter((s) => recent(s.start_date))
-    .reduce((a, s) => a + s.principal, 0);
+  const deposited = (w.savingsByGoal[g.id] ?? []).reduce(
+    (a, s) =>
+      a +
+      (recent(s.start_date) ? s.principal : 0) +
+      (s.movements ?? []).filter((m) => m.amount > 0 && recent(m.date)).reduce((b, m) => b + m.amount, 0),
+    0,
+  );
   return (cash + deposited) / FUND_PACE_WINDOW_MONTHS;
 }
 

@@ -7,6 +7,7 @@ import {
 } from "@/lib/prices";
 import { cronLines, parseCron } from "@/lib/cron";
 import { fmtVND } from "@/lib/format";
+import { currentValue } from "@/lib/savings";
 import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
 import { distanceKm, estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
@@ -192,6 +193,33 @@ export async function archiveSaving(id: number, archived: boolean) {
   await db.setSavingArchived(id, archived);
   revalidateAll();
   return { ok: true, message: archived ? "Deposit archived." : "Deposit restored." };
+}
+
+/** Record a top-up or a withdrawal on a deposit. The form sends a positive amount and a
+ *  `kind`; the row is signed (+ in, − out). */
+export async function addSavingMovement(savingId: number, fd: FormData) {
+  const saving = await db.getSaving(savingId);
+  if (!saving) return { ok: false, message: "Deposit not found." };
+  const amount = num(fd.get("amount"));
+  if (amount == null || amount <= 0) return { ok: false, message: "A positive amount is required." };
+  const date = str(fd.get("date")) || db.todayIso();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, message: "Invalid date." };
+  if (date < saving.start_date) return { ok: false, message: `The deposit opened on ${saving.start_date}.` };
+  const withdraw = str(fd.get("kind")) !== "topup";
+  if (withdraw) {
+    // Against what it held that day, so a typo can't take out money that was never there.
+    const held = Math.round(currentValue(saving, new Date(`${date}T00:00:00Z`)));
+    if (amount > held) return { ok: false, message: `It held ${fmtVND(held)} on ${date}.` };
+  }
+  await db.addSavingMovement(savingId, date, withdraw ? -amount : amount, str(fd.get("note")) || null);
+  revalidateAll();
+  return { ok: true, message: withdraw ? "Withdrawal recorded." : "Top-up recorded." };
+}
+
+export async function deleteSavingMovement(id: number) {
+  await db.deleteSavingMovement(id);
+  revalidateAll();
+  return { ok: true, message: "Movement deleted." };
 }
 
 export async function deleteSaving(id: number) {

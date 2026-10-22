@@ -7,6 +7,8 @@ export interface Accruing {
   start_date: string;
   term_months: number;
   interest_type: string;
+  /** Dated top-ups (+) and withdrawals (−) after the start, if any — only deposits have them. */
+  movements?: { date: string; amount: number }[];
 }
 
 const DAY_MS = 86_400_000;
@@ -39,19 +41,41 @@ function accrue(principal: number, ratePct: number, years: number, type: string)
 /** Full value at the end of the term (for revolving debt, the value as of today). */
 export function maturityValue(s: Accruing): number {
   if (isRevolving(s)) return currentValue(s);
+  if (s.movements?.length) return currentValue(s, new Date(maturityDate(s) + "T00:00:00Z"));
   return accrue(s.principal, s.rate, s.term_months / 12, s.interest_type);
 }
 
 /** Estimated value today. Fixed-term items accrue up to maturity then stay flat;
- *  revolving items keep accruing indefinitely. */
+ *  revolving items keep accruing indefinitely.
+ *
+ *  Each movement is its own tranche at the same rate, from its date to maturity: a top-up
+ *  starts earning the day it lands, and a withdrawal stops earning the day it leaves while
+ *  the interest it earned before stays. Tranches rather than a running balance so simple
+ *  interest stays simple. Floored at 0: a full withdrawal of a simple deposit drifts a hair
+ *  below it. */
 export function currentValue(s: Accruing, today = new Date()): number {
   const start = Date.parse(s.start_date + "T00:00:00Z");
+  const cap = isRevolving(s) ? Infinity : Date.parse(maturityDate(s) + "T00:00:00Z");
   const elapsedTo = Math.max(today.getTime(), start);
-  const capped = isRevolving(s)
-    ? elapsedTo
-    : Math.min(elapsedTo, Date.parse(maturityDate(s) + "T00:00:00Z"));
-  const years = (capped - start) / DAY_MS / 365;
-  return accrue(s.principal, s.rate, years, s.interest_type);
+  const years = (Math.min(elapsedTo, cap) - start) / DAY_MS / 365;
+  const base = accrue(s.principal, s.rate, years, s.interest_type);
+  if (!s.movements?.length) return base;
+  const moved = s.movements.reduce((a, m) => {
+    const t = Date.parse(m.date + "T00:00:00Z");
+    if (!(t <= today.getTime())) return a;
+    const y = Math.max(0, Math.min(today.getTime(), cap) - t) / DAY_MS / 365;
+    return a + accrue(m.amount, s.rate, y, s.interest_type);
+  }, 0);
+  return Math.max(0, base + moved);
+}
+
+/** What you've put in and not taken out, as of `today`: the principal plus every movement
+ *  up to then. The baseline interest is measured against. */
+export function netPrincipal(s: Accruing, today = new Date()): number {
+  return (s.movements ?? []).reduce(
+    (a, m) => (Date.parse(m.date + "T00:00:00Z") <= today.getTime() ? a + m.amount : a),
+    s.principal,
+  );
 }
 
 export function isMatured(s: Pick<Accruing, "start_date" | "term_months">, today = new Date()): boolean {
@@ -149,7 +173,7 @@ export interface AccruingSummary {
 }
 
 export function summarize(items: Accruing[], today = new Date()): AccruingSummary {
-  const principal = items.reduce((a, s) => a + s.principal, 0);
+  const principal = items.reduce((a, s) => a + netPrincipal(s, today), 0);
   const cur = items.reduce((a, s) => a + currentValue(s, today), 0);
   const mat = items.reduce((a, s) => a + maturityValue(s), 0);
   return { principal, currentValue: cur, interest: cur - principal, maturityValue: mat };

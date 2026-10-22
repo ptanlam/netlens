@@ -83,7 +83,11 @@ export default async function Dashboard() {
   const streakView = streak({
     today: world.today,
     investedByMonth: invested,
-    savings,
+    // A top-up is new deposit money too; a withdrawal isn't subtracted, as a sell isn't.
+    savings: [
+      ...savings,
+      ...savings.flatMap((s) => s.movements.filter((m) => m.amount > 0).map((m) => ({ start_date: m.date, principal: m.amount }))),
+    ],
     ...commitment(world.plannedMonthly, goalRows),
   });
 

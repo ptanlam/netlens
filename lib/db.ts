@@ -18,7 +18,7 @@
  * The schema lives in `migrations/`, not in a string here — see `migrations/0001_init.sql`.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, Subscription, Tx, ValuationSource } from "./types";
+import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, SavingMovement, Subscription, Tx, ValuationSource } from "./types";
 import { DEFAULT_PRICE_SCHEDULE, goalIdOfProperty, goalPropertyKey, normalizePriceRefreshMs } from "./types";
 import { fundCashAt, type ApartmentEstimate, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
@@ -216,7 +216,26 @@ export async function allTransactions(): Promise<Tx[]> {
  */
 export async function listSavings(includeArchived = false): Promise<Saving[]> {
   const where = includeArchived ? "" : "WHERE archived_date IS NULL";
-  return q(`SELECT * FROM savings ${where} ORDER BY start_date DESC, id DESC`).all<Saving>();
+  const [rows, moves] = await Promise.all([
+    q(`SELECT * FROM savings ${where} ORDER BY start_date DESC, id DESC`).all<Omit<Saving, "movements">>(),
+    q("SELECT * FROM saving_movements ORDER BY date, id").all<SavingMovement>(),
+  ]);
+  return withMovements(rows, moves);
+}
+
+function withMovements(rows: Omit<Saving, "movements">[], moves: SavingMovement[]): Saving[] {
+  const by = new Map<number, SavingMovement[]>();
+  for (const m of moves) by.set(m.saving_id, [...(by.get(m.saving_id) ?? []), m]);
+  return rows.map((r) => ({ ...r, movements: by.get(r.id) ?? [] }));
+}
+
+export async function addSavingMovement(savingId: number, date: string, amount: number, note: string | null) {
+  await q("INSERT INTO saving_movements(saving_id, date, amount, note) VALUES (?,?,?,?)")
+    .run(savingId, date, Math.round(amount), note);
+}
+
+export async function deleteSavingMovement(id: number) {
+  await q("DELETE FROM saving_movements WHERE id=?").run(id);
 }
 
 /** Archive a withdrawn deposit as of today, or restore it. */
@@ -225,7 +244,11 @@ export async function setSavingArchived(id: number, archived: boolean) {
 }
 
 export async function getSaving(id: number): Promise<Saving | undefined> {
-  return q("SELECT * FROM savings WHERE id=?").get<Saving>(id);
+  const [row, moves] = await Promise.all([
+    q("SELECT * FROM savings WHERE id=?").get<Omit<Saving, "movements">>(id),
+    q("SELECT * FROM saving_movements WHERE saving_id=? ORDER BY date, id").all<SavingMovement>(id),
+  ]);
+  return row && withMovements([row], moves)[0];
 }
 
 export async function addSaving(
@@ -248,7 +271,11 @@ export async function updateSaving(
 }
 
 export async function deleteSaving(id: number) {
-  await q("DELETE FROM savings WHERE id=?").run(id);
+  // Batched so a deposit never loses its movements without losing itself too.
+  await db().batch([
+    q("DELETE FROM saving_movements WHERE saving_id=?").bound(id),
+    q("DELETE FROM savings WHERE id=?").bound(id),
+  ]);
 }
 
 // ---------- debts (loans) ----------

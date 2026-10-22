@@ -1,20 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, Pencil, Plus, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { INTEREST_TYPES, type Saving } from "@/lib/types";
-import { addSaving, archiveSaving, deleteSaving, updateSaving } from "@/app/actions";
+import { INTEREST_TYPES, type Saving, type SavingMovement } from "@/lib/types";
+import {
+  addSaving, addSavingMovement, archiveSaving, deleteSaving, deleteSavingMovement, updateSaving,
+} from "@/app/actions";
 import { cn } from "@/lib/utils";
 import { fmtVND } from "@/lib/format";
-import { currentValue, isMatured, maturityDate, maturityValue, summarize } from "@/lib/savings";
+import { currentValue, isMatured, maturityDate, maturityValue, netPrincipal, summarize } from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
@@ -159,6 +161,110 @@ function AddDepositDialog({ funds }: { funds: FundOption[] }) {
   );
 }
 
+/** Top-ups and withdrawals on one deposit: the form, and the history under it. */
+function MovementsDialog({ saving, held }: { saving: Saving; held: number }) {
+  const [pending, startTransition] = React.useTransition();
+  const [kind, setKind] = React.useState<"withdraw" | "topup">("withdraw");
+  const formRef = React.useRef<HTMLFormElement>(null);
+  const today = new Date().toLocaleDateString("sv-SE");
+  const history = [...saving.movements].reverse();
+  const label = saving.bank ?? "Term deposit";
+
+  const run = (fn: () => Promise<ActionResult>, after?: () => void) =>
+    startTransition(async () => {
+      const res = await fn();
+      if (res.ok) {
+        toast.success(res.message);
+        after?.();
+      } else toast.error(res.message);
+    });
+
+  return (
+    <Dialog>
+      <IconTooltip label="Withdraw or top up">
+        <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Withdraw or top up" />}>
+          <ArrowDownUp className="size-3.5" />
+        </DialogTrigger>
+      </IconTooltip>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Withdraw or top up — {label}</DialogTitle>
+          <DialogDescription>
+            Holds <Amt>{fmtVND(Math.round(held))}</Amt>{" "}today. Money you take out stops earning the
+            day it leaves; a top-up earns the deposit&apos;s rate from the day it lands.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          ref={formRef}
+          action={(fd) => run(() => addSavingMovement(saving.id, fd), () => formRef.current?.reset())}
+          className="grid gap-3 sm:grid-cols-2"
+        >
+          <input type="hidden" name="kind" value={kind} />
+          <div className="flex gap-0.5 justify-self-start rounded-full bg-pane p-1 sm:col-span-2">
+            {(["withdraw", "topup"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={kind === k}
+                onClick={() => setKind(k)}
+                className={cn(
+                  "rounded-full px-3.5 py-1.5 text-body-sm font-semibold transition-colors",
+                  kind === k ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {k === "withdraw" ? "Withdraw" : "Top up"}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor={`m-date-${saving.id}`}>Date</Label>
+            <Input id={`m-date-${saving.id}`} name="date" type="date" defaultValue={today} min={saving.start_date} required />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor={`m-amount-${saving.id}`}>Amount (VND)</Label>
+            <CurrencyInput id={`m-amount-${saving.id}`} name="amount" placeholder="5.000.000" required />
+          </div>
+          <div className="grid gap-2 sm:col-span-2">
+            <Label htmlFor={`m-note-${saving.id}`}>Note (optional)</Label>
+            <Input id={`m-note-${saving.id}`} name="note" />
+          </div>
+          <Button type="submit" disabled={pending} className="sm:col-span-2">
+            {pending ? "Saving…" : kind === "withdraw" ? "Record withdrawal" : "Record top-up"}
+          </Button>
+        </form>
+
+        {history.length > 0 && (
+          <div className="mt-2">
+            <div className="mb-1 text-caption text-muted-foreground">History</div>
+            {history.map((m) => (
+              <MovementRow key={m.id} movement={m} pending={pending} onDelete={() => run(() => deleteSavingMovement(m.id))} />
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MovementRow({ movement, pending, onDelete }: { movement: SavingMovement; pending: boolean; onDelete: () => void }) {
+  const out = movement.amount < 0;
+  return (
+    <div className="flex items-center gap-3 border-b py-1.5 text-body-sm last:border-0">
+      <span className="tabular-nums text-muted-foreground">{movement.date}</span>
+      <span data-amount className={cn("font-mono font-semibold tabular-nums", out ? "text-destructive" : "text-accent-brand")}>
+        {out ? "−" : "+"}{fmtVND(Math.abs(movement.amount))}
+      </span>
+      <span className="flex-1 truncate text-muted-foreground">{movement.note}</span>
+      <IconTooltip label={out ? "Delete withdrawal" : "Delete top-up"}>
+        <Button variant="ghost" size="icon-sm" aria-label="Delete movement" disabled={pending} onClick={onDelete}>
+          <Trash2 className="size-3.5 text-destructive" />
+        </Button>
+      </IconTooltip>
+    </div>
+  );
+}
+
 /** The day an archived deposit stopped counting. */
 function endOf(d: Saving): Date {
   return new Date(`${d.archived_date}T00:00:00Z`);
@@ -171,9 +277,11 @@ function SavingRow({ saving, funds, now }: { saving: Saving; funds: FundOption[]
   const matured = isMatured(saving, now);
   const archived = saving.archived_date != null;
   // An archived deposit is worth what it was the day you took it out.
-  const cur = currentValue(saving, archived ? endOf(saving) : now);
+  const at = archived ? endOf(saving) : now;
+  const cur = currentValue(saving, at);
+  const net = netPrincipal(saving, at);
   const matVal = maturityValue(saving);
-  const interest = cur - saving.principal;
+  const interest = cur - net;
   const earmarked = funds.find((f) => f.id === saving.goal_id);
 
   return (
@@ -190,7 +298,8 @@ function SavingRow({ saving, funds, now }: { saving: Saving; funds: FundOption[]
           {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
         </div>
         <div className="mt-1 font-mono text-caption text-muted-foreground tabular-nums">
-          <Amt>{fmtVND(saving.principal)}</Amt> · {saving.rate}%/yr · {saving.term_months}mo · {saving.start_date} → {maturityDate(saving)}
+          <Amt>{fmtVND(saving.principal)}</Amt>
+          {saving.movements.length > 0 && <> → <Amt>{fmtVND(net)}</Amt> net</>} · {saving.rate}%/yr · {saving.term_months}mo · {saving.start_date} → {maturityDate(saving)}
         </div>
       </div>
       <div className="flex items-center gap-[18px]">
@@ -204,6 +313,7 @@ function SavingRow({ saving, funds, now }: { saving: Saving; funds: FundOption[]
           </div>
         </div>
         <div className="flex gap-1">
+          {!archived && <MovementsDialog saving={saving} held={cur} />}
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
             <IconTooltip label="Edit deposit">
               <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit deposit" />}>
@@ -276,11 +386,16 @@ export function SavingsManager({
   // you took it out, and drops it after.
   const s = summarize(open, now);
   const isOut = (d: Saving, at: Date) => d.archived_date != null && at > endOf(d);
-  // Baseline is the deposit's own principal, so the shaded band is interest accrued.
+  // Baseline is what you'd put in and not taken out by then, so the band is interest, and
+  // every top-up and withdrawal shows as a step on the day it happened.
   const series = buildDailySeries(
     savings,
     (d, at) => (isOut(d, at) ? 0 : currentValue(d, at)),
-    (d, at) => (isOut(d, at) ? { base: 0, interest: 0 } : { base: d.principal, interest: currentValue(d, at) - d.principal }),
+    (d, at) => {
+      if (isOut(d, at)) return { base: 0, interest: 0 };
+      const base = netPrincipal(d, at);
+      return { base, interest: currentValue(d, at) - base };
+    },
     nowMs,
   );
 
