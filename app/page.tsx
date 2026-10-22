@@ -42,7 +42,7 @@ export default async function Dashboard() {
     await Promise.all([
       db.buildPayload(),
       db.pendingFundUnits(),
-      db.listSavings(),
+      db.listSavings(true),
       db.listDebtPayments(),
       db.listDebts(),
       db.fundsCashTotal(),
@@ -61,7 +61,8 @@ export default async function Dashboard() {
     .filter((i) => i.archived !== 1)
     .map((i) => ({ name: i.name, asset_type: i.asset_type }));
 
-  const savingsValue = summarize(savings).currentValue;
+  // Withdrawn deposits are out of net worth but stay in the streak: that money did move.
+  const savingsValue = summarize(savings.filter((s) => !s.archived_date)).currentValue;
   const paymentsByDebt = new Map<number, Payment[]>();
   for (const p of debtPayments) {
     const list = paymentsByDebt.get(p.debt_id) ?? [];

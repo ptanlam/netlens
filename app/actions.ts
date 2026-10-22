@@ -186,6 +186,14 @@ export async function updateSaving(id: number, fd: FormData) {
   return { ok: true, message: "Deposit updated." };
 }
 
+/** Put a withdrawn deposit away, or restore it. Keeps its history — unlike deleting it. */
+export async function archiveSaving(id: number, archived: boolean) {
+  if (!await db.getSaving(id)) return { ok: false, message: "Not found." };
+  await db.setSavingArchived(id, archived);
+  revalidateAll();
+  return { ok: true, message: archived ? "Deposit archived." : "Deposit restored." };
+}
+
 export async function deleteSaving(id: number) {
   await db.deleteSaving(id);
   revalidateAll();

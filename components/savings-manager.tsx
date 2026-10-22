@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { INTEREST_TYPES, type Saving } from "@/lib/types";
-import { addSaving, deleteSaving, updateSaving } from "@/app/actions";
+import { addSaving, archiveSaving, deleteSaving, updateSaving } from "@/app/actions";
+import { cn } from "@/lib/utils";
 import { fmtVND } from "@/lib/format";
 import { currentValue, isMatured, maturityDate, maturityValue, summarize } from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
@@ -158,23 +159,34 @@ function AddDepositDialog({ funds }: { funds: FundOption[] }) {
   );
 }
 
+/** The day an archived deposit stopped counting. */
+function endOf(d: Saving): Date {
+  return new Date(`${d.archived_date}T00:00:00Z`);
+}
+
 function SavingRow({ saving, funds, now }: { saving: Saving; funds: FundOption[]; now: Date }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 
   const matured = isMatured(saving, now);
-  const cur = currentValue(saving, now);
+  const archived = saving.archived_date != null;
+  // An archived deposit is worth what it was the day you took it out.
+  const cur = currentValue(saving, archived ? endOf(saving) : now);
   const matVal = maturityValue(saving);
   const interest = cur - saving.principal;
   const earmarked = funds.find((f) => f.id === saving.goal_id);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 card-surface panel-body">
+    <div className={cn("flex flex-wrap items-center justify-between gap-4 card-surface panel-body", archived && "opacity-60")}>
       <div>
         <div className="flex items-center gap-2">
           <EntityAvatar name={saving.bank ?? "Term deposit"} color="var(--chart-4)" />
           <span className="text-body-sm font-semibold">{saving.bank ?? "Term deposit"}</span>
-          <Badge variant={matured ? "secondary" : "accent"}>{matured ? "Matured" : "Active"}</Badge>
+          {archived ? (
+            <Badge variant="secondary">Archived {saving.archived_date}</Badge>
+          ) : (
+            <Badge variant={matured ? "secondary" : "accent"}>{matured ? "Matured" : "Active"}</Badge>
+          )}
           {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
         </div>
         <div className="mt-1 font-mono text-caption text-muted-foreground tabular-nums">
@@ -205,6 +217,23 @@ function SavingRow({ saving, funds, now }: { saving: Saving; funds: FundOption[]
               <SavingForm action={(fd) => updateSaving(saving.id, fd)} saving={saving} funds={funds} onDone={() => setEditOpen(false)} />
             </DialogContent>
           </Dialog>
+          <IconTooltip label={archived ? "Restore deposit" : matured ? "Archive — matured and withdrawn" : "Archive deposit"}>
+            <Button
+              variant={matured && !archived ? "outline" : "ghost"}
+              size="icon-sm"
+              aria-label={archived ? "Restore deposit" : "Archive deposit"}
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  const res = await archiveSaving(saving.id, !archived);
+                  if (res.ok) toast.success(res.message);
+                  else toast.error(res.message);
+                })
+              }
+            >
+              {archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
+            </Button>
+          </IconTooltip>
           <IconTooltip label="Delete deposit">
             <Button
               variant="ghost"
@@ -241,13 +270,17 @@ export function SavingsManager({
   nowMs: number;
 }) {
   const now = React.useMemo(() => new Date(nowMs), [nowMs]);
-  const s = summarize(savings, now);
+  const open = savings.filter((d) => d.archived_date == null);
+  const archived = savings.filter((d) => d.archived_date != null);
+  // The tiles are what's at the bank now; the chart keeps an archived deposit up to the day
+  // you took it out, and drops it after.
+  const s = summarize(open, now);
+  const isOut = (d: Saving, at: Date) => d.archived_date != null && at > endOf(d);
   // Baseline is the deposit's own principal, so the shaded band is interest accrued.
-  // Nothing is ever withdrawn from a deposit, so lifetime interest is the same figure.
   const series = buildDailySeries(
     savings,
-    currentValue,
-    (d, at) => ({ base: d.principal, interest: currentValue(d, at) - d.principal }),
+    (d, at) => (isOut(d, at) ? 0 : currentValue(d, at)),
+    (d, at) => (isOut(d, at) ? { base: 0, interest: 0 } : { base: d.principal, interest: currentValue(d, at) - d.principal }),
     nowMs,
   );
 
@@ -287,10 +320,19 @@ export function SavingsManager({
 
       <p className="text-caption text-muted-foreground">Term deposits, newest first.</p>
 
-      {savings.length === 0 && <p className="text-body-sm text-muted-foreground">No deposits yet.</p>}
-      {savings.map((saving) => (
+      {open.length === 0 && <p className="text-body-sm text-muted-foreground">No deposits yet.</p>}
+      {open.map((saving) => (
         <SavingRow key={saving.id} saving={saving} funds={funds} now={now} />
       ))}
+
+      {archived.length > 0 && (
+        <>
+          <p className="mt-2 text-caption text-muted-foreground">Archived — withdrawn, no longer counted in net worth.</p>
+          {archived.map((saving) => (
+            <SavingRow key={saving.id} saving={saving} funds={funds} now={now} />
+          ))}
+        </>
+      )}
     </div>
   );
 }

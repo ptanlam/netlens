@@ -123,6 +123,9 @@ export interface Saving {
   goal_id: number | null;
   note: string | null;
   created_at: string;
+  /** Withdrawn — the day it stopped counting. Null while it's still at the bank. Like a
+   *  settled debt, not just display: `listSavings()` hides archived deposits by default. */
+  archived_date: string | null;
 }
 
 export interface Debt {

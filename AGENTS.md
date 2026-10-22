@@ -59,7 +59,7 @@ Apply the migration with `pnpm db:migrate` (local). Production is handled by `pn
 
 ## Money & interest
 
-`lib/savings.ts` holds the shared interest maths over an `Accruing` shape (`{principal, rate, start_date, term_months, interest_type}`). Savings deposits and debts both use `currentValue` / `maturityValue` / `summarize` / `isMatured`. A debt with `term_months <= 0` is **revolving** (credit card): open-ended, never matures. The dashboard **Net worth = investments + savings + fund cash − debts** (`components/net-worth.tsx`).
+`lib/savings.ts` holds the shared interest maths over an `Accruing` shape (`{principal, rate, start_date, term_months, interest_type}`). Savings deposits and debts both use `currentValue` / `maturityValue` / `summarize` / `isMatured`. A debt with `term_months <= 0` is **revolving** (credit card): open-ended, never matures. An **archived** deposit (`savings.archived_date`, set when you've withdrawn it) is out of net worth, goals and the forecast because `listSavings()` hides it by default; the Savings page and the streak pass `true`, since its history still happened. The dashboard **Net worth = investments + savings + fund cash − debts** (`components/net-worth.tsx`).
 
 ## Prices refresh on the server, on one clock
 

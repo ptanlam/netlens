@@ -209,8 +209,19 @@ export async function allTransactions(): Promise<Tx[]> {
 
 // ---------- savings (term deposits) ----------
 
-export async function listSavings(): Promise<Saving[]> {
-  return q("SELECT * FROM savings ORDER BY start_date DESC, id DESC").all<Saving>();
+/**
+ * Deposits still at the bank. Withdrawn (archived) ones only when you ask, as `listDebts`
+ * treats settled debts: net worth, goals and the forecast then can't count money you've
+ * taken out. Callers that read history (the Savings page, the streak) pass `true`.
+ */
+export async function listSavings(includeArchived = false): Promise<Saving[]> {
+  const where = includeArchived ? "" : "WHERE archived_date IS NULL";
+  return q(`SELECT * FROM savings ${where} ORDER BY start_date DESC, id DESC`).all<Saving>();
+}
+
+/** Archive a withdrawn deposit as of today, or restore it. */
+export async function setSavingArchived(id: number, archived: boolean) {
+  await q("UPDATE savings SET archived_date=? WHERE id=?").run(archived ? todayIso() : null, id);
 }
 
 export async function getSaving(id: number): Promise<Saving | undefined> {
