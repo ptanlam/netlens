@@ -24,12 +24,17 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
+// Form dialogs open and close instantly — no Motion fade/flip. (The nav drawer uses the
+// primitive directly and keeps its slide.)
+const NO_ANIMATION = { transition: { duration: 0 }, exitTransition: { duration: 0 } }
+
 function DialogOverlay({
   className,
   ...props
 }: DialogPrimitive.Backdrop.Props) {
   return (
     <DialogPrimitive.Backdrop
+      {...NO_ANIMATION}
       data-slot="dialog-overlay"
       className={cn(
         "fixed inset-0 isolate z-50 bg-(--scrim)",
@@ -64,6 +69,7 @@ function DialogContent({
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
+        {...NO_ANIMATION}
         ref={popupRef}
         initialFocus={initialFocus}
         data-slot="dialog-content"
