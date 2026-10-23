@@ -45,6 +45,10 @@ export interface PriceSource {
 export const INTEREST_TYPES = ["simple", "compound"] as const;
 export type InterestType = (typeof INTEREST_TYPES)[number];
 
+/** What a deposit's term is counted in. Debts are always months. */
+export const TERM_UNITS = ["day", "week", "month", "year"] as const;
+export type TermUnit = (typeof TERM_UNITS)[number];
+
 export const DEBT_KINDS = ["fixed", "flexible", "credit"] as const;
 export type DebtKind = (typeof DEBT_KINDS)[number];
 
@@ -116,7 +120,9 @@ export interface Saving {
   principal: number;
   rate: number;
   start_date: string;
+  /** The term's length in `term_unit` — named for when months were the only unit. */
   term_months: number;
+  term_unit: TermUnit;
   interest_type: InterestType;
   /** Earmarked for a sinking-fund goal, if any. The deposit still counts once — under
    *  Savings in net worth — and its live value counts toward that goal's progress. */

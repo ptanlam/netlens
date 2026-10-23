@@ -1,11 +1,15 @@
 /** Interest maths for term deposits and debts. Pure — safe on client and server. */
 
+import type { TermUnit } from "./types";
+
 /** Anything that accrues interest over a fixed term (savings deposit or loan). */
 export interface Accruing {
   principal: number;
   rate: number;
   start_date: string;
+  /** The term's length in `term_unit` (months when unset — debts never set it). */
   term_months: number;
+  term_unit?: TermUnit;
   interest_type: string;
   /** Dated top-ups (+) and withdrawals (−) after the start, if any — only deposits have them. */
   movements?: { date: string; amount: number }[];
@@ -22,8 +26,22 @@ export function addMonths(iso: string, months: number): string {
   return base.toISOString().slice(0, 10);
 }
 
-export function maturityDate(s: Pick<Accruing, "start_date" | "term_months">): string {
-  return addMonths(s.start_date, s.term_months);
+export function maturityDate(s: Pick<Accruing, "start_date" | "term_months" | "term_unit">): string {
+  const n = s.term_months;
+  if (s.term_unit === "day" || s.term_unit === "week") {
+    const days = s.term_unit === "week" ? n * 7 : n;
+    return new Date(Date.parse(s.start_date + "T00:00:00Z") + days * DAY_MS).toISOString().slice(0, 10);
+  }
+  return addMonths(s.start_date, s.term_unit === "year" ? n * 12 : n);
+}
+
+/** The term in years, for the closed-form maturity value. Months and years stay exact
+ *  fractions of a year, as they always were; days and weeks count actual days. */
+function termYears(s: Accruing): number {
+  if (s.term_unit === "year") return s.term_months;
+  if (s.term_unit === "day" || s.term_unit === "week")
+    return (Date.parse(maturityDate(s) + "T00:00:00Z") - Date.parse(s.start_date + "T00:00:00Z")) / DAY_MS / 365;
+  return s.term_months / 12;
 }
 
 /** Revolving = open-ended (e.g. credit card): no fixed term, interest never stops. */
@@ -42,7 +60,7 @@ function accrue(principal: number, ratePct: number, years: number, type: string)
 export function maturityValue(s: Accruing): number {
   if (isRevolving(s)) return currentValue(s);
   if (s.movements?.length) return currentValue(s, new Date(maturityDate(s) + "T00:00:00Z"));
-  return accrue(s.principal, s.rate, s.term_months / 12, s.interest_type);
+  return accrue(s.principal, s.rate, termYears(s), s.interest_type);
 }
 
 /** Estimated value today. Fixed-term items accrue up to maturity then stay flat;
@@ -78,7 +96,7 @@ export function netPrincipal(s: Accruing, today = new Date()): number {
   );
 }
 
-export function isMatured(s: Pick<Accruing, "start_date" | "term_months">, today = new Date()): boolean {
+export function isMatured(s: Pick<Accruing, "start_date" | "term_months" | "term_unit">, today = new Date()): boolean {
   if (isRevolving(s)) return false;
   return today.getTime() >= Date.parse(maturityDate(s) + "T00:00:00Z");
 }

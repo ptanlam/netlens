@@ -1,5 +1,14 @@
 /** VND formatting shared by server and client. */
 
+import type { TermUnit } from "./types";
+
+const TERM_SUFFIX: Record<TermUnit, string> = { day: "d", week: "wk", month: "mo", year: "yr" };
+
+/** A deposit's term, short: "15mo", "30d", "2wk", "1yr". */
+export function fmtTerm(n: number, unit: TermUnit = "month"): string {
+  return `${n}${TERM_SUFFIX[unit]}`;
+}
+
 export function fmtVND(v: number): string {
   const neg = v < 0;
   const s = Math.abs(Math.round(v)).toLocaleString("de-DE");

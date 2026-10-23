@@ -4,13 +4,13 @@ import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Archive, ArchiveRestore, ArrowDownUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { INTEREST_TYPES, type Saving, type SavingMovement } from "@/lib/types";
+import { INTEREST_TYPES, TERM_UNITS, type Saving, type TermUnit, type SavingMovement } from "@/lib/types";
 import {
   addSaving, addSavingMovement, archiveSaving, deleteSaving, deleteSavingMovement, updateSaving,
 } from "@/app/actions";
 import { cn } from "@/lib/utils";
-import { fmtVND } from "@/lib/format";
-import { currentValue, isMatured, isRevolving, maturityDate, maturityValue, netPrincipal, summarize } from "@/lib/savings";
+import { fmtTerm, fmtVND } from "@/lib/format";
+import { currentValue, isMatured, maturityDate, maturityValue, netPrincipal, summarize } from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
 import { DataTable } from "@/components/data-table";
 import { EntityAvatar } from "@/components/entity-avatar";
@@ -39,6 +39,8 @@ export type FundOption = { id: number; name: string };
  *  FormData as null (`num("")` → null), which is exactly what an un-earmarked deposit is. */
 const NO_GOAL = "";
 
+const TERM_UNIT_LABELS: Record<TermUnit, string> = { day: "Days", week: "Weeks", month: "Months", year: "Years" };
+
 function SavingForm({
   action,
   saving,
@@ -53,7 +55,6 @@ function SavingForm({
 }) {
   const [pending, startTransition] = React.useTransition();
   const [goalId, setGoalId] = React.useState(String(saving?.goal_id ?? NO_GOAL));
-  const [flexible, setFlexible] = React.useState(saving ? isRevolving(saving) : false);
   const formRef = React.useRef<HTMLFormElement>(null);
   const today = new Date().toLocaleDateString("sv-SE");
   const goalLabel = funds.find((f) => String(f.id) === goalId)?.name ?? "Not earmarked";
@@ -86,26 +87,23 @@ function SavingForm({
         <Input id="s-rate" name="rate" type="number" min="0" step="0.01" defaultValue={saving?.rate} placeholder="6.5" required />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="s-term-type">Term type</Label>
-        <Select name="term_type" value={flexible ? "flexible" : "fixed"} onValueChange={(v) => setFlexible(v === "flexible")}>
-          <SelectTrigger id="s-term-type" className="w-full">
-            <SelectValue>{flexible ? "Flexible (no end date)" : "Fixed term"}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="fixed">Fixed term</SelectItem>
-            <SelectItem value="flexible">Flexible (no end date)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      {!flexible && (
-        <div className="grid gap-2">
-          <Label htmlFor="s-term">Term (months)</Label>
-          <Input
-            id="s-term" name="term_months" type="number" min="1" step="1" placeholder="12" required
-            defaultValue={saving && !isRevolving(saving) ? saving.term_months : undefined}
-          />
+        <Label htmlFor="s-term">Term</Label>
+        <div className="flex gap-2">
+          <Input id="s-term" name="term_months" type="number" min="1" step="1" defaultValue={saving?.term_months} placeholder="12" required />
+          <Select name="term_unit" defaultValue={saving?.term_unit ?? "month"} items={TERM_UNIT_LABELS}>
+            <SelectTrigger aria-label="Term unit" className="w-32 shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TERM_UNITS.map((u) => (
+                <SelectItem key={u} value={u}>
+                  {TERM_UNIT_LABELS[u]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      )}
+      </div>
       <div className="grid gap-2">
         <Label htmlFor="s-start">Deposit date</Label>
         <Input id="s-start" name="start_date" type="date" defaultValue={saving?.start_date ?? today} required />
@@ -380,13 +378,13 @@ function makeColumns(funds: FundOption[]): ColumnDef<SavingRow>[] {
                 {archived ? (
                   <Badge variant="secondary">Archived {saving.archived_date}</Badge>
                 ) : (
-                  <Badge variant={matured ? "secondary" : "accent"}>{matured ? "Matured" : "Active"}</Badge>
+                  matured && <Badge variant="secondary">Matured</Badge>
                 )}
                 {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
               </div>
               <div className="text-caption text-muted-foreground">
                 <Amt>{fmtVND(saving.principal)}</Amt>
-                {saving.movements.length > 0 && <> → <Amt>{fmtVND(net)}</Amt> net</>} · {isRevolving(saving) ? "flexible" : `${saving.term_months}mo`}
+                {saving.movements.length > 0 && <> → <Amt>{fmtVND(net)}</Amt> net</>} · {fmtTerm(saving.term_months, saving.term_unit)}
               </div>
             </div>
           </div>
@@ -406,12 +404,7 @@ function makeColumns(funds: FundOption[]): ColumnDef<SavingRow>[] {
       header: "Matures",
       accessorFn: (r) => r.maturityMs,
       size: 130,
-      cell: ({ row }) =>
-        isRevolving(row.original.saving) ? (
-          <span className="text-muted-foreground">Flexible</span>
-        ) : (
-          <span className="tabular-nums">{maturityDate(row.original.saving)}</span>
-        ),
+      cell: ({ row }) => <span className="tabular-nums">{maturityDate(row.original.saving)}</span>,
     },
     {
       id: "value",
@@ -444,12 +437,9 @@ function makeColumns(funds: FundOption[]): ColumnDef<SavingRow>[] {
       accessorFn: (r) => r.matVal,
       size: 130,
       meta: { align: "right" },
-      cell: ({ row }) =>
-        isRevolving(row.original.saving) ? (
-          <span className="text-muted-foreground">—</span>
-        ) : (
-          <span data-amount className="font-mono tabular-nums text-muted-foreground">{fmtVND(row.original.matVal)}</span>
-        ),
+      cell: ({ row }) => (
+        <span data-amount className="font-mono tabular-nums text-muted-foreground">{fmtVND(row.original.matVal)}</span>
+      ),
     },
     {
       id: "actions",
@@ -494,7 +484,7 @@ export function SavingsManager({
           net,
           interest: cur - net,
           matVal: maturityValue(saving),
-          maturityMs: isRevolving(saving) ? Number.POSITIVE_INFINITY : Date.parse(maturityDate(saving) + "T00:00:00Z"),
+          maturityMs: Date.parse(maturityDate(saving) + "T00:00:00Z"),
         };
       }),
     [savings, now],
@@ -518,9 +508,8 @@ export function SavingsManager({
   return (
     <div className="flex flex-col gap-3 sm:gap-4">
       <PageHeader title="Savings" actions={<AddDepositDialog funds={funds} />}>
-        Deposits — principal, annual rate, and term. A fixed term accrues to maturity
-        (simple pays at maturity; compound accrues monthly); a flexible one has no end date
-        and keeps accruing until you archive it.
+        Term deposits — principal, annual rate, and term. Value accrues to maturity
+        (simple pays at maturity; compound accrues monthly).
       </PageHeader>
 
       <SummaryCards

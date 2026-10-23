@@ -1,6 +1,6 @@
 // Self-check for deposit movements in lib/savings.ts. Run: node scripts/check-savings.mjs
 import assert from "node:assert/strict";
-import { currentValue, maturityValue, netPrincipal, summarize } from "../lib/savings.ts";
+import { currentValue, maturityDate, maturityValue, netPrincipal, summarize } from "../lib/savings.ts";
 
 const at = (d) => new Date(`${d}T00:00:00Z`);
 const near = (a, b, tol = 1) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
@@ -30,10 +30,12 @@ near(currentValue({ ...c, movements: [{ date: "2026-07-02", amount: -all }] }, a
 const late = { ...base, movements: [{ date: "2027-03-01", amount: -maturityValue(base) }] };
 near(currentValue(late, at("2027-06-01")), 0);
 
-// A flexible deposit (term 0) has no maturity: it keeps accruing, and a withdrawal stops its share.
-const flex = { ...base, term_months: 0 };
-near(currentValue(flex, at("2028-01-01")), 100_000_000 * (1 + 0.06 * 730 / 365));
-near(currentValue({ ...flex, movements: [{ date: "2027-01-01", amount: -50_000_000 }] }, at("2028-01-01")),
-  100_000_000 * (1 + 0.06 * 730 / 365) - 50_000_000 * (1 + 0.06 * 365 / 365));
+// Terms in other units: a 2-week deposit matures 14 days in, a 1-year one equals 12 months.
+const twoWeeks = { ...base, term_months: 2, term_unit: "week" };
+if (maturityDate(twoWeeks) !== "2026-01-15") throw new Error(maturityDate(twoWeeks));
+near(maturityValue(twoWeeks), 100_000_000 * (1 + 0.06 * 14 / 365));
+near(currentValue(twoWeeks, at("2027-01-01")), maturityValue(twoWeeks)); // stops at maturity
+near(maturityValue({ ...base, term_months: 1, term_unit: "year" }), maturityValue(base));
+if (maturityDate({ ...base, term_months: 45, term_unit: "day" }) !== "2026-02-15") throw new Error("day term");
 
 console.log("ok");

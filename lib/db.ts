@@ -253,21 +253,21 @@ export async function getSaving(id: number): Promise<Saving | undefined> {
 
 export async function addSaving(
   bank: string | null, principal: number, rate: number, startDate: string,
-  termMonths: number, interestType: string, goalId: number | null = null,
+  term: number, termUnit: string, interestType: string, goalId: number | null = null,
   note: string | null = null,
 ) {
   await q(
-    "INSERT INTO savings(bank, principal, rate, start_date, term_months, interest_type, goal_id, note) VALUES (?,?,?,?,?,?,?,?)",
-  ).run(bank, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, goalId, note);
+    "INSERT INTO savings(bank, principal, rate, start_date, term_months, term_unit, interest_type, goal_id, note) VALUES (?,?,?,?,?,?,?,?,?)",
+  ).run(bank, Math.round(principal), rate, startDate, Math.round(term), termUnit, interestType, goalId, note);
 }
 
 export async function updateSaving(
   id: number, bank: string | null, principal: number, rate: number, startDate: string,
-  termMonths: number, interestType: string, goalId: number | null, note: string | null,
+  term: number, termUnit: string, interestType: string, goalId: number | null, note: string | null,
 ) {
   await q(
-    "UPDATE savings SET bank=?, principal=?, rate=?, start_date=?, term_months=?, interest_type=?, goal_id=?, note=? WHERE id=?",
-  ).run(bank, Math.round(principal), rate, startDate, Math.round(termMonths), interestType, goalId, note, id);
+    "UPDATE savings SET bank=?, principal=?, rate=?, start_date=?, term_months=?, term_unit=?, interest_type=?, goal_id=?, note=? WHERE id=?",
+  ).run(bank, Math.round(principal), rate, startDate, Math.round(term), termUnit, interestType, goalId, note, id);
 }
 
 export async function deleteSaving(id: number) {

@@ -12,9 +12,9 @@ import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/
 import { distanceKm, estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
   BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, PRICE_REFRESH_INTERVALS, ROAD_ACCESS,
-  SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, goalIdOfProperty, normalizePriceRefreshMs,
+  SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, TERM_UNITS, goalIdOfProperty, normalizePriceRefreshMs,
   type BillingCycle, type CompInput, type CompKind, type GoalMetric, type Instrument, type LandUse,
-  type PriceRefreshSchedule, type RoadAccess, type SubscriptionCategory, type TargetCurrency,
+  type PriceRefreshSchedule, type RoadAccess, type SubscriptionCategory, type TargetCurrency, type TermUnit,
 } from "@/lib/types";
 
 function num(v: FormDataEntryValue | null): number | null {
@@ -136,6 +136,7 @@ type ParsedSaving = {
   rate: number;
   start_date: string;
   term_months: number;
+  term_unit: TermUnit;
   interest_type: "simple" | "compound";
   /** Earmarked for a sinking fund, or null for an ordinary deposit. */
   goal_id: number | null;
@@ -145,15 +146,13 @@ type ParsedSaving = {
 function parseSaving(fd: FormData): { ok: true; value: ParsedSaving } | { ok: false; message: string } {
   const principal = num(fd.get("principal"));
   const rate = num(fd.get("rate"));
-  // Flexible = no end date, stored as term 0 (open-ended, like a credit line in debts).
-  const flexible = fd.get("term_type") === "flexible";
-  const term = flexible ? 0 : num(fd.get("term_months"));
+  const term = num(fd.get("term_months"));
   if (principal == null || principal <= 0)
     return { ok: false, message: "A positive principal is required." };
   if (rate == null || rate < 0)
     return { ok: false, message: "A valid interest rate is required." };
-  if (!flexible && (term == null || term <= 0))
-    return { ok: false, message: "A positive term (months) is required for a fixed-term deposit." };
+  if (term == null || term <= 0)
+    return { ok: false, message: "A positive term is required." };
   return {
     ok: true,
     value: {
@@ -161,7 +160,8 @@ function parseSaving(fd: FormData): { ok: true; value: ParsedSaving } | { ok: fa
       principal,
       rate,
       start_date: str(fd.get("start_date")) || db.todayIso(),
-      term_months: term ?? 0,
+      term_months: term,
+      term_unit: TERM_UNITS.find((u) => u === fd.get("term_unit")) ?? "month",
       interest_type: fd.get("interest_type") === "compound" ? "compound" : "simple",
       // "" (the None option) means the deposit isn't earmarked for anything.
       goal_id: num(fd.get("goal_id")),
@@ -174,7 +174,7 @@ export async function addSaving(fd: FormData) {
   const p = parseSaving(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const s = p.value;
-  await db.addSaving(s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.goal_id, s.note);
+  await db.addSaving(s.bank, s.principal, s.rate, s.start_date, s.term_months, s.term_unit, s.interest_type, s.goal_id, s.note);
   revalidateAll();
   return { ok: true, message: "Deposit saved." };
 }
@@ -184,7 +184,7 @@ export async function updateSaving(id: number, fd: FormData) {
   const p = parseSaving(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const s = p.value;
-  await db.updateSaving(id, s.bank, s.principal, s.rate, s.start_date, s.term_months, s.interest_type, s.goal_id, s.note);
+  await db.updateSaving(id, s.bank, s.principal, s.rate, s.start_date, s.term_months, s.term_unit, s.interest_type, s.goal_id, s.note);
   revalidateAll();
   return { ok: true, message: "Deposit updated." };
 }
