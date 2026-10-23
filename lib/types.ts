@@ -132,6 +132,9 @@ export interface Saving {
   /** Withdrawn — the day it stopped counting. Null while it's still at the bank. Like a
    *  settled debt, not just display: `listSavings()` hides archived deposits by default. */
   archived_date: string | null;
+  /** The matured deposit this one was rolled over from, if any. Only the principal above
+   *  that deposit's payout counts toward the streak. */
+  rolled_from: number | null;
   /** Top-ups (+) and withdrawals (−), oldest first. Not a column: `listSavings` attaches them. */
   movements: SavingMovement[];
 }

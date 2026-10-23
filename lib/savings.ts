@@ -96,6 +96,13 @@ export function netPrincipal(s: Accruing, today = new Date()): number {
   );
 }
 
+/** The part of a deposit's principal that is new money. A rollover's principal is mostly the
+ *  old deposit's payout on the day it started, which already counted when it went in. */
+export function freshPrincipal(s: Accruing, from?: Accruing): number {
+  if (!from) return s.principal;
+  return Math.max(0, s.principal - Math.round(currentValue(from, new Date(s.start_date + "T00:00:00Z"))));
+}
+
 export function isMatured(s: Pick<Accruing, "start_date" | "term_months" | "term_unit">, today = new Date()): boolean {
   if (isRevolving(s)) return false;
   return today.getTime() >= Date.parse(maturityDate(s) + "T00:00:00Z");

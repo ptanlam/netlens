@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
 import { DashboardCharts } from "@/components/dashboard-charts";
-import { summarize, debtOwed, type Payment } from "@/lib/savings";
+import { summarize, debtOwed, freshPrincipal, type Payment } from "@/lib/savings";
 import { commitment, streak } from "@/lib/score";
 import type { InstrumentOption } from "@/components/tx-form";
 import type { DashboardAlert } from "@/components/dashboard-charts";
@@ -85,7 +85,11 @@ export default async function Dashboard() {
     investedByMonth: invested,
     // A top-up is new deposit money too; a withdrawal isn't subtracted, as a sell isn't.
     savings: [
-      ...savings,
+      // A rollover counts only what you added on top of the old deposit's payout.
+      ...savings.map((s) => ({
+        start_date: s.start_date,
+        principal: freshPrincipal(s, savings.find((f) => f.id === s.rolled_from)),
+      })),
       ...savings.flatMap((s) => s.movements.filter((m) => m.amount > 0).map((m) => ({ start_date: m.date, principal: m.amount }))),
     ],
     ...commitment(world.plannedMonthly, goalRows),

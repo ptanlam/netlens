@@ -138,6 +138,8 @@ type ParsedSaving = {
   term_months: number;
   term_unit: TermUnit;
   interest_type: "simple" | "compound";
+  /** The matured deposit this one rolls over, or null for new money. */
+  rolled_from: number | null;
   /** Earmarked for a sinking fund, or null for an ordinary deposit. */
   goal_id: number | null;
   note: string | null;
@@ -162,6 +164,7 @@ function parseSaving(fd: FormData): { ok: true; value: ParsedSaving } | { ok: fa
       start_date: str(fd.get("start_date")) || db.todayIso(),
       term_months: term,
       term_unit: TERM_UNITS.find((u) => u === fd.get("term_unit")) ?? "month",
+      rolled_from: num(fd.get("rolled_from")),
       interest_type: fd.get("interest_type") === "compound" ? "compound" : "simple",
       // "" (the None option) means the deposit isn't earmarked for anything.
       goal_id: num(fd.get("goal_id")),
@@ -174,7 +177,8 @@ export async function addSaving(fd: FormData) {
   const p = parseSaving(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const s = p.value;
-  await db.addSaving(s.bank, s.principal, s.rate, s.start_date, s.term_months, s.term_unit, s.interest_type, s.goal_id, s.note);
+  await db.addSaving(s.bank, s.principal, s.rate, s.start_date, s.term_months, s.term_unit, s.interest_type, s.goal_id, s.note, s.rolled_from);
+  await archiveRolledOver(s);
   revalidateAll();
   return { ok: true, message: "Deposit saved." };
 }
@@ -184,9 +188,19 @@ export async function updateSaving(id: number, fd: FormData) {
   const p = parseSaving(fd);
   if (!p.ok) return { ok: false, message: p.message };
   const s = p.value;
-  await db.updateSaving(id, s.bank, s.principal, s.rate, s.start_date, s.term_months, s.term_unit, s.interest_type, s.goal_id, s.note);
+  if (s.rolled_from === id) return { ok: false, message: "A deposit can't roll over from itself." };
+  await db.updateSaving(id, s.bank, s.principal, s.rate, s.start_date, s.term_months, s.term_unit, s.interest_type, s.goal_id, s.note, s.rolled_from);
+  await archiveRolledOver(s);
   revalidateAll();
   return { ok: true, message: "Deposit updated." };
+}
+
+/** A rolled-over deposit has been paid out: archive it on the day the new one started, so
+ *  the money isn't in net worth twice. Already-archived ones keep their date. */
+async function archiveRolledOver(s: ParsedSaving) {
+  if (s.rolled_from == null) return;
+  const from = await db.getSaving(s.rolled_from);
+  if (from && !from.archived_date) await db.setSavingArchived(from.id, true, s.start_date);
 }
 
 /** Put a withdrawn deposit away, or restore it. Keeps its history — unlike deleting it. */

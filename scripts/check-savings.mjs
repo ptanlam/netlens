@@ -1,6 +1,6 @@
 // Self-check for deposit movements in lib/savings.ts. Run: node scripts/check-savings.mjs
 import assert from "node:assert/strict";
-import { currentValue, maturityDate, maturityValue, netPrincipal, summarize } from "../lib/savings.ts";
+import { currentValue, freshPrincipal, maturityDate, maturityValue, netPrincipal, summarize } from "../lib/savings.ts";
 
 const at = (d) => new Date(`${d}T00:00:00Z`);
 const near = (a, b, tol = 1) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
@@ -37,5 +37,12 @@ near(maturityValue(twoWeeks), 100_000_000 * (1 + 0.06 * 14 / 365));
 near(currentValue(twoWeeks, at("2027-01-01")), maturityValue(twoWeeks)); // stops at maturity
 near(maturityValue({ ...base, term_months: 1, term_unit: "year" }), maturityValue(base));
 if (maturityDate({ ...base, term_months: 45, term_unit: "day" }) !== "2026-02-15") throw new Error("day term");
+
+// A rollover counts only what it adds on top of the old deposit's payout, and never below 0.
+const payout = Math.round(maturityValue(base)); // 106.000.000
+const next = { ...base, start_date: "2027-01-01" };
+near(freshPrincipal({ ...next, principal: payout + 5_000_000 }, base), 5_000_000);
+near(freshPrincipal({ ...next, principal: 50_000_000 }, base), 0);
+near(freshPrincipal({ ...next, principal: 50_000_000 }), 50_000_000);
 
 console.log("ok");

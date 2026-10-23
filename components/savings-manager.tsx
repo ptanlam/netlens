@@ -45,16 +45,26 @@ function SavingForm({
   action,
   saving,
   funds,
+  all,
   onDone,
 }: {
   action: (fd: FormData) => Promise<ActionResult>;
   saving?: Saving;
   /** Sinking-fund goals a deposit can be earmarked for. */
   funds: FundOption[];
+  /** Every deposit, for the "Rolled over from" picker. */
+  all: Saving[];
   onDone?: () => void;
 }) {
   const [pending, startTransition] = React.useTransition();
   const [goalId, setGoalId] = React.useState(String(saving?.goal_id ?? NO_GOAL));
+  // "" is "new money", for the same FormData reason as NO_GOAL.
+  const [rolledFrom, setRolledFrom] = React.useState(String(saving?.rolled_from ?? ""));
+  // Matured deposits not already rolled into another one (this deposit's own source stays).
+  const taken = new Set(all.filter((d) => d.id !== saving?.id).map((d) => d.rolled_from));
+  const sources = all.filter((d) => d.id !== saving?.id && !taken.has(d.id) && isMatured(d));
+  const sourceLabel = (d: Saving) => `${d.bank ?? "Term deposit"} · ${fmtVND(d.principal)} · matured ${maturityDate(d)}`;
+  const rolledLabel = sources.find((d) => String(d.id) === rolledFrom);
   const formRef = React.useRef<HTMLFormElement>(null);
   const today = new Date().toLocaleDateString("sv-SE");
   const goalLabel = funds.find((f) => String(f.id) === goalId)?.name ?? "Not earmarked";
@@ -141,6 +151,30 @@ function SavingForm({
           </Select>
         </div>
       )}
+      {sources.length > 0 && (
+        <div className="grid gap-2 sm:col-span-2">
+          <Label htmlFor="s-rolled">Rolled over from (optional)</Label>
+          <Select name="rolled_from" value={rolledFrom} onValueChange={(v) => setRolledFrom(String(v ?? ""))}>
+            <SelectTrigger id="s-rolled" className="w-full">
+              <SelectValue>{rolledLabel ? sourceLabel(rolledLabel) : "New money"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">New money</SelectItem>
+              {sources.map((d) => (
+                <SelectItem key={d.id} value={String(d.id)}>
+                  {sourceLabel(d)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {rolledLabel && (
+            <p className="text-caption text-muted-foreground">
+              That deposit is archived as of this one&apos;s start date, and only what you add on
+              top of its payout counts toward your streak.
+            </p>
+          )}
+        </div>
+      )}
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="s-note">Note (optional)</Label>
         <Input id="s-note" name="note" defaultValue={saving?.note ?? undefined} />
@@ -161,7 +195,7 @@ function SavingForm({
   );
 }
 
-function AddDepositDialog({ funds }: { funds: FundOption[] }) {
+function AddDepositDialog({ funds, all }: { funds: FundOption[]; all: Saving[] }) {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -173,7 +207,7 @@ function AddDepositDialog({ funds }: { funds: FundOption[] }) {
         <DialogHeader>
           <DialogTitle>New deposit</DialogTitle>
         </DialogHeader>
-        <SavingForm action={addSaving} funds={funds} onDone={() => setOpen(false)} />
+        <SavingForm action={addSaving} funds={funds} all={all} onDone={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );
@@ -299,7 +333,7 @@ type SavingRow = {
   maturityMs: number;
 };
 
-function SavingActions({ row, funds }: { row: SavingRow; funds: FundOption[] }) {
+function SavingActions({ row, funds, all }: { row: SavingRow; funds: FundOption[]; all: Saving[] }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
   const { saving, archived, matured, cur } = row;
@@ -317,7 +351,7 @@ function SavingActions({ row, funds }: { row: SavingRow; funds: FundOption[] }) 
           <DialogHeader>
             <DialogTitle>Edit deposit</DialogTitle>
           </DialogHeader>
-          <SavingForm action={(fd) => updateSaving(saving.id, fd)} saving={saving} funds={funds} onDone={() => setEditOpen(false)} />
+          <SavingForm action={(fd) => updateSaving(saving.id, fd)} saving={saving} funds={funds} all={all} onDone={() => setEditOpen(false)} />
         </DialogContent>
       </Dialog>
       <IconTooltip label={archived ? "Restore deposit" : matured ? "Archive — matured and withdrawn" : "Archive deposit"}>
@@ -359,7 +393,7 @@ function SavingActions({ row, funds }: { row: SavingRow; funds: FundOption[] }) 
   );
 }
 
-function makeColumns(funds: FundOption[]): ColumnDef<SavingRow>[] {
+function makeColumns(funds: FundOption[], all: Saving[]): ColumnDef<SavingRow>[] {
   return [
     {
       id: "deposit",
@@ -381,6 +415,7 @@ function makeColumns(funds: FundOption[]): ColumnDef<SavingRow>[] {
                   matured && <Badge variant="secondary">Matured</Badge>
                 )}
                 {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
+                {saving.rolled_from != null && <Badge variant="tag">Rollover</Badge>}
               </div>
               <div className="text-caption text-muted-foreground">
                 <Amt>{fmtVND(saving.principal)}</Amt>
@@ -446,7 +481,7 @@ function makeColumns(funds: FundOption[]): ColumnDef<SavingRow>[] {
       header: "",
       enableSorting: false,
       size: 150,
-      cell: ({ row }) => <SavingActions row={row.original} funds={funds} />,
+      cell: ({ row }) => <SavingActions row={row.original} funds={funds} all={all} />,
     },
   ];
 }
@@ -467,7 +502,7 @@ export function SavingsManager({
   // The tiles are what's at the bank now; the chart keeps an archived deposit up to the day
   // you took it out, and drops it after.
   const s = summarize(open, now);
-  const columns = React.useMemo(() => makeColumns(funds), [funds]);
+  const columns = React.useMemo(() => makeColumns(funds, savings), [funds, savings]);
   const rows = React.useMemo<SavingRow[]>(
     () =>
       savings.map((saving) => {
@@ -507,7 +542,7 @@ export function SavingsManager({
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4">
-      <PageHeader title="Savings" actions={<AddDepositDialog funds={funds} />}>
+      <PageHeader title="Savings" actions={<AddDepositDialog funds={funds} all={savings} />}>
         Term deposits — principal, annual rate, and term. Value accrues to maturity
         (simple pays at maturity; compound accrues monthly).
       </PageHeader>
