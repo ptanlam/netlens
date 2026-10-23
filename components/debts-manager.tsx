@@ -744,6 +744,7 @@ export function DebtsManager({
           data={active}
           initialSorting={[{ id: "rate", desc: true }]}
           emptyMessage={settled.length > 0 ? "Nothing outstanding — every debt is settled." : "No debts yet."}
+          pageSize={10}
           storageKey="debts"
         />
       </div>
@@ -764,7 +765,8 @@ export function DebtsManager({
               data={settled}
               initialSorting={[{ id: "paid", desc: true }]}
               emptyMessage=""
-              storageKey="debts-settled"
+              pageSize={10}
+          storageKey="debts-settled"
             />
           </div>
         </details>

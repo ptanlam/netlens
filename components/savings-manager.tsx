@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Archive, ArchiveRestore, ArrowDownUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { INTEREST_TYPES, type Saving, type SavingMovement } from "@/lib/types";
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { fmtVND } from "@/lib/format";
 import { currentValue, isMatured, maturityDate, maturityValue, netPrincipal, summarize } from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
+import { DataTable } from "@/components/data-table";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -270,102 +272,167 @@ function endOf(d: Saving): Date {
   return new Date(`${d.archived_date}T00:00:00Z`);
 }
 
-function SavingRow({ saving, funds, now }: { saving: Saving; funds: FundOption[]; now: Date }) {
+type SavingRow = {
+  saving: Saving;
+  archived: boolean;
+  matured: boolean;
+  cur: number;
+  net: number;
+  interest: number;
+  matVal: number;
+  maturityMs: number;
+};
+
+function SavingActions({ row, funds }: { row: SavingRow; funds: FundOption[] }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
-
-  const matured = isMatured(saving, now);
-  const archived = saving.archived_date != null;
-  // An archived deposit is worth what it was the day you took it out.
-  const at = archived ? endOf(saving) : now;
-  const cur = currentValue(saving, at);
-  const net = netPrincipal(saving, at);
-  const matVal = maturityValue(saving);
-  const interest = cur - net;
-  const earmarked = funds.find((f) => f.id === saving.goal_id);
+  const { saving, archived, matured, cur } = row;
 
   return (
-    <div className={cn("flex flex-wrap items-center justify-between gap-4 card-surface panel-body", archived && "opacity-60")}>
-      <div>
-        <div className="flex items-center gap-2">
-          <EntityAvatar name={saving.bank ?? "Term deposit"} color="var(--chart-4)" />
-          <span className="text-body-sm font-semibold">{saving.bank ?? "Term deposit"}</span>
-          {archived ? (
-            <Badge variant="secondary">Archived {saving.archived_date}</Badge>
-          ) : (
-            <Badge variant={matured ? "secondary" : "accent"}>{matured ? "Matured" : "Active"}</Badge>
-          )}
-          {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
-        </div>
-        <div className="mt-1 font-mono text-caption text-muted-foreground tabular-nums">
-          <Amt>{fmtVND(saving.principal)}</Amt>
-          {saving.movements.length > 0 && <> → <Amt>{fmtVND(net)}</Amt> net</>} · {saving.rate}%/yr · {saving.term_months}mo · {saving.start_date} → {maturityDate(saving)}
-        </div>
-      </div>
-      <div className="flex items-center gap-[18px]">
-        <div className="text-right">
-          <div data-amount className="font-mono text-body-sm tabular-nums">{fmtVND(cur)}</div>
-          <div data-amount className="mt-1 font-mono text-caption tabular-nums">
-            <span className={interest >= 0 ? "text-accent-brand" : "text-destructive"}>
-              {interest >= 0 ? "+" : ""}{fmtVND(interest)}
-            </span>{" "}
-            · at maturity {fmtVND(matVal)}
-          </div>
-        </div>
-        <div className="flex gap-1">
-          {!archived && <MovementsDialog saving={saving} held={cur} />}
-          <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <IconTooltip label="Edit deposit">
-              <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit deposit" />}>
-                <Pencil className="size-3.5" />
-              </DialogTrigger>
-            </IconTooltip>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>Edit deposit</DialogTitle>
-              </DialogHeader>
-              <SavingForm action={(fd) => updateSaving(saving.id, fd)} saving={saving} funds={funds} onDone={() => setEditOpen(false)} />
-            </DialogContent>
-          </Dialog>
-          <IconTooltip label={archived ? "Restore deposit" : matured ? "Archive — matured and withdrawn" : "Archive deposit"}>
-            <Button
-              variant={matured && !archived ? "outline" : "ghost"}
-              size="icon-sm"
-              aria-label={archived ? "Restore deposit" : "Archive deposit"}
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  const res = await archiveSaving(saving.id, !archived);
-                  if (res.ok) toast.success(res.message);
-                  else toast.error(res.message);
-                })
-              }
-            >
-              {archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
-            </Button>
-          </IconTooltip>
-          <IconTooltip label="Delete deposit">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Delete deposit"
-              disabled={pending}
-              onClick={() => {
-                if (!confirm(`Delete the ${fmtVND(saving.principal)} deposit${saving.bank ? ` at ${saving.bank}` : ""}?`)) return;
-                startTransition(async () => {
-                  const res = await deleteSaving(saving.id);
-                  if (res.ok) toast.success(res.message);
-                  else toast.error(res.message);
-                });
-              }}
-            >
-              <Trash2 className="size-3.5 text-destructive" />
-            </Button>
-          </IconTooltip>
-        </div>
-      </div>
+    <div className="flex justify-end gap-1">
+      {!archived && <MovementsDialog saving={saving} held={cur} />}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <IconTooltip label="Edit deposit">
+          <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Edit deposit" />}>
+            <Pencil className="size-3.5" />
+          </DialogTrigger>
+        </IconTooltip>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Edit deposit</DialogTitle>
+          </DialogHeader>
+          <SavingForm action={(fd) => updateSaving(saving.id, fd)} saving={saving} funds={funds} onDone={() => setEditOpen(false)} />
+        </DialogContent>
+      </Dialog>
+      <IconTooltip label={archived ? "Restore deposit" : matured ? "Archive — matured and withdrawn" : "Archive deposit"}>
+        <Button
+          variant={matured && !archived ? "outline" : "ghost"}
+          size="icon-sm"
+          aria-label={archived ? "Restore deposit" : "Archive deposit"}
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const res = await archiveSaving(saving.id, !archived);
+              if (res.ok) toast.success(res.message);
+              else toast.error(res.message);
+            })
+          }
+        >
+          {archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
+        </Button>
+      </IconTooltip>
+      <IconTooltip label="Delete deposit">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Delete deposit"
+          disabled={pending}
+          onClick={() => {
+            if (!confirm(`Delete the ${fmtVND(saving.principal)} deposit${saving.bank ? ` at ${saving.bank}` : ""}?`)) return;
+            startTransition(async () => {
+              const res = await deleteSaving(saving.id);
+              if (res.ok) toast.success(res.message);
+              else toast.error(res.message);
+            });
+          }}
+        >
+          <Trash2 className="size-3.5 text-destructive" />
+        </Button>
+      </IconTooltip>
     </div>
   );
+}
+
+function makeColumns(funds: FundOption[]): ColumnDef<SavingRow>[] {
+  return [
+    {
+      id: "deposit",
+      header: "Deposit",
+      accessorFn: (r) => r.saving.start_date,
+      size: 200,
+      cell: ({ row }) => {
+        const { saving, archived, matured, net } = row.original;
+        const earmarked = funds.find((f) => f.id === saving.goal_id);
+        return (
+          <div className="flex items-center gap-2">
+            <EntityAvatar name={saving.bank ?? "Term deposit"} color="var(--chart-4)" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-semibold">{saving.bank ?? "Term deposit"}</span>
+                {archived ? (
+                  <Badge variant="secondary">Archived {saving.archived_date}</Badge>
+                ) : (
+                  <Badge variant={matured ? "secondary" : "accent"}>{matured ? "Matured" : "Active"}</Badge>
+                )}
+                {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
+              </div>
+              <div className="text-caption text-muted-foreground">
+                <Amt>{fmtVND(saving.principal)}</Amt>
+                {saving.movements.length > 0 && <> → <Amt>{fmtVND(net)}</Amt> net</>} · {saving.term_months}mo
+              </div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "rate",
+      header: "Rate",
+      accessorFn: (r) => r.saving.rate,
+      size: 80,
+      meta: { align: "right" },
+      cell: ({ row }) => <span className="font-mono tabular-nums">{row.original.saving.rate}%</span>,
+    },
+    {
+      id: "maturity",
+      header: "Matures",
+      accessorFn: (r) => r.maturityMs,
+      size: 130,
+      cell: ({ row }) => <span className="tabular-nums">{maturityDate(row.original.saving)}</span>,
+    },
+    {
+      id: "value",
+      header: "Value",
+      accessorFn: (r) => r.cur,
+      size: 140,
+      meta: { align: "right" },
+      cell: ({ row }) => (
+        <span data-amount className="font-mono font-semibold tabular-nums">{fmtVND(row.original.cur)}</span>
+      ),
+    },
+    {
+      id: "interest",
+      header: "Interest",
+      accessorFn: (r) => r.interest,
+      size: 120,
+      meta: { align: "right" },
+      cell: ({ row }) => {
+        const i = row.original.interest;
+        return (
+          <span data-amount className={cn("font-mono tabular-nums", i >= 0 ? "text-accent-brand" : "text-destructive")}>
+            {i >= 0 ? "+" : ""}{fmtVND(i)}
+          </span>
+        );
+      },
+    },
+    {
+      id: "atMaturity",
+      header: "At maturity",
+      accessorFn: (r) => r.matVal,
+      size: 130,
+      meta: { align: "right" },
+      cell: ({ row }) => (
+        <span data-amount className="font-mono tabular-nums text-muted-foreground">{fmtVND(row.original.matVal)}</span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "",
+      enableSorting: false,
+      size: 150,
+      cell: ({ row }) => <SavingActions row={row.original} funds={funds} />,
+    },
+  ];
 }
 
 export function SavingsManager({
@@ -381,10 +448,33 @@ export function SavingsManager({
 }) {
   const now = React.useMemo(() => new Date(nowMs), [nowMs]);
   const open = savings.filter((d) => d.archived_date == null);
-  const archived = savings.filter((d) => d.archived_date != null);
   // The tiles are what's at the bank now; the chart keeps an archived deposit up to the day
   // you took it out, and drops it after.
   const s = summarize(open, now);
+  const columns = React.useMemo(() => makeColumns(funds), [funds]);
+  const rows = React.useMemo<SavingRow[]>(
+    () =>
+      savings.map((saving) => {
+        const archived = saving.archived_date != null;
+        // An archived deposit is worth what it was the day you took it out.
+        const at = archived ? endOf(saving) : now;
+        const cur = currentValue(saving, at);
+        const net = netPrincipal(saving, at);
+        return {
+          saving,
+          archived,
+          matured: isMatured(saving, now),
+          cur,
+          net,
+          interest: cur - net,
+          matVal: maturityValue(saving),
+          maturityMs: Date.parse(maturityDate(saving) + "T00:00:00Z"),
+        };
+      }),
+    [savings, now],
+  );
+  const active = rows.filter((r) => !r.archived);
+  const inactive = rows.filter((r) => r.archived);
   const isOut = (d: Saving, at: Date) => d.archived_date != null && at > endOf(d);
   // Baseline is what you'd put in and not taken out by then, so the band is interest, and
   // every top-up and withdrawal shows as a step on the day it happened.
@@ -433,20 +523,34 @@ export function SavingsManager({
         />
       )}
 
-      <p className="text-caption text-muted-foreground">Term deposits, newest first.</p>
+      <div className="overflow-hidden card-surface panel-body">
+        <DataTable
+          columns={columns}
+          data={active}
+          initialSorting={[{ id: "deposit", desc: true }]}
+          pageSize={10}
+          emptyMessage="No deposits yet."
+          storageKey="savings"
+        />
+      </div>
 
-      {open.length === 0 && <p className="text-body-sm text-muted-foreground">No deposits yet.</p>}
-      {open.map((saving) => (
-        <SavingRow key={saving.id} saving={saving} funds={funds} now={now} />
-      ))}
-
-      {archived.length > 0 && (
-        <>
-          <p className="mt-2 text-caption text-muted-foreground">Archived — withdrawn, no longer counted in net worth.</p>
-          {archived.map((saving) => (
-            <SavingRow key={saving.id} saving={saving} funds={funds} now={now} />
-          ))}
-        </>
+      {inactive.length > 0 && (
+        <details className="overflow-hidden card-surface">
+          <summary className="cursor-pointer list-none px-[18px] py-3.5 text-body-sm font-semibold">
+            Archived · {inactive.length} deposit{inactive.length > 1 ? "s" : ""} ·{" "}
+            <span className="font-normal text-muted-foreground">withdrawn, no longer counted in net worth</span>
+          </summary>
+          <div className="border-t border-divider-soft panel-body">
+            <DataTable
+              columns={columns}
+              data={inactive}
+              initialSorting={[{ id: "deposit", desc: true }]}
+              pageSize={10}
+              emptyMessage=""
+              storageKey="savings-archived"
+            />
+          </div>
+        </details>
       )}
     </div>
   );
