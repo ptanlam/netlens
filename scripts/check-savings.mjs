@@ -30,4 +30,10 @@ near(currentValue({ ...c, movements: [{ date: "2026-07-02", amount: -all }] }, a
 const late = { ...base, movements: [{ date: "2027-03-01", amount: -maturityValue(base) }] };
 near(currentValue(late, at("2027-06-01")), 0);
 
+// A flexible deposit (term 0) has no maturity: it keeps accruing, and a withdrawal stops its share.
+const flex = { ...base, term_months: 0 };
+near(currentValue(flex, at("2028-01-01")), 100_000_000 * (1 + 0.06 * 730 / 365));
+near(currentValue({ ...flex, movements: [{ date: "2027-01-01", amount: -50_000_000 }] }, at("2028-01-01")),
+  100_000_000 * (1 + 0.06 * 730 / 365) - 50_000_000 * (1 + 0.06 * 365 / 365));
+
 console.log("ok");

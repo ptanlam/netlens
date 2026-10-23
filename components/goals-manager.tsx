@@ -10,7 +10,7 @@ import {
   GOAL_METRICS, GOAL_METRIC_LABELS, TARGET_CURRENCIES,
   type Goal, type GoalContribution, type GoalMetric, type Saving, type TargetCurrency,
 } from "@/lib/types";
-import { currentValue, maturityDate } from "@/lib/savings";
+import { currentValue, isRevolving, maturityDate } from "@/lib/savings";
 import {
   addGoal, addGoalContribution, archiveGoal, deleteGoal, deleteGoalContribution,
   moveGoal, spendGoalFund, updateGoal,
@@ -281,7 +281,7 @@ function LinkedDeposits({ deposits }: { deposits: Saving[] }) {
             {s.bank ?? "Deposit"}
             <span className="text-faint">
               {" · "}
-              {s.rate}%/yr · {s.term_months}mo · matures {maturityDate(s)}
+              {s.rate}%/yr · {isRevolving(s) ? "flexible" : `${s.term_months}mo · matures ${maturityDate(s)}`}
             </span>
           </span>
           <span data-amount className="shrink-0 font-mono text-caption text-accent-brand tabular-nums">

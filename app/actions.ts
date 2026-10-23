@@ -145,13 +145,15 @@ type ParsedSaving = {
 function parseSaving(fd: FormData): { ok: true; value: ParsedSaving } | { ok: false; message: string } {
   const principal = num(fd.get("principal"));
   const rate = num(fd.get("rate"));
-  const term = num(fd.get("term_months"));
+  // Flexible = no end date, stored as term 0 (open-ended, like a credit line in debts).
+  const flexible = fd.get("term_type") === "flexible";
+  const term = flexible ? 0 : num(fd.get("term_months"));
   if (principal == null || principal <= 0)
     return { ok: false, message: "A positive principal is required." };
   if (rate == null || rate < 0)
     return { ok: false, message: "A valid interest rate is required." };
-  if (term == null || term <= 0)
-    return { ok: false, message: "A positive term (months) is required." };
+  if (!flexible && (term == null || term <= 0))
+    return { ok: false, message: "A positive term (months) is required for a fixed-term deposit." };
   return {
     ok: true,
     value: {
@@ -159,7 +161,7 @@ function parseSaving(fd: FormData): { ok: true; value: ParsedSaving } | { ok: fa
       principal,
       rate,
       start_date: str(fd.get("start_date")) || db.todayIso(),
-      term_months: term,
+      term_months: term ?? 0,
       interest_type: fd.get("interest_type") === "compound" ? "compound" : "simple",
       // "" (the None option) means the deposit isn't earmarked for anything.
       goal_id: num(fd.get("goal_id")),
