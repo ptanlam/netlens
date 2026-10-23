@@ -49,7 +49,18 @@ export default {
    * data — there is now no second lock behind it.
    */
   async fetch(request, env, ctx) {
-    return handler.fetch(request, env, ctx);
+    const res = await handler.fetch(request, env, ctx);
+    if (!res.headers.get("content-type")?.startsWith("text/html")) return res;
+    // A compressed page arrives in one piece, so `app/loading.tsx` never showed on a hard
+    // load: the tab sat blank until the whole dashboard was built. Sending the document
+    // uncompressed lets the shell and skeleton through first. `identity` is what stops
+    // wrangler buffering it (workers-sdk#8004, OpenNext does the same but only on
+    // localhost); `no-transform` is what stops Cloudflare's edge compressing it. Only the
+    // document pays (~110 KB vs ~16 KB gzipped); RSC fetches and assets stay compressed.
+    const out = new Response(res.body, res);
+    out.headers.set("content-encoding", "identity");
+    out.headers.set("cache-control", `${res.headers.get("cache-control") ?? "private"}, no-transform`);
+    return out;
   },
 
   async scheduled(event, env, ctx) {
