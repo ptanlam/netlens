@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Archive, ArchiveRestore, ArrowDownUp, Pencil, Plus, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { INTEREST_TYPES, TERM_UNITS, type Saving, type TermUnit, type SavingMovement } from "@/lib/types";
 import {
@@ -12,7 +11,6 @@ import { cn } from "@/lib/utils";
 import { fmtTerm, fmtVND } from "@/lib/format";
 import { currentValue, isMatured, maturityDate, maturityValue, netPrincipal, summarize } from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
-import { DataTable } from "@/components/data-table";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -330,7 +328,6 @@ type SavingRow = {
   net: number;
   interest: number;
   matVal: number;
-  maturityMs: number;
 };
 
 function SavingActions({ row, funds, all }: { row: SavingRow; funds: FundOption[]; all: Saving[] }) {
@@ -393,97 +390,82 @@ function SavingActions({ row, funds, all }: { row: SavingRow; funds: FundOption[
   );
 }
 
-function makeColumns(funds: FundOption[], all: Saving[]): ColumnDef<SavingRow>[] {
-  return [
-    {
-      id: "deposit",
-      header: "Deposit",
-      accessorFn: (r) => r.saving.start_date,
-      size: 200,
-      cell: ({ row }) => {
-        const { saving, archived, matured, net } = row.original;
-        const earmarked = funds.find((f) => f.id === saving.goal_id);
-        return (
-          <div className="flex items-center gap-2">
-            <EntityAvatar name={saving.bank ?? "Term deposit"} color="var(--chart-4)" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="font-semibold">{saving.bank ?? "Term deposit"}</span>
-                {archived ? (
-                  <Badge variant="secondary">Archived {saving.archived_date}</Badge>
-                ) : (
-                  matured && <Badge variant="secondary">Matured</Badge>
-                )}
-                {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
-                {saving.rolled_from != null && <Badge variant="tag">Rollover</Badge>}
-              </div>
-              <div className="text-caption text-muted-foreground">
-                <Amt>{fmtVND(saving.principal)}</Amt>
-                {saving.movements.length > 0 && <> → <Amt>{fmtVND(net)}</Amt> net</>} · {fmtTerm(saving.term_months, saving.term_unit)}
-              </div>
+function SavingCard({ row, funds, all }: { row: SavingRow; funds: FundOption[]; all: Saving[] }) {
+  const { saving, archived, matured, cur, net, interest, matVal } = row;
+  const earmarked = funds.find((f) => f.id === saving.goal_id);
+  const label = saving.bank ?? "Term deposit";
+  return (
+    <div className="flex flex-col card-surface panel-body">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <EntityAvatar name={label} color="var(--chart-4)" />
+          <div className="min-w-0">
+            <div className="truncate text-body-sm font-semibold">{label}</div>
+            <div className="text-caption text-muted-foreground">
+              <Amt>{fmtVND(saving.principal)}</Amt>
+              {saving.movements.length > 0 && <> → <Amt>{fmtVND(net)}</Amt> net</>}
             </div>
           </div>
-        );
-      },
-    },
-    {
-      id: "rate",
-      header: "Rate",
-      accessorFn: (r) => r.saving.rate,
-      size: 80,
-      meta: { align: "right" },
-      cell: ({ row }) => <span className="font-mono tabular-nums">{row.original.saving.rate}%</span>,
-    },
-    {
-      id: "maturity",
-      header: "Matures",
-      accessorFn: (r) => r.maturityMs,
-      size: 130,
-      cell: ({ row }) => <span className="tabular-nums">{maturityDate(row.original.saving)}</span>,
-    },
-    {
-      id: "value",
-      header: "Value",
-      accessorFn: (r) => r.cur,
-      size: 140,
-      meta: { align: "right" },
-      cell: ({ row }) => (
-        <span data-amount className="font-mono font-semibold tabular-nums">{fmtVND(row.original.cur)}</span>
-      ),
-    },
-    {
-      id: "interest",
-      header: "Interest",
-      accessorFn: (r) => r.interest,
-      size: 120,
-      meta: { align: "right" },
-      cell: ({ row }) => {
-        const i = row.original.interest;
-        return (
-          <span data-amount className={cn("font-mono tabular-nums", i >= 0 ? "text-accent-brand" : "text-destructive")}>
-            {i >= 0 ? "+" : ""}{fmtVND(i)}
-          </span>
-        );
-      },
-    },
-    {
-      id: "atMaturity",
-      header: "At maturity",
-      accessorFn: (r) => r.matVal,
-      size: 130,
-      meta: { align: "right" },
-      cell: ({ row }) => (
-        <span data-amount className="font-mono tabular-nums text-muted-foreground">{fmtVND(row.original.matVal)}</span>
-      ),
-    },
-    {
-      id: "actions",
-      header: "",
-      enableSorting: false,
-      size: 150,
-      cell: ({ row }) => <SavingActions row={row.original} funds={funds} all={all} />,
-    },
-  ];
+        </div>
+        <SavingActions row={row} funds={funds} all={all} />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {archived ? (
+          <Badge variant="secondary">Archived {saving.archived_date}</Badge>
+        ) : (
+          matured && <Badge variant="secondary">Matured</Badge>
+        )}
+        {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
+        {saving.rolled_from != null && <Badge variant="tag">Rollover</Badge>}
+      </div>
+      <div data-amount className="mt-3 font-mono text-display-xs font-semibold tabular-nums">{fmtVND(cur)}</div>
+      <div className={cn("mb-3 font-mono text-caption tabular-nums", interest >= 0 ? "text-accent-brand" : "text-destructive")}>
+        <Amt>{interest >= 0 ? "+" : ""}{fmtVND(interest)}</Amt> interest
+      </div>
+      <dl className="mt-auto grid grid-cols-2 gap-x-4 gap-y-1 border-t border-divider pt-3 text-caption [&_dd]:text-right [&_dd]:font-mono [&_dd]:tabular-nums [&_dt]:text-muted-foreground">
+        <dt>Rate</dt>
+        <dd>{saving.rate}% · {fmtTerm(saving.term_months, saving.term_unit)}</dd>
+        <dt>Matures</dt>
+        <dd>{maturityDate(saving)}</dd>
+        <dt>At maturity</dt>
+        <dd data-amount>{fmtVND(matVal)}</dd>
+      </dl>
+    </div>
+  );
+}
+
+/** Newest deposit first, a page at a time. */
+function SavingCards({ rows, funds, all, empty }: { rows: SavingRow[]; funds: FundOption[]; all: Saving[]; empty: string }) {
+  const PAGE = 9;
+  const [page, setPage] = React.useState(0);
+  const sorted = React.useMemo(
+    () => [...rows].sort((a, b) => b.saving.start_date.localeCompare(a.saving.start_date) || b.saving.id - a.saving.id),
+    [rows],
+  );
+  const pages = Math.max(1, Math.ceil(sorted.length / PAGE));
+  // Archiving or deleting the last card on the last page must not strand you on an empty one.
+  const at = Math.min(page, pages - 1);
+  if (sorted.length === 0) return <p className="text-body-sm text-muted-foreground">{empty}</p>;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {sorted.slice(at * PAGE, (at + 1) * PAGE).map((r) => (
+          <SavingCard key={r.saving.id} row={r} funds={funds} all={all} />
+        ))}
+      </div>
+      {pages > 1 && (
+        <div className="flex items-center justify-end gap-2 text-body-sm text-muted-foreground">
+          <span className="tabular-nums">Page {at + 1} of {pages} · {sorted.length} deposits</span>
+          <Button variant="outline" size="icon-sm" aria-label="Previous page" disabled={at === 0} onClick={() => setPage(at - 1)}>
+            <ChevronLeft className="size-3.5" />
+          </Button>
+          <Button variant="outline" size="icon-sm" aria-label="Next page" disabled={at >= pages - 1} onClick={() => setPage(at + 1)}>
+            <ChevronRight className="size-3.5" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function SavingsManager({
@@ -502,7 +484,6 @@ export function SavingsManager({
   // The tiles are what's at the bank now; the chart keeps an archived deposit up to the day
   // you took it out, and drops it after.
   const s = summarize(open, now);
-  const columns = React.useMemo(() => makeColumns(funds, savings), [funds, savings]);
   const rows = React.useMemo<SavingRow[]>(
     () =>
       savings.map((saving) => {
@@ -519,7 +500,6 @@ export function SavingsManager({
           net,
           interest: cur - net,
           matVal: maturityValue(saving),
-          maturityMs: Date.parse(maturityDate(saving) + "T00:00:00Z"),
         };
       }),
     [savings, now],
@@ -574,16 +554,7 @@ export function SavingsManager({
         />
       )}
 
-      <div className="overflow-hidden card-surface panel-body">
-        <DataTable
-          columns={columns}
-          data={active}
-          initialSorting={[{ id: "deposit", desc: true }]}
-          pageSize={10}
-          emptyMessage="No deposits yet."
-          storageKey="savings"
-        />
-      </div>
+      <SavingCards rows={active} funds={funds} all={savings} empty="No deposits yet." />
 
       {inactive.length > 0 && (
         <details className="overflow-hidden card-surface">
@@ -592,14 +563,7 @@ export function SavingsManager({
             <span className="font-normal text-muted-foreground">withdrawn, no longer counted in net worth</span>
           </summary>
           <div className="border-t border-divider-soft panel-body">
-            <DataTable
-              columns={columns}
-              data={inactive}
-              initialSorting={[{ id: "deposit", desc: true }]}
-              pageSize={10}
-              emptyMessage=""
-              storageKey="savings-archived"
-            />
+            <SavingCards rows={inactive} funds={funds} all={savings} empty="" />
           </div>
         </details>
       )}

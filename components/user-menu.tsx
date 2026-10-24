@@ -53,7 +53,7 @@ const ITEM =
  * The identity is read from Cloudflare Access in the browser rather than rendered from the
  * request headers, and that is the whole design. Access does put the email on every request
  * (`Cf-Access-Authenticated-User-Email`), but reading `headers()` in the root layout would
- * make every route in the app dynamic — `/recurring`, `/settings/appearance` and the two
+ * make every route in the app dynamic — `/settings/appearance` and the two
  * redirect routes are still prerendered at build — and re-rendering the whole app per request
  * to print one address is a bad trade. PPR would give us a dynamic hole in a static shell; it
  * isn't enabled here.

@@ -28,7 +28,7 @@ function str(v: FormDataEntryValue | null): string {
 }
 
 function revalidateAll() {
-  for (const p of ["/", "/investments", "/transactions", "/savings", "/debts", "/subscriptions", "/forecast", "/settings/price-sources"])
+  for (const p of ["/", "/investments", "/transactions", "/recurring", "/savings", "/debts", "/subscriptions", "/forecast", "/settings/price-sources"])
     revalidatePath(p);
   // "layout" for the same reason as below: an apartment goal's page is /goals/<id>.
   revalidatePath("/goals", "layout");

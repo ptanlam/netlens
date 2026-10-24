@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Archive, ArchiveRestore, ArrowRight, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Collapsible } from "@animate-ui/react/primitives/base-ui/collapsible";
-import type { Instrument, LivePayload, RecurringRule } from "@/lib/types";
+import type { Instrument, LivePayload } from "@/lib/types";
 import { deleteHolding, setHoldingArchived } from "@/app/actions";
 import { fmtUnits, fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,7 @@ import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
 import { AddHoldingDialog, EditHoldingDialog } from "@/components/add-holding-dialog";
 import { AddTxDialog } from "@/components/add-tx-dialog";
-import { AddRecurringDialog } from "@/components/add-recurring-dialog";
 import { type InstrumentOption } from "@/components/tx-form";
-import { RecurringManager } from "@/components/recurring-manager";
 import { SummaryCards, type Stat } from "@/components/stat-card";
 import { AllocationCard, HoldingsListCard, typeColor } from "@/components/portfolio-panels";
 import { usePnlHistory } from "@/components/use-pnl-history";
@@ -33,8 +31,6 @@ export interface HoldingView {
   pnl: number;
   live: boolean;
 }
-
-type RuleView = { rule: RecurringRule; nextDue: string | null };
 
 function DeleteHoldingButton({ name }: { name: string }) {
   const [pending, startTransition] = React.useTransition();
@@ -109,10 +105,9 @@ function SoldOutPrompt({ name }: { name: string }) {
   );
 }
 
-function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingView; txCount: number; rules: RuleView[]; sourceKeys: string[] }) {
+function HoldingRow({ holding, txCount, sourceKeys }: { holding: HoldingView; txCount: number; sourceKeys: string[] }) {
   const [open, setOpen] = React.useState(false);
   const { inst, value, pnl, cost, live } = holding;
-  const option: InstrumentOption = { name: inst.name, asset_type: inst.asset_type };
   // A percentage only means something against real money put in. Once a holding is sold
   // out its net cost goes negative (you took out more than you put in), so the ratio is
   // nonsense — show just the absolute realised P&L there.
@@ -168,7 +163,6 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
                 ? <Amt>{fmtUnits(inst.quantity)} × {inst.last_price.toLocaleString("de-DE")}</Amt>
                 : "manual value"}
               {" · "}{txCount} tx{txCount === 1 ? "" : "s"}
-              {rules.length > 0 && ` · ${rules.length} rule${rules.length === 1 ? "" : "s"}`}
             </div>
           </div>
         </div>
@@ -198,7 +192,7 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
               the filter already set. A holding's own rows used to be paged five at a time
               right here, which was a second, weaker copy of a table that page does properly
               (sorting, units, price, the lot). */}
-          <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             {txCount === 0 ? (
               <p className="text-body-sm text-muted-foreground">No transactions recorded.</p>
             ) : (
@@ -220,14 +214,6 @@ function HoldingRow({ holding, txCount, rules, sourceKeys }: { holding: HoldingV
               </Link>
             )}
           </div>
-
-          <section>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-body-sm font-semibold">Recurring</h4>
-              <AddRecurringDialog instruments={[option]} />
-            </div>
-            <RecurringManager rules={rules} instruments={[option]} showAddForm={false} />
-          </section>
         </div>
       </Collapsible.Panel>
     </Collapsible.Root>
@@ -255,7 +241,6 @@ export function InvestmentManager({
   payload,
   historyStamp,
   txCountBy,
-  rulesByInstrument,
   sourceKeys,
   predictions,
 }: {
@@ -269,7 +254,6 @@ export function InvestmentManager({
    *  /transactions' job, and shipping every one of them here was most of this page's
    *  payload for a list you had to expand a holding to see. */
   txCountBy: Record<string, number>;
-  rulesByInstrument: Record<string, RuleView[]>;
   sourceKeys: string[];
   /** Real Estate holdings with a predicted value. Shown as their own tile beside the actual
    *  portfolio value, which keeps counting only what you booked. */
@@ -332,7 +316,6 @@ export function InvestmentManager({
         className="mb-4"
         actions={
           <>
-            <AddRecurringDialog instruments={options} />
             <AddTxDialog instruments={options} />
             <AddHoldingDialog sources={sourceKeys} />
           </>
@@ -361,7 +344,7 @@ export function InvestmentManager({
 
       <div className="mt-8 mb-4">
         <h2 className="text-display-xs leading-[1.3] font-semibold tracking-[-0.02em]">Holdings</h2>
-        <div className="mt-1 text-body-sm text-muted-foreground">Select a holding for its price source, rules and history</div>
+        <div className="mt-1 text-body-sm text-muted-foreground">Select a holding for its price source and history</div>
       </div>
 
       {active.length === 0 ? (
@@ -395,7 +378,6 @@ export function InvestmentManager({
                     key={h.inst.name}
                     holding={h}
                     txCount={txCountBy[h.inst.name] ?? 0}
-                    rules={rulesByInstrument[h.inst.name] ?? []}
                     sourceKeys={sourceKeys}
                   />
                 ))}
@@ -409,7 +391,6 @@ export function InvestmentManager({
         <ArchivedHoldings
           holdings={archived}
           txCountBy={txCountBy}
-          rulesByInstrument={rulesByInstrument}
           sourceKeys={sourceKeys}
         />
       )}
@@ -425,12 +406,10 @@ export function InvestmentManager({
 function ArchivedHoldings({
   holdings,
   txCountBy,
-  rulesByInstrument,
   sourceKeys,
 }: {
   holdings: HoldingView[];
   txCountBy: Record<string, number>;
-  rulesByInstrument: Record<string, RuleView[]>;
   sourceKeys: string[];
 }) {
   const [open, setOpen] = React.useState(false);
@@ -451,7 +430,6 @@ function ArchivedHoldings({
               key={h.inst.name}
               holding={h}
               txCount={txCountBy[h.inst.name] ?? 0}
-              rules={rulesByInstrument[h.inst.name] ?? []}
               sourceKeys={sourceKeys}
             />
           ))}

@@ -1,6 +1,5 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
-import type { RecurringRule } from "@/lib/types";
 import { InvestmentManager, type HoldingView } from "@/components/investment-manager";
 
 export default async function InvestmentsPage() {
@@ -8,10 +7,9 @@ export default async function InvestmentsPage() {
   // Must land before anything reads transactions — it inserts the due ones.
   await db.materializeRecurring();
 
-  const [instruments, txs, rules, sources, historyStamp, predictions] = await Promise.all([
+  const [instruments, txs, sources, historyStamp, predictions] = await Promise.all([
     db.listInstruments(),
     db.allTransactions(),
-    db.listRecurring(),
     db.listPriceSources(),
     db.historyStamp(),
     db.realEstatePredictions(),
@@ -32,14 +30,6 @@ export default async function InvestmentsPage() {
   // `livePayload` is pure, so the Allocation and Top holdings panels cost no extra query.
   const payload = db.livePayload(instruments, costBy);
 
-  const rulesByInstrument: Record<string, { rule: RecurringRule; nextDue: string | null }[]> = {};
-  for (const rule of rules) {
-    (rulesByInstrument[rule.instrument] ??= []).push({
-      rule,
-      nextDue: rule.active ? db.ruleNextDue(rule) : null,
-    });
-  }
-
   const holdings: HoldingView[] = instruments
     .map((inst) => {
       const value = db.holdingValue(inst);
@@ -54,7 +44,6 @@ export default async function InvestmentsPage() {
       payload={payload}
       historyStamp={historyStamp}
       txCountBy={txCountBy}
-      rulesByInstrument={rulesByInstrument}
       sourceKeys={sourceKeys}
       predictions={predictions}
     />
