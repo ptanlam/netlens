@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { SummaryCards } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
+import { GoalBar } from "@/components/goal-strip";
 import { Amt } from "@/components/amt";
 
 type ActionResult = { ok: boolean; message: string };
@@ -328,6 +329,9 @@ type SavingRow = {
   net: number;
   interest: number;
   matVal: number;
+  /** Share of the term gone by, 0–1. */
+  elapsed: number;
+  daysLeft: number;
 };
 
 function SavingActions({ row, funds, all }: { row: SavingRow; funds: FundOption[]; all: Saving[] }) {
@@ -391,45 +395,62 @@ function SavingActions({ row, funds, all }: { row: SavingRow; funds: FundOption[
 }
 
 function SavingCard({ row, funds, all }: { row: SavingRow; funds: FundOption[]; all: Saving[] }) {
-  const { saving, archived, matured, cur, net, interest, matVal } = row;
+  const { saving, archived, matured, cur, net, interest, matVal, elapsed, daysLeft } = row;
   const earmarked = funds.find((f) => f.id === saving.goal_id);
   const label = saving.bank ?? "Term deposit";
   return (
-    <div className="flex flex-col card-surface panel-body">
+    <div className={cn("flex flex-col card-surface panel-body", archived && "opacity-80")}>
       <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
           <EntityAvatar name={label} color="var(--chart-4)" />
           <div className="min-w-0">
             <div className="truncate text-body-sm font-semibold">{label}</div>
-            <div className="text-caption text-muted-foreground">
-              <Amt>{fmtVND(saving.principal)}</Amt>
-              {saving.movements.length > 0 && <> → <Amt>{fmtVND(net)}</Amt> net</>}
-            </div>
+            <div className="text-caption text-faint tabular-nums">Opened {saving.start_date}</div>
           </div>
         </div>
         <SavingActions row={row} funds={funds} all={all} />
       </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {archived ? (
-          <Badge variant="secondary">Archived {saving.archived_date}</Badge>
-        ) : (
-          matured && <Badge variant="secondary">Matured</Badge>
-        )}
-        {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
-        {saving.rolled_from != null && <Badge variant="tag">Rollover</Badge>}
+
+      <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span data-amount className="font-mono text-display-xs font-semibold tabular-nums">{fmtVND(cur)}</span>
+        <Badge variant={interest >= 0 ? "accent" : "secondary"} className="font-mono tabular-nums">
+          <Amt>{interest >= 0 ? "+" : ""}{fmtVND(interest)}</Amt>
+        </Badge>
       </div>
-      <div data-amount className="mt-3 font-mono text-display-xs font-semibold tabular-nums">{fmtVND(cur)}</div>
-      <div className={cn("mb-3 font-mono text-caption tabular-nums", interest >= 0 ? "text-accent-brand" : "text-destructive")}>
-        <Amt>{interest >= 0 ? "+" : ""}{fmtVND(interest)}</Amt> interest
+      <div className="mt-0.5 text-caption text-muted-foreground">
+        on <Amt>{fmtVND(saving.movements.length > 0 ? net : saving.principal)}</Amt>
+        {saving.movements.length > 0 ? " net principal" : " principal"}
       </div>
-      <dl className="mt-auto grid grid-cols-2 gap-x-4 gap-y-1 border-t border-divider pt-3 text-caption [&_dd]:text-right [&_dd]:font-mono [&_dd]:tabular-nums [&_dt]:text-muted-foreground">
-        <dt>Rate</dt>
-        <dd>{saving.rate}% · {fmtTerm(saving.term_months, saving.term_unit)}</dd>
-        <dt>Matures</dt>
-        <dd>{maturityDate(saving)}</dd>
-        <dt>At maturity</dt>
-        <dd data-amount>{fmtVND(matVal)}</dd>
-      </dl>
+
+      {(archived || matured || earmarked || saving.rolled_from != null) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {archived ? (
+            <Badge variant="secondary">Archived {saving.archived_date}</Badge>
+          ) : (
+            matured && <Badge variant="warning">Matured — ready to withdraw</Badge>
+          )}
+          {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
+          {saving.rolled_from != null && <Badge variant="tag">Rollover</Badge>}
+        </div>
+      )}
+
+      <div className="mt-auto pt-4">
+        <GoalBar progress={elapsed} muted={archived || matured} />
+        <div className="mt-1.5 flex justify-between text-caption text-muted-foreground tabular-nums">
+          <span>{saving.rate}% · {fmtTerm(saving.term_months, saving.term_unit)}</span>
+          <span>{matured ? "Term complete" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}</span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-caption">
+          <div className="rounded-lg bg-pane-sunk px-3 py-2">
+            <div className="text-faint">Matures</div>
+            <div className="font-mono font-semibold tabular-nums">{maturityDate(saving)}</div>
+          </div>
+          <div className="rounded-lg bg-pane-sunk px-3 py-2 text-right">
+            <div className="text-faint">At maturity</div>
+            <div data-amount className="font-mono font-semibold tabular-nums">{fmtVND(matVal)}</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -492,6 +513,9 @@ export function SavingsManager({
         const at = archived ? endOf(saving) : now;
         const cur = currentValue(saving, at);
         const net = netPrincipal(saving, at);
+        const startMs = Date.parse(saving.start_date + "T00:00:00Z");
+        const endMs = Date.parse(maturityDate(saving) + "T00:00:00Z");
+        const elapsed = Math.min(1, Math.max(0, (at.getTime() - startMs) / Math.max(1, endMs - startMs)));
         return {
           saving,
           archived,
@@ -500,6 +524,8 @@ export function SavingsManager({
           net,
           interest: cur - net,
           matVal: maturityValue(saving),
+          elapsed,
+          daysLeft: Math.max(0, Math.ceil((endMs - now.getTime()) / 86_400_000)),
         };
       }),
     [savings, now],

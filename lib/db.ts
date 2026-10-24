@@ -1618,7 +1618,12 @@ export async function fundsCashTotal(today = new Date()): Promise<number> {
 export async function plannedMonthly(): Promise<number> {
   const rules = await q("SELECT amount, freq FROM recurring_rules WHERE active=1")
     .all<{ amount: number; freq: string }>();
-  return rules.reduce((a, r) => a + (r.freq === "weekly" ? (r.amount * 52) / 12 : r.amount), 0);
+  return rules.reduce((a, r) => a + ruleMonthly(r), 0);
+}
+
+/** One rule's ₫/month. */
+export function ruleMonthly(r: { amount: number; freq: string }): number {
+  return r.freq === "weekly" ? (r.amount * 52) / 12 : r.amount;
 }
 
 /** ₫/month **bought** into investments over the trailing window — what a goal compares
