@@ -1,6 +1,6 @@
 // Self-check for deposit movements in lib/savings.ts. Run: node scripts/check-savings.mjs
 import assert from "node:assert/strict";
-import { currentValue, freshPrincipal, maturityDate, maturityValue, netPrincipal, summarize } from "../lib/savings.ts";
+import { currentValue, freshPrincipal, maturityDate, maturityValue, netPrincipal, releasedFrom, summarize } from "../lib/savings.ts";
 
 const at = (d) => new Date(`${d}T00:00:00Z`);
 const near = (a, b, tol = 1) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
@@ -44,5 +44,15 @@ const next = { ...base, start_date: "2027-01-01" };
 near(freshPrincipal({ ...next, principal: payout + 5_000_000 }, base), 5_000_000);
 near(freshPrincipal({ ...next, principal: 50_000_000 }, base), 0);
 near(freshPrincipal({ ...next, principal: 50_000_000 }), 50_000_000);
+
+// Released money: each withdrawal, plus the payout on the day it was archived…
+const gone = { ...w, archived_date: "2027-02-01" };
+const left = Math.round(currentValue(w, at("2027-02-01")));
+assert.deepEqual(releasedFrom(gone), [{ date: "2026-07-02", amount: 40_000_000 }, { date: "2027-02-01", amount: left }]);
+assert.deepEqual(releasedFrom({ ...base, archived_date: null }), []);
+// …less what a rollover took, which freshPrincipal already kept from counting twice.
+const rolledAll = { ...base, archived_date: next.start_date };
+assert.deepEqual(releasedFrom(rolledAll, { ...next, principal: payout + 5_000_000 }), []);
+near(releasedFrom(rolledAll, { ...next, principal: 50_000_000 })[0].amount, payout - 50_000_000);
 
 console.log("ok");

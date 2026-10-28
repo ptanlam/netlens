@@ -35,7 +35,8 @@ export type MonthKey = string;
 /**
  * The two ways a month counts: money you put into investments, and principal you put into a
  * new term deposit. Neither can be negative — money out is not subtracted, it is simply not
- * counted in.
+ * counted in. The one exception is money coming back out of a deposit and going straight
+ * back in that month (`StreakWorld.released`), which counted once already.
  *
  * Fund cash and debt repayments used to be levers here too. They are deliberately out: a
  * repayment is mostly a promise being kept rather than a decision to save, and fund cash is
@@ -80,6 +81,19 @@ export interface StreakWorld {
   investedByMonth: Record<MonthKey, number>;
   /** New deposits, by the month they started — the principal is the money you committed. */
   savings: Pick<Saving, "start_date" | "principal">[];
+  /**
+   * Money taken back out of a deposit — an archived deposit's payout, or a withdrawal from
+   * one — dated the day it left. It counted when it went in, so whatever you put to work
+   * the same month (shares bought with it, a new deposit) is that money moving again, not
+   * new money, and doesn't count a second time. What isn't put to work that month is taken
+   * as spent and offsets nothing: a withdrawal on its own is not subtracted.
+   *
+   * Same month only, because the app can't tell which buy a payout paid for. Reaching
+   * further would let a deposit you withdrew for a car quietly cancel next month's salary
+   * buys. A payout already rolled into a new deposit is left out by the caller — the new
+   * deposit's `freshPrincipal` has taken it off once already.
+   */
+  released: { date: string; amount: number }[];
   bar: number;
   barSource: BarSource;
 }
@@ -89,6 +103,9 @@ export interface StreakMonth {
   /** What the two levers came to. Neither can be negative, so nor can this. */
   total: number;
   levers: Record<Lever, number>;
+  /** What was put in this month from money released from a deposit (see
+   *  `StreakWorld.released`) — already taken off `levers` and `total`. */
+  reused: number;
   status: MonthStatus;
   /** Set only on a `carried` month: the trailing average that rescued it. */
   carriedBy?: number;
@@ -195,12 +212,27 @@ export function streak(w: StreakWorld): Streak | null {
   // backwards. The current month is always the last one shown.
   if (to < from) return null;
 
+  const releasedBy = new Map<MonthKey, number>();
+  for (const r of w.released)
+    if (r.amount > 0) releasedBy.set(monthOf(r.date), (releasedBy.get(monthOf(r.date)) ?? 0) + r.amount);
+
   const totals: number[] = [];
   const levers: Record<Lever, number>[] = [];
+  const reused: number[] = [];
   for (let i = from; i <= to; i++) {
-    const row = byMonth.get(monthKey(i)) ?? emptyLevers();
+    const row = { ...(byMonth.get(monthKey(i)) ?? emptyLevers()) };
+    const gross = LEVERS.reduce((a, l) => a + row[l], 0);
+    const back = Math.min(gross, releasedBy.get(monthKey(i)) ?? 0);
+    // Off investments first — the usual place a payout goes — then off new deposits.
+    let left = back;
+    for (const l of LEVERS) {
+      const take = Math.min(row[l], left);
+      row[l] -= take;
+      left -= take;
+    }
     levers.push(row);
-    totals.push(LEVERS.reduce((a, l) => a + row[l], 0));
+    reused.push(back);
+    totals.push(gross - back);
   }
 
   // The trailing window and its mean. Divided by how many months it actually spans, not by
@@ -213,14 +245,15 @@ export function streak(w: StreakWorld): Streak | null {
   const months: StreakMonth[] = totals.map((total, i) => {
     const month = monthKey(from + i);
     const row = levers[i];
-    if (total >= w.bar) return { month, total, levers: row, status: "met" };
+    const base = { month, total, levers: row, reused: reused[i] };
+    if (total >= w.bar) return { ...base, status: "met" };
     const avg = meanOf(windowAt(i));
-    if (avg >= w.bar) return { month, total, levers: row, status: "carried", carriedBy: avg };
+    if (avg >= w.bar) return { ...base, status: "carried", carriedBy: avg };
     // The grace rule applies to the month in progress too, which is the point of computing
     // it before deciding it's open: a month you're already carrying on the average passes
     // today, and telling you it still needs the full bar would be asking for money the rule
     // doesn't require.
-    return { month, total, levers: row, status: month === nowKey ? "open" : "missed" };
+    return { ...base, status: month === nowKey ? "open" : "missed" };
   });
 
   const now = months[months.length - 1];

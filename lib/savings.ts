@@ -103,6 +103,21 @@ export function freshPrincipal(s: Accruing, from?: Accruing): number {
   return Math.max(0, s.principal - Math.round(currentValue(from, new Date(s.start_date + "T00:00:00Z"))));
 }
 
+/** Money that came back out of a deposit, dated the day it left: each withdrawal, and the
+ *  payout on the day it was archived. A payout rolled into `into` (the deposit whose
+ *  `rolled_from` is this one) leaves only what the new deposit didn't take — that part
+ *  `freshPrincipal` already kept from counting twice. */
+export function releasedFrom(
+  s: Accruing & { archived_date: string | null }, into?: Accruing,
+): { date: string; amount: number }[] {
+  const out = (s.movements ?? []).filter((m) => m.amount < 0).map((m) => ({ date: m.date, amount: -m.amount }));
+  if (!s.archived_date) return out;
+  const payout = Math.round(currentValue(s, new Date(s.archived_date + "T00:00:00Z")));
+  const rolled = into ? Math.min(into.principal, Math.round(currentValue(s, new Date(into.start_date + "T00:00:00Z")))) : 0;
+  const amount = payout - rolled;
+  return amount > 0 ? [...out, { date: s.archived_date, amount }] : out;
+}
+
 export function isMatured(s: Pick<Accruing, "start_date" | "term_months" | "term_unit">, today = new Date()): boolean {
   if (isRevolving(s)) return false;
   return today.getTime() >= Date.parse(maturityDate(s) + "T00:00:00Z");

@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
 import { DashboardCharts } from "@/components/dashboard-charts";
-import { summarize, debtOwed, freshPrincipal, type Payment } from "@/lib/savings";
+import { summarize, debtOwed, freshPrincipal, releasedFrom, type Payment } from "@/lib/savings";
 import { commitment, streak } from "@/lib/score";
 import type { InstrumentOption } from "@/components/tx-form";
 import type { DashboardAlert } from "@/components/dashboard-charts";
@@ -92,6 +92,8 @@ export default async function Dashboard() {
       })),
       ...savings.flatMap((s) => s.movements.filter((m) => m.amount > 0).map((m) => ({ start_date: m.date, principal: m.amount }))),
     ],
+    // Money back out of a deposit, so buying shares with it the same month isn't new money.
+    released: savings.flatMap((s) => releasedFrom(s, savings.find((r) => r.rolled_from === s.id))),
     ...commitment(world.plannedMonthly, goalRows),
   });
 

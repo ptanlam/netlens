@@ -148,6 +148,11 @@ function MonthColumn({
               {LEVER_LABELS[l]} <Amt>{fmtVND(m.levers[l])}</Amt>
             </span>
           ))}
+          {Math.round(m.reused) !== 0 && (
+            <span className="mt-0.5 block font-mono text-caption tabular-nums opacity-70">
+              Not counted · from a withdrawn deposit <Amt>{fmtVND(m.reused)}</Amt>
+            </span>
+          )}
         </span>
       </TooltipContent>
     </Tooltip>
@@ -224,7 +229,8 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
           <>
             Consecutive months you put in at least your monthly commitment. Two things count:
             what you bought into investments, and principal you put into a new term deposit.
-            Sells are not subtracted, and market movement is excluded — so a good month for
+            Money you took out of a deposit and put back to work the same month is not counted
+            again. Sells are not subtracted, and market movement is excluded — so a good month for
             prices is not a month you saved. A short month still counts if the 3-month average
             clears the bar.
           </>
