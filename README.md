@@ -40,7 +40,7 @@ pnpm build && pnpm start
   maturity value
 - `/debts` — loans and **revolving credit cards**: principal/balance, rate, term (or
   revolving), estimated amount owed
-- `/recurring` — auto-DCA rules (weekly/monthly, pause/resume, backfilled on load)
+- `/recurring` — auto-DCA rules (daily to yearly, pause/resume, backfilled on load)
 - `GET /export.csv`, `GET /api/pnl-history`, `GET /healthz`
 
 ## Contributing / agents

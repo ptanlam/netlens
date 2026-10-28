@@ -11,10 +11,10 @@ import { currentValue } from "@/lib/savings";
 import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
 import { distanceKm, estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
-  BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, PRICE_REFRESH_INTERVALS, ROAD_ACCESS,
+  BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, PRICE_REFRESH_INTERVALS, RECURRING_FREQS, ROAD_ACCESS,
   SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, TERM_UNITS, goalIdOfProperty, normalizePriceRefreshMs,
   type BillingCycle, type CompInput, type CompKind, type GoalMetric, type Instrument, type LandUse,
-  type PriceRefreshSchedule, type RoadAccess, type SubscriptionCategory, type TargetCurrency, type TermUnit,
+  type PriceRefreshSchedule, type RecurringFreq, type RoadAccess, type SubscriptionCategory, type TargetCurrency, type TermUnit,
 } from "@/lib/types";
 
 function num(v: FormDataEntryValue | null): number | null {
@@ -1150,12 +1150,16 @@ export async function testPriceSource(fd: FormData) {
 
 // ---------- recurring rules ----------
 
+function recurringFreq(v: FormDataEntryValue | null): RecurringFreq {
+  return RECURRING_FREQS.includes(v as RecurringFreq) ? (v as RecurringFreq) : "weekly";
+}
+
 export async function addRule(fd: FormData) {
   const instrument = str(fd.get("instrument"));
   const amount = num(fd.get("amount"));
   if (!instrument || amount == null || amount <= 0)
     return { ok: false, message: "Instrument and a positive amount are required." };
-  const freq = fd.get("freq") === "monthly" ? "monthly" : "weekly";
+  const freq = recurringFreq(fd.get("freq"));
   await db.addRecurring(instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);
   const created = await db.materializeRecurring();
@@ -1168,7 +1172,7 @@ export async function updateRule(id: number, fd: FormData) {
   const amount = num(fd.get("amount"));
   if (!instrument || amount == null || amount <= 0)
     return { ok: false, message: "Instrument and a positive amount are required." };
-  const freq = fd.get("freq") === "monthly" ? "monthly" : "weekly";
+  const freq = recurringFreq(fd.get("freq"));
   await db.updateRecurring(id, instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);
   revalidateAll();

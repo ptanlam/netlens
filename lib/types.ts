@@ -101,12 +101,29 @@ export interface Instrument {
   logo_at: string | null;
 }
 
+/** How often a recurring rule buys. Stored as text in `recurring_rules.freq`; the schedule
+ *  maths is `lib/recurring.ts`. */
+export const RECURRING_FREQS = [
+  "daily", "weekly", "biweekly", "monthly", "quarterly", "semiannually", "yearly",
+] as const;
+export type RecurringFreq = (typeof RECURRING_FREQS)[number];
+
+export const RECURRING_FREQ_LABELS: Record<RecurringFreq, string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  biweekly: "Every 2 weeks",
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+  semiannually: "Every 6 months",
+  yearly: "Yearly",
+};
+
 export interface RecurringRule {
   id: number;
   instrument: string;
   asset_type: string;
   amount: number;
-  freq: "weekly" | "monthly";
+  freq: RecurringFreq;
   start_date: string;
   last_run: string | null;
   active: number;
