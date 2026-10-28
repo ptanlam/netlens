@@ -26,8 +26,10 @@ import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
 import { instrumentLogo } from "./logos";
 import type { CronMoment } from "./cron";
 import { missedActions, type CorpEvents, type MissedAction } from "./corporate-actions";
+import { occurrences, ruleMonthly } from "./recurring";
 
 export { ASSET_TYPES, MANUAL_SOURCE } from "./types";
+export { ruleMonthly } from "./recurring";
 export type { AssetType, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceSource, Property, PropertyComp, PropertyIndexPoint, RecurringRule, Saving, Subscription, Tx } from "./types";
 
 /** Set by `bindD1`, for callers that have no Cloudflare context to read. */
@@ -779,33 +781,6 @@ export async function toggleRecurring(id: number) {
 
 export async function deleteRecurring(id: number) {
   await q("DELETE FROM recurring_rules WHERE id=?").run(id);
-}
-
-function* occurrences(
-  freq: string, start: Date, after: Date | null, until: Date,
-): Generator<Date> {
-  if (freq === "weekly") {
-    let d = new Date(start);
-    if (after && after >= start) {
-      const k = Math.floor((after.getTime() - start.getTime()) / 86400000 / 7) + 1;
-      d = new Date(start.getTime() + k * 7 * 86400000);
-    }
-    while (d <= until) {
-      yield new Date(d);
-      d = new Date(d.getTime() + 7 * 86400000);
-    }
-  } else {
-    let year = start.getFullYear();
-    let month = start.getMonth();
-    for (;;) {
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const occ = new Date(year, month, Math.min(start.getDate(), daysInMonth));
-      if (occ > until) break;
-      if (occ >= start && (!after || occ > after)) yield occ;
-      month += 1;
-      if (month === 12) { month = 0; year += 1; }
-    }
-  }
 }
 
 function isoOf(d: Date): string {
@@ -1619,11 +1594,6 @@ export async function plannedMonthly(): Promise<number> {
   const rules = await q("SELECT amount, freq FROM recurring_rules WHERE active=1")
     .all<{ amount: number; freq: string }>();
   return rules.reduce((a, r) => a + ruleMonthly(r), 0);
-}
-
-/** One rule's ₫/month. */
-export function ruleMonthly(r: { amount: number; freq: string }): number {
-  return r.freq === "weekly" ? (r.amount * 52) / 12 : r.amount;
 }
 
 /** ₫/month **bought** into investments over the trailing window — what a goal compares

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Pause, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { type RecurringRule } from "@/lib/types";
+import { RECURRING_FREQS, RECURRING_FREQ_LABELS, type RecurringRule } from "@/lib/types";
 import { addRule, deleteRule, toggleRule, updateRule } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,11 @@ import { type InstrumentOption } from "@/components/tx-form";
 import { Amt } from "@/components/amt";
 
 type ActionResult = { ok: boolean; message: string };
+
+/** A hand-edited row may hold a value the list doesn't know; show it as stored. */
+function freqLabel(freq: string): string {
+  return RECURRING_FREQ_LABELS[freq as keyof typeof RECURRING_FREQ_LABELS] ?? freq;
+}
 
 export function RuleForm({
   action,
@@ -102,11 +107,12 @@ export function RuleForm({
         <Label htmlFor="r-freq">Frequency</Label>
         <Select name="freq" defaultValue={rule?.freq ?? "weekly"}>
           <SelectTrigger id="r-freq" className="w-full">
-            <SelectValue />
+            <SelectValue>{(v: string) => freqLabel(v)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="weekly">Weekly</SelectItem>
-            <SelectItem value="monthly">Monthly</SelectItem>
+            {RECURRING_FREQS.map((f) => (
+              <SelectItem key={f} value={f}>{RECURRING_FREQ_LABELS[f]}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -165,7 +171,7 @@ function RuleRow({
           {!rule.active && <Badge variant="secondary">paused</Badge>}
         </div>
         <div className="text-body-sm text-muted-foreground">
-          <Amt>{fmtVND(rule.amount)}</Amt> · {rule.freq} · since {rule.start_date}
+          <Amt>{fmtVND(rule.amount)}</Amt> · {freqLabel(rule.freq).toLowerCase()} · since {rule.start_date}
           {nextDue && ` · next ${nextDue}`}
         </div>
       </div>
@@ -208,7 +214,7 @@ function RuleRow({
             aria-label="Delete rule"
             disabled={pending}
             onClick={() => {
-              if (!confirm(`Delete the ${rule.freq} rule for ${rule.instrument}? Already-created transactions stay.`))
+              if (!confirm(`Delete the ${freqLabel(rule.freq).toLowerCase()} rule for ${rule.instrument}? Already-created transactions stay.`))
                 return;
               run(() => deleteRule(rule.id));
             }}

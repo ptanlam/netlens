@@ -12,7 +12,7 @@ import type { BillingCycle } from "./types";
 const DAY_MS = 86_400_000;
 
 /** How many times a year each cycle bills. Weekly is 52 rather than 365.25/7 — the same
- *  figure `plannedMonthly` in lib/db.ts uses for a weekly recurring rule, so a weekly
+ *  figure `ruleMonthly` in lib/recurring.ts uses for a weekly recurring rule, so a weekly
  *  subscription and a weekly investment rule can't quote different monthly equivalents. */
 export const PERIODS_PER_YEAR: Record<BillingCycle, number> = {
   weekly: 52,
