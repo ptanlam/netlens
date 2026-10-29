@@ -34,7 +34,7 @@ const HISTORY_FROM = "20250101";
  *  (stocks, funds) a live snapshot on a closed day (weekend/holiday) or mid-session
  *  is not a real daily close, so the historical series is left to `refreshHistory`,
  *  which keys official closes to actual trading dates. */
-const CONTINUOUS_STRATEGIES = new Set(["coingecko"]);
+const CONTINUOUS_STRATEGIES = new Set(["coingecko", "daily"]);
 
 /** The date a daily bar belongs to, as the *venue* reckons it.
  *
@@ -135,6 +135,12 @@ async function callSource(src: PriceSource, vars: Record<string, string>): Promi
   return src.kind === "html" ? res.text() : res.json();
 }
 
+/** The feed's number in whole VND — PNJ quotes thousands of ₫ per chỉ, for one. Rows written
+ *  before the column existed read as 1. */
+function scaled(src: PriceSource, n: number | null): number | null {
+  return n == null ? null : n * (src.price_multiplier || 1);
+}
+
 /** Batch json → `{ lookupKey: price }`. Handles both an array of rows
  *  (matched via `key_field`) and an object keyed by symbol (e.g. CoinGecko). */
 function extractBatch(src: PriceSource, data: unknown): Record<string, number> {
@@ -144,12 +150,12 @@ function extractBatch(src: PriceSource, data: unknown): Record<string, number> {
     for (const row of rows) {
       if (row == null || typeof row !== "object") continue;
       const k = src.key_field ? (row as Record<string, unknown>)[src.key_field] : undefined;
-      const n = toNumber(src.price_field ? getPath(row, src.price_field) : row);
+      const n = scaled(src, toNumber(src.price_field ? getPath(row, src.price_field) : row));
       if (k != null && n != null) out[String(k)] = n;
     }
   } else if (rows && typeof rows === "object") {
     for (const [k, v] of Object.entries(rows as Record<string, unknown>)) {
-      const n = toNumber(src.price_field ? getPath(v, src.price_field) : v);
+      const n = scaled(src, toNumber(src.price_field ? getPath(v, src.price_field) : v));
       if (n != null) out[k] = n;
     }
   }
@@ -161,9 +167,9 @@ function extractSingle(src: PriceSource, data: unknown): number | null {
   if (src.kind === "html") {
     if (!src.price_regex) return null;
     const m = String(data).match(new RegExp(src.price_regex));
-    return m ? toNumber(m[1]) : null;
+    return m ? scaled(src, toNumber(m[1])) : null;
   }
-  return toNumber(getPath(data, src.price_path));
+  return scaled(src, toNumber(getPath(data, src.price_path)));
 }
 
 // ---------- exchange rates ----------
@@ -726,7 +732,8 @@ async function fetchHistoryInto(lookbackDays: number | null): Promise<[number, s
     if (isDormant(row)) continue;
     const src = sources.get(row.price_source);
     const strat = src?.history_strategy ?? "none";
-    if (strat === "none") continue;
+    // `daily` has no feed to backfill from: `refreshAll` keeps its live price as each day's close.
+    if (strat === "none" || strat === "daily") continue;
     try {
       let history: Record<string, number> | null = null;
       /** Stored days this feed has just disowned — see `fetchEntradeHistory`. */

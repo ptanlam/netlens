@@ -43,6 +43,7 @@ const TYPE_COLORS: Record<string, string> = {
   Stocks: "var(--chart-2)",
   Crypto: "var(--chart-3)",
   "Real Estate": "var(--chart-4)",
+  "Precious Metals": "var(--chart-5)",
 };
 const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
 

@@ -1,12 +1,22 @@
 /** Shared types & constants safe to import from client components (no Node deps). */
 
-export const ASSET_TYPES = ["Funds", "Stocks", "Crypto", "Real Estate"] as const;
+export const ASSET_TYPES = ["Funds", "Stocks", "Crypto", "Real Estate", "Precious Metals"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
+
+/** Gold and the like. A metal holding is counted in **chỉ**, the unit a Vietnamese dealer
+ *  quotes (10 chỉ make a lượng, 37.5 g), and priced at what a dealer pays you for it — the
+ *  seeded `pnj_gold` source reads PNJ's buy-back board. Its units are always typed in, never
+ *  priced out of the amount: that would divide what you paid (the dealer's sell price) by
+ *  the buy-back price and invent the spread as extra metal. */
+export const METALS: AssetType = "Precious Metals";
+export const METAL_UNIT = "chỉ";
 /** The always-present, no-fetch source. Every other source is user-defined in the DB. */
 export const MANUAL_SOURCE = "manual";
 
 export type PriceSourceKind = "json" | "html";
-export type HistoryStrategy = "none" | "yahoo" | "coingecko" | "fmarket" | "dcvfm";
+/** `daily`: no history feed to fetch from, so the live price is kept as each day's close
+ *  from the day the holding is first priced — the PNJ gold board publishes no history. */
+export type HistoryStrategy = "none" | "yahoo" | "coingecko" | "fmarket" | "dcvfm" | "daily";
 
 /** Fund sources: they publish a NAV *struck at the close of an earlier valuation day*
  *  (T+1 reporting), so `instruments.last_price` for these is never today's value — it's
@@ -38,6 +48,7 @@ export interface PriceSource {
   price_path: string | null;    // single json: dot-path to the price value
   price_regex: string | null;   // html: regex with one capture group
   history_strategy: string;     // HistoryStrategy — which built-in history fetcher to use
+  price_multiplier: number;     // the extracted number × this (1000 for a feed quoting in thousands)
   builtin: number;              // 1 = seeded, protected from deletion
   created_at: string | null;
 }

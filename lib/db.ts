@@ -878,7 +878,7 @@ export async function setTransactionQuantity(
 // ---------- price sources (user-defined price feeds) ----------
 
 const PRICE_SOURCE_COLS =
-  "key, label, kind, method, url, body, batch, rows_path, key_field, price_field, price_path, price_regex, history_strategy, builtin, created_at";
+  "key, label, kind, method, url, body, batch, rows_path, key_field, price_field, price_path, price_regex, history_strategy, price_multiplier, builtin, created_at";
 
 export async function listPriceSources(): Promise<PriceSource[]> {
   return q(`SELECT ${PRICE_SOURCE_COLS} FROM price_sources ORDER BY builtin DESC, key`)
@@ -892,24 +892,24 @@ export async function getPriceSource(key: string): Promise<PriceSource | undefin
 /** Upsert a price source. `builtin` is never changed on an existing row.
  *
  *  Was `@named` binding; D1 is positional only, so the VALUES list and the DO UPDATE list
- *  both re-bind the same values in order. Fourteen `?`s in VALUES, then twelve more for the
+ *  both re-bind the same values in order. Fifteen `?`s in VALUES, then thirteen more for the
  *  update (key and builtin are deliberately not re-set). */
 export async function savePriceSource(s: Omit<PriceSource, "created_at">): Promise<void> {
   await q(
     `INSERT INTO price_sources
        (key, label, kind, method, url, body, batch, rows_path, key_field,
-        price_field, price_path, price_regex, history_strategy, builtin, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        price_field, price_path, price_regex, history_strategy, price_multiplier, builtin, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(key) DO UPDATE SET
        label=?, kind=?, method=?, url=?, body=?, batch=?,
        rows_path=?, key_field=?, price_field=?,
-       price_path=?, price_regex=?, history_strategy=?`,
+       price_path=?, price_regex=?, history_strategy=?, price_multiplier=?`,
   ).run(
     s.key, s.label, s.kind, s.method, s.url, s.body, s.batch, s.rows_path, s.key_field,
-    s.price_field, s.price_path, s.price_regex, s.history_strategy, s.builtin, nowIso(),
+    s.price_field, s.price_path, s.price_regex, s.history_strategy, s.price_multiplier, s.builtin, nowIso(),
     s.label, s.kind, s.method, s.url, s.body, s.batch,
     s.rows_path, s.key_field, s.price_field,
-    s.price_path, s.price_regex, s.history_strategy,
+    s.price_path, s.price_regex, s.history_strategy, s.price_multiplier,
   );
 }
 

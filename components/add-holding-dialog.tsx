@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ImageIcon, Pencil, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { ASSET_TYPES, MANUAL_SOURCE, type Instrument } from "@/lib/types";
+import { ASSET_TYPES, MANUAL_SOURCE, METAL_UNIT, METALS, type Instrument } from "@/lib/types";
 import { addHolding, updateHolding } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { instrumentLogo } from "@/lib/logos";
@@ -140,6 +140,8 @@ function HoldingForm({
 }) {
   const [pending, startTransition] = React.useTransition();
   const [source, setSource] = React.useState(holding?.price_source ?? MANUAL_SOURCE);
+  const [assetType, setAssetType] = React.useState(holding?.asset_type ?? "Funds");
+  const metal = assetType === METALS;
   const [logo, setLogo] = React.useState("");
   const formRef = React.useRef<HTMLFormElement>(null);
   const priced = source !== MANUAL_SOURCE;
@@ -161,6 +163,7 @@ function HoldingForm({
             if (!holding) {
               formRef.current?.reset();
               setSource(MANUAL_SOURCE);
+              setAssetType("Funds");
             }
             setLogo("");
             onDone?.();
@@ -182,7 +185,16 @@ function HoldingForm({
       <LogoField holding={holding} value={logo} onChange={setLogo} />
       <div className="grid gap-2">
         <Label htmlFor="h-type">Asset type</Label>
-        <Select name="asset_type" defaultValue={holding?.asset_type ?? "Funds"}>
+        <Select
+          name="asset_type"
+          value={assetType}
+          onValueChange={(v) => {
+            if (v == null) return;
+            setAssetType(v as string);
+            // Gold has one feed worth having; pick it rather than make you find it.
+            if (v === METALS && source === MANUAL_SOURCE && sources.includes("pnj_gold")) setSource("pnj_gold");
+          }}
+        >
           <SelectTrigger id="h-type" className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -208,11 +220,23 @@ function HoldingForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="h-symbol">Symbol{priced ? "" : " (optional)"}</Label>
-        <Input id="h-symbol" name="symbol" defaultValue={holding?.symbol ?? undefined} placeholder="CoinGecko id / ticker / fmarket" />
+        <Input
+          id="h-symbol"
+          name="symbol"
+          defaultValue={holding?.symbol ?? undefined}
+          placeholder={metal ? "SJC (bars) / N24K (9999 rings)" : "CoinGecko id / ticker / fmarket"}
+        />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="h-qty">Quantity (optional)</Label>
-        <Input id="h-qty" name="quantity" type="number" step="any" defaultValue={holding?.quantity ?? undefined} placeholder="units / shares / coins" />
+        <Label htmlFor="h-qty">{metal ? `Weight in ${METAL_UNIT} (optional)` : "Quantity (optional)"}</Label>
+        <Input
+          id="h-qty"
+          name="quantity"
+          type="number"
+          step="any"
+          defaultValue={holding?.quantity ?? undefined}
+          placeholder={metal ? `1 lượng = 10 ${METAL_UNIT}` : "units / shares / coins"}
+        />
       </div>
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="h-manual">{priced ? "Fallback value (VND)" : "Value (VND)"}</Label>

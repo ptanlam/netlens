@@ -228,6 +228,22 @@ the month's total and each segment takes its share of it, so the top edge is exa
 commitment line judges. Missed months keep their hues but drop back — you still put that money
 somewhere.
 
+## Precious metals
+
+Gold is a holding like any other (`METALS` = "Precious Metals" in `lib/types.ts`), with two rules:
+
+- **Counted in chỉ** (`METAL_UNIT`; 10 chỉ = 1 lượng = 37.5 g) and **valued at the dealer's
+  buy-back price** — what you'd get selling today, so a fresh purchase shows the spread as a loss.
+- **Its weight is always typed in.** A buy or sell of a metal requires the quantity (form and
+  `signedTx`), and a recurring rule can't buy one (`ruleError`): pricing units out of the amount
+  would divide the dealer's *sell* price by the *buy-back* price and invent metal.
+
+The price is the seeded `pnj_gold` source (migration `0018`): PNJ's public board, one batch
+request, `masp` as the symbol (`SJC` bars, `N24K` 9999 rings), `giamua` × `price_multiplier`
+1000 (the board quotes thousands of ₫ per chỉ). Not sjc.com.vn, which only answers Vietnamese
+IPs and so not the Worker. The board has no history, so its strategy is `daily`: the live price
+is kept as each day's close (`CONTINUOUS_STRATEGIES`), from the first refresh on.
+
 ## Holding logos
 
 A row's avatar shows, in order: a logo you **uploaded** in the holding form, a **bundled** mark

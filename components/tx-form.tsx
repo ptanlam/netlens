@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { txKind, type Tx } from "@/lib/types";
+import { METAL_UNIT, METALS, txKind, type Tx } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,8 @@ export function TxForm({
   const assetType =
     instruments.find((i) => i.name === instrument)?.asset_type ?? tx?.asset_type ?? "Funds";
   const noHoldings = instruments.length === 0;
+  // A metal's weight is never priced out of the amount (see `METALS`), so it's asked for.
+  const weighed = assetType === METALS && direction !== "bonus";
 
   return (
     <form
@@ -124,7 +126,9 @@ export function TxForm({
       )}
       {direction !== "dividend" && (
         <div className="grid gap-2">
-          <Label htmlFor="quantity">{direction === "bonus" ? "Units received" : "Quantity (optional)"}</Label>
+          <Label htmlFor="quantity">
+            {direction === "bonus" ? "Units received" : weighed ? `Weight (${METAL_UNIT})` : "Quantity (optional)"}
+          </Label>
           <Input
             id="quantity"
             name="quantity"
@@ -133,8 +137,11 @@ export function TxForm({
             // Signed for an adjustment, which can take units away; the other kinds carry
             // their sign in the Type.
             defaultValue={tx?.quantity != null ? (direction === "bonus" ? tx.quantity : Math.abs(tx.quantity)) : undefined}
-            placeholder={direction === "bonus" ? "e.g. 15 per 100 held → 150" : "units / shares / coins"}
-            required={direction === "bonus"}
+            placeholder={
+              direction === "bonus" ? "e.g. 15 per 100 held → 150"
+                : weighed ? `1 lượng = 10 ${METAL_UNIT}` : "units / shares / coins"
+            }
+            required={direction === "bonus" || weighed}
           />
         </div>
       )}

@@ -11,7 +11,7 @@ import { currentValue } from "@/lib/savings";
 import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
 import { distanceKm, estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
-  BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, PRICE_REFRESH_INTERVALS, RECURRING_FREQS, ROAD_ACCESS,
+  BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, METAL_UNIT, METALS, PRICE_REFRESH_INTERVALS, RECURRING_FREQS, ROAD_ACCESS,
   SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, TERM_UNITS, goalIdOfProperty, normalizePriceRefreshMs,
   type BillingCycle, type CompInput, type CompKind, type GoalMetric, type Instrument, type LandUse,
   type PriceRefreshSchedule, type RecurringFreq, type RoadAccess, type SubscriptionCategory, type TargetCurrency, type TermUnit,
@@ -55,17 +55,25 @@ function signedTx(fd: FormData): { amount: number; quantity: number | null } | n
   if (amountRaw == null || amountRaw <= 0) return null;
   const sell = fd.get("direction") === "sell";
   const qtyRaw = num(fd.get("quantity"));
+  // See `METALS`: pricing a metal's units out of the amount would invent the dealer's spread.
+  if (fd.get("asset_type") === METALS && !qtyRaw) return null;
   return {
     amount: sell ? -Math.abs(amountRaw) : Math.abs(amountRaw),
     quantity: qtyRaw == null ? null : sell ? -Math.abs(qtyRaw) : Math.abs(qtyRaw),
   };
 }
 
+function missingTxMessage(fd: FormData): string {
+  return fd.get("asset_type") === METALS
+    ? `A holding, a positive amount and the weight in ${METAL_UNIT} are required.`
+    : "A holding and a positive amount (or units) are required.";
+}
+
 export async function addTx(fd: FormData) {
   const instrument = str(fd.get("instrument"));
   const signed = signedTx(fd);
   if (!instrument || !signed)
-    return { ok: false, message: "A holding and a positive amount (or units) are required." };
+    return { ok: false, message: missingTxMessage(fd) };
   await db.addTransaction(
     str(fd.get("date")) || db.todayIso(),
     str(fd.get("asset_type")) || "Funds",
@@ -81,7 +89,7 @@ export async function updateTx(id: number, fd: FormData) {
   const instrument = str(fd.get("instrument"));
   const signed = signedTx(fd);
   if (!instrument || !signed)
-    return { ok: false, message: "A holding and a positive amount (or units) are required." };
+    return { ok: false, message: missingTxMessage(fd) };
   await db.updateTransaction(
     id,
     str(fd.get("date")) || db.todayIso(),
@@ -1098,6 +1106,8 @@ function priceSourceFields(fd: FormData, key: string, builtin: number): db.Price
     price_path: nullable("price_path"),
     price_regex: nullable("price_regex"),
     history_strategy: str(fd.get("history_strategy")) || "none",
+    // Blank, zero or junk is 1: a multiplier that zeroes every price is never what was meant.
+    price_multiplier: (num(fd.get("price_multiplier")) ?? 0) > 0 ? num(fd.get("price_multiplier"))! : 1,
     builtin,
     created_at: null,
   };
@@ -1154,11 +1164,22 @@ function recurringFreq(v: FormDataEntryValue | null): RecurringFreq {
   return RECURRING_FREQS.includes(v as RecurringFreq) ? (v as RecurringFreq) : "weekly";
 }
 
+/** A rule buys a fixed amount and leaves the units to be priced out of it, which a metal
+ *  can't be (see `METALS`). */
+function ruleError(fd: FormData): string | null {
+  const amount = num(fd.get("amount"));
+  if (!str(fd.get("instrument")) || amount == null || amount <= 0)
+    return "Instrument and a positive amount are required.";
+  if (fd.get("asset_type") === METALS)
+    return `A recurring rule can't buy ${METALS.toLowerCase()}: each purchase needs its weight in ${METAL_UNIT}.`;
+  return null;
+}
+
 export async function addRule(fd: FormData) {
   const instrument = str(fd.get("instrument"));
-  const amount = num(fd.get("amount"));
-  if (!instrument || amount == null || amount <= 0)
-    return { ok: false, message: "Instrument and a positive amount are required." };
+  const amount = num(fd.get("amount"))!;
+  const error = ruleError(fd);
+  if (error) return { ok: false, message: error };
   const freq = recurringFreq(fd.get("freq"));
   await db.addRecurring(instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);
@@ -1169,9 +1190,9 @@ export async function addRule(fd: FormData) {
 
 export async function updateRule(id: number, fd: FormData) {
   const instrument = str(fd.get("instrument"));
-  const amount = num(fd.get("amount"));
-  if (!instrument || amount == null || amount <= 0)
-    return { ok: false, message: "Instrument and a positive amount are required." };
+  const amount = num(fd.get("amount"))!;
+  const error = ruleError(fd);
+  if (error) return { ok: false, message: error };
   const freq = recurringFreq(fd.get("freq"));
   await db.updateRecurring(id, instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);

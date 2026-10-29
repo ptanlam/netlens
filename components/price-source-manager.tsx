@@ -163,8 +163,14 @@ function SourceForm({ source, action, submitLabel, onDone }: {
             <SelectItem value="yahoo">Yahoo</SelectItem>
             <SelectItem value="coingecko">CoinGecko</SelectItem>
             <SelectItem value="fmarket">fmarket</SelectItem>
+            <SelectItem value="daily">Live price, kept daily</SelectItem>
           </SelectContent>
         </Select>
+      </Field>
+
+      <Field label="Multiplier" htmlFor="ps-mult" hint="The price read × this, to make it whole VND per unit — 1000 for a feed quoting thousands.">
+        <Input id="ps-mult" name="price_multiplier" type="number" step="any" min="0"
+          defaultValue={source?.price_multiplier ?? 1} placeholder="1" />
       </Field>
 
       <div className="grid gap-2 rounded-lg border border-dashed p-3 sm:col-span-2">
@@ -291,6 +297,7 @@ export function PriceSourceManager({ sources }: { sources: PriceSource[] }) {
               <Tag>{s.method}</Tag>
               {s.batch ? <Tag>batch</Tag> : null}
               <Tag>history: {s.history_strategy}</Tag>
+              {s.price_multiplier && s.price_multiplier !== 1 ? <Tag>× {s.price_multiplier}</Tag> : null}
             </div>
             <div className="mt-3 rounded-sm border border-divider-soft bg-pane-sunk px-3 py-2.5 font-mono text-caption break-all text-muted-foreground">
               {s.url}

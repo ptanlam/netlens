@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Pause, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { RECURRING_FREQS, RECURRING_FREQ_LABELS, type RecurringRule } from "@/lib/types";
+import { METALS, RECURRING_FREQS, RECURRING_FREQ_LABELS, type RecurringRule } from "@/lib/types";
 import { addRule, deleteRule, toggleRule, updateRule } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,7 @@ function freqLabel(freq: string): string {
 
 export function RuleForm({
   action,
-  instruments,
+  instruments: all,
   rule,
   onDone,
 }: {
@@ -43,6 +43,8 @@ export function RuleForm({
   const [pending, startTransition] = React.useTransition();
   const formRef = React.useRef<HTMLFormElement>(null);
   const today = new Date().toLocaleDateString("sv-SE");
+  // A metal purchase needs its weight, which a rule can't know (see `METALS`).
+  const instruments = all.filter((i) => i.asset_type !== METALS);
 
   const [instrument, setInstrument] = React.useState(rule?.instrument ?? instruments[0]?.name ?? "");
   // Asset type follows the chosen holding — a rule can't drift from it.

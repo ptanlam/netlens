@@ -181,7 +181,7 @@
   --chart-2: #6cc23a;         /* Stocks */
   --chart-3: #868685;         /* Crypto */
   --chart-4: #1d9bd1;         /* Real Estate */
-  --chart-5: #e08a4c;
+  --chart-5: #e08a4c;         /* Precious Metals */
   --chart-positive: #1f8a3f;
   --chart-negative: #d03238;
   /* Bare RGB triples for computed alphas: rgb(var(--x) / <alpha>). */
@@ -287,7 +287,7 @@
   --chart-2: #9fe870;         /* Stocks */
   --chart-3: #8d918a;         /* Crypto */
   --chart-4: #38c8ff;         /* Real Estate */
-  --chart-5: #ffc091;
+  --chart-5: #ffc091;         /* Precious Metals */
   --chart-positive: #5fd17a;
   --chart-negative: #ff7075;
   --positive-rgb: 95 209 122;
