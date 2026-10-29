@@ -120,7 +120,7 @@ export function SymbolAutocomplete({
           id={id}
           autoComplete="off"
           placeholder={manual ? "Optional label" : "Search the feed, or type a symbol"}
-          className="h-10 w-full min-w-0 rounded-lg border border-field-border bg-card px-3.5 py-1 text-body outline-none placeholder:text-faint hover:border-foreground focus-visible:border-foreground focus-visible:ring-1 focus-visible:ring-foreground md:text-body-sm"
+          className="h-10 w-full min-w-0 rounded-lg border border-field-border bg-card px-3.5 py-1 text-field outline-none placeholder:text-faint hover:border-foreground focus-visible:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
         />
         <Autocomplete.Portal hidden={!showPopup}>
           <Autocomplete.Positioner className="isolate z-50 outline-hidden" sideOffset={4} align="start">

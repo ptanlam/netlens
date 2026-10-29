@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 type ActionResult = { ok: boolean; message: string };
 
 const FIELD =
-  "w-full rounded-lg border border-field-border bg-card px-3.5 py-2 text-body-sm outline-none placeholder:text-faint hover:border-foreground focus-visible:border-foreground focus-visible:ring-1 focus-visible:ring-foreground";
+  "w-full rounded-lg border border-field-border bg-card px-3.5 py-2 text-field outline-none placeholder:text-faint hover:border-foreground focus-visible:border-foreground focus-visible:ring-1 focus-visible:ring-foreground";
 
 /** One config field with a label and an optional hint below it. */
 function Field({ children, label, htmlFor, hint }: {

@@ -250,7 +250,7 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
       <div className="mt-4 flex flex-wrap items-start gap-x-7 gap-y-5">
         <div className="min-w-0 flex-[1_1_180px]">
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-[34px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
+            <span className="font-mono text-[28px] leading-none sm:text-[34px] font-semibold tracking-[-0.02em] tabular-nums">
               {current}
             </span>
             <span className="text-body-sm text-muted-foreground">

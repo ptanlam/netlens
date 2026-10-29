@@ -38,7 +38,7 @@ export function PageHeader({
           the title claims a full line as soon as the two blocks can't share one, which
           drops the actions onto their own row instead of squeezing them off the edge. */}
       <div className="min-w-0 flex-1 basis-[min(100%,32rem)]">
-        <h1 className="font-display text-[32px] leading-[0.9] font-black tracking-[-0.01em] sm:text-[40px]">
+        <h1 className="font-display text-[28px] leading-[0.9] font-black tracking-[-0.01em] sm:text-[40px]">
           {title}
         </h1>
         {children && (

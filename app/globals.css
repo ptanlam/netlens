@@ -4,24 +4,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
-  /* Wise sets figures in Inter with tabular numerals, not in a monospace face. `font-mono`
-     is kept as the name every figure already carries, but it now resolves to Inter, and the
-     rule below this block turns tabular numerals on for it, so columns still line up. */
-  --font-mono: var(--font-inter);
-  /* The display face (Figtree 900, standing in for Wise Sans) is for page titles, the
-     wordmark and the net-worth figure, and nothing else. Everything else is Inter. */
-  --font-display: var(--font-wise), var(--font-inter);
-  --font-heading: var(--font-inter);
-  --font-serif: var(--font-inter);
-  /* The Wise type scale (DESIGN.md), as utilities: `text-caption`, `text-body-sm`, `text-body`,
-     `text-body-lg`, `text-display-xs`, `text-display-sm`. Panel text sits on these steps and
-     nothing between them — the half-pixel sizes the old theme used (11.5, 12.5, 13.5) are
-     what made the panels read as a different, denser face next to the Wise headings.
-     Weight is 400 or 600 only; 900 belongs to the display face. */
+/* The Wise type scale (DESIGN.md), as utilities: `text-caption`, `text-body-sm`, `text-body`,
+   `text-body-lg`, `text-display-xs`, `text-display-sm`. Panel text sits on these steps and
+   nothing between them — the half-pixel sizes the old theme used (11.5, 12.5, 13.5) are
+   what made the panels read as a different, denser face next to the Wise headings.
+   Weight is 400 or 600 only; 900 belongs to the display face.
+
+   A plain `@theme`, not `inline`: the utilities then read these variables instead of
+   copying the numbers, which is what lets a phone swap in its own scale below (see
+   "Phone type scale") without a `sm:` variant at every one of the call sites. */
+@theme {
   --text-caption: 12px;
   --text-caption--line-height: 16px;
   --text-body-sm: 14px;
@@ -36,6 +28,25 @@
   --text-display-sm: 32px;
   --text-display-sm--line-height: 38px;
   --text-display-sm--letter-spacing: -0.03em;
+  /* What a form field types in. Its own step because on a phone it must not shrink with
+     the rest: iOS Safari zooms the page into any field set below 16px. */
+  --text-field: 14px;
+  --text-field--line-height: 20px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  /* Wise sets figures in Inter with tabular numerals, not in a monospace face. `font-mono`
+     is kept as the name every figure already carries, but it now resolves to Inter, and the
+     rule below this block turns tabular numerals on for it, so columns still line up. */
+  --font-mono: var(--font-inter);
+  /* The display face (Figtree 900, standing in for Wise Sans) is for page titles, the
+     wordmark and the net-worth figure, and nothing else. Everything else is Inter. */
+  --font-display: var(--font-wise), var(--font-inter);
+  --font-heading: var(--font-inter);
+  --font-serif: var(--font-inter);
   --color-primary-hover: var(--primary-hover);
   --color-field-border: var(--field-border);
   --color-hero: var(--hero);
@@ -925,5 +936,39 @@ html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-st
   }
   html[data-nav-collapsed] [data-rail-chevron] {
     transform: rotate(180deg);
+  }
+}
+
+/* ---- Phone type scale ----
+   The scale above is sized for a desktop column. On a phone it made every panel read as
+   a poster: a 24px figure in each stat tile, 16px body copy wrapping a holding's name
+   onto two lines. Below `sm` every step drops by one notch, keeping the same ratios, and
+   the base text with it. Unlayered, so it beats the theme layer that declares the tokens. */
+@media (width < 40rem) {
+  :root {
+    --text-caption: 11px;
+    --text-caption--line-height: 15px;
+    --text-body-sm: 13px;
+    --text-body-sm--line-height: 18px;
+    --text-body: 14px;
+    --text-body--line-height: 21px;
+    --text-body-lg: 17px;
+    --text-body-lg--line-height: 24px;
+    --text-display-xs: 20px;
+    --text-display-xs--line-height: 26px;
+    --text-display-sm: 26px;
+    --text-display-sm--line-height: 31px;
+  }
+  body {
+    font-size: 13px;
+  }
+}
+
+/* The one step that goes *up* on small screens: a field stays at 16px until `md`, the
+   size below which iOS zooms the page in on focus. */
+@media (width < 48rem) {
+  :root {
+    --text-field: 16px;
+    --text-field--line-height: 24px;
   }
 }

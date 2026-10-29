@@ -44,7 +44,7 @@ export function PriceScheduleSettings({ schedule }: { schedule: PriceRefreshSche
         rows={4}
         spellCheck={false}
         placeholder={DEFAULT_PRICE_SCHEDULE.cron}
-        className="mt-3 w-full max-w-[520px] rounded-lg border border-field-border bg-card px-3.5 py-2 font-mono text-body-sm outline-none placeholder:text-faint hover:border-foreground focus-visible:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
+        className="mt-3 w-full max-w-[520px] rounded-lg border border-field-border bg-card px-3.5 py-2 font-mono text-field outline-none placeholder:text-faint hover:border-foreground focus-visible:border-foreground focus-visible:ring-1 focus-visible:ring-foreground"
       />
       <div className="mt-1.5 max-w-[520px] text-caption text-muted-foreground">
         <span className="font-mono">minute hour day month weekday</span> — e.g.{" "}

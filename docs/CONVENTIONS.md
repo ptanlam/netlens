@@ -89,6 +89,14 @@
   | `text-body` | 16 / 24 | list-row names, default body |
   | `text-body-lg` | 20 / 28 | panel titles (`font-semibold`) |
   | `text-display-xs` | 24 / 31, −0.02em | stat figures, dialog titles |
+  | `text-field` | 14 / 20 (16 / 24 below `md`) | what a form field types in |
+
+  **Phones (below `sm`, 640px) get the whole scale one notch smaller** — caption 11, body-sm 13,
+  body 14, body-lg 17, display-xs 20, display-sm 26, base text 13 — by overriding the tokens in
+  `globals.css` ("Phone type scale"), so call sites need no `sm:` variant. The tokens live in a
+  plain `@theme` (not `inline`) for exactly this: the utilities read the variable. A field is the
+  exception and stays at **16px below `md`**, since iOS Safari zooms into any field under 16px;
+  inputs and textareas use `text-field`, never `text-body`.
 
   Weight is **400 or 600** (`font-semibold`), never `font-medium`; 900 is only for the display
   face. Page titles are `font-display font-black` (`<PageHeader>` owns it). Chart tick labels

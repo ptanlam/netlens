@@ -137,7 +137,8 @@ function HoldingRow({ holding, txCount, sourceKeys }: { holding: HoldingView; tx
             <div className="flex flex-wrap items-center gap-2">
               <EntityAvatar name={inst.name} color={typeColor(inst.asset_type)} logo={instrumentLogo(inst)} />
               <span className="truncate text-body-sm font-semibold">{inst.name}</span>
-              <Badge variant="tag">{inst.asset_type}</Badge>
+              {/* The group heading above already names the type; a phone has no room to repeat it. */}
+              <Badge variant="tag" className="max-sm:hidden">{inst.asset_type}</Badge>
               {estate && (
                 // Inside the row's own toggle, so it must not also open the row.
                 <Link
@@ -166,7 +167,7 @@ function HoldingRow({ holding, txCount, sourceKeys }: { holding: HoldingView; tx
             </div>
           </div>
         </div>
-        <div className="text-right">
+        <div className="shrink-0 text-right whitespace-nowrap">
           <div data-amount className="font-mono text-body-sm tabular-nums">{fmtVND(value)}</div>
           <div className={cn("mt-1 font-mono text-caption tabular-nums", pnl >= 0 ? "text-accent-brand" : "text-destructive")}>
             <Amt>{pnl >= 0 ? "+" : ""}{fmtVND(pnl)}</Amt>{pnlPct != null && ` (${pnl >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)`}
@@ -357,15 +358,17 @@ export function InvestmentManager({
         <div className="flex flex-col gap-4">
           {groups.map((group) => (
             <section key={group.type}>
-              <div className="flex items-center justify-between px-1 pb-2.5">
-                <div className="flex items-center gap-2.5">
-                  <span className="size-[9px] rounded-[2px]" style={{ background: typeColor(group.type) }} />
-                  <span className="text-body-sm font-semibold">{group.type}</span>
-                  <span className="text-caption text-faint">
+              {/* One line at any width: on a phone the count goes (the rows below say it) and
+                  the name truncates before the figures wrap. */}
+              <div className="flex items-center justify-between gap-3 px-1 pb-2.5">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="size-[9px] shrink-0 rounded-[2px]" style={{ background: typeColor(group.type) }} />
+                  <span className="truncate text-body-sm font-semibold">{group.type}</span>
+                  <span className="shrink-0 text-caption text-faint max-sm:hidden">
                     {group.holdings.length} holding{group.holdings.length === 1 ? "" : "s"}
                   </span>
                 </div>
-                <div className="flex items-baseline gap-3 font-mono tabular-nums">
+                <div className="flex shrink-0 items-baseline gap-3 font-mono whitespace-nowrap tabular-nums">
                   <span data-amount className="text-body-sm">{fmtVND(group.value)}</span>
                   <span data-amount className={cn("text-caption", group.pnl >= 0 ? "text-accent-brand" : "text-destructive")}>
                     {group.pnl >= 0 ? "+" : ""}{fmtVND(group.pnl)}
