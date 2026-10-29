@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { ImageIcon, Pencil, Plus, Upload } from "lucide-react";
+import { ImageIcon, Pencil, Plus, Scale, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { ASSET_TYPES, MANUAL_SOURCE, METAL_UNIT, METAL_UNIT_HINT, METALS, type Instrument } from "@/lib/types";
-import { addHolding, updateHolding } from "@/app/actions";
-import { fmtVND } from "@/lib/format";
+import { addHolding, adjustQuantity, updateHolding } from "@/app/actions";
+import { fmtUnits, fmtVND } from "@/lib/format";
 import { instrumentLogo } from "@/lib/logos";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
@@ -233,15 +233,17 @@ function HoldingForm({
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="h-qty">{metal ? `Weight in ${METAL_UNIT} (optional)` : "Quantity (optional)"}</Label>
-        <Input
-          id="h-qty"
-          name="quantity"
-          type="number"
-          step="any"
-          defaultValue={holding?.quantity ?? undefined}
-          placeholder={metal ? METAL_UNIT_HINT : "units / shares / coins"}
-        />
+        {/* Read-only: only a transaction moves it — a buy, a sell, or "Adjust quantity",
+            which logs the change with a date and a reason (see `adjustQuantity`). */}
+        <Label>{metal ? `Weight in ${METAL_UNIT}` : "Quantity"}</Label>
+        <div className="flex h-10 items-center rounded-lg border border-input bg-muted/40 px-3 font-mono text-body-sm text-muted-foreground tabular-nums">
+          {holding?.quantity != null ? fmtUnits(holding.quantity) : "—"}
+        </div>
+        <p className="text-caption text-muted-foreground">
+          {holding
+            ? "Set by its transactions. To change it, use Adjust quantity, which logs why."
+            : "Set by its transactions: add a buy once the holding exists."}
+        </p>
       </div>
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="h-manual">{priced ? "Fallback value (VND)" : "Value (VND)"}</Label>
@@ -287,11 +289,98 @@ export function AddHoldingDialog({ sources }: { sources: string[] }) {
         <DialogHeader>
           <DialogTitle>Add holding</DialogTitle>
           <DialogDescription>
-            Create a tracked instrument. Give it a live price source, symbol and quantity,
-            or leave it manual and enter a value.
+            Create a tracked instrument. Give it a live price source and symbol, or leave it
+            manual and enter a value. Its quantity comes from the transactions you add.
           </DialogDescription>
         </DialogHeader>
         <HoldingForm action={addHolding} submitLabel="Add holding" onDone={() => setOpen(false)} sources={sources} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Change a holding's quantity by hand — the only way to — as a logged units adjustment:
+ * the new quantity, the day it changed and why. See `adjustQuantity`.
+ */
+export function AdjustQuantityDialog({ holding }: { holding: Instrument }) {
+  const [open, setOpen] = React.useState(false);
+  const [pending, startTransition] = React.useTransition();
+  const current = holding.quantity ?? 0;
+  const [qty, setQty] = React.useState(String(current));
+  const today = new Date().toLocaleDateString("sv-SE");
+  const metal = holding.asset_type === METALS;
+  const target = qty.trim() === "" ? NaN : Number(qty);
+  const delta = Number.isFinite(target) ? Math.round((target - current) * 1e8) / 1e8 : 0;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setQty(String(current)); }}>
+      <IconTooltip label="Adjust quantity">
+        <DialogTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Adjust quantity" />}>
+          <Scale className="size-3.5" />
+        </DialogTrigger>
+      </IconTooltip>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Adjust quantity</DialogTitle>
+          <DialogDescription>
+            For units that moved without a buy or sell — a transfer fee, coins swept to a cold
+            wallet, a recount. It&apos;s logged as a units adjustment on {holding.name}, with no
+            money attached.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          action={(fd) =>
+            startTransition(async () => {
+              const res = await adjustQuantity(holding.name, fd);
+              if (res.ok) {
+                toast.success(res.message);
+                setOpen(false);
+              } else toast.error(res.message);
+            })
+          }
+          className="grid gap-4 sm:grid-cols-2"
+        >
+          <div className="grid gap-2">
+            <Label>Now</Label>
+            <div className="flex h-10 items-center rounded-lg border border-input bg-muted/40 px-3 font-mono text-body-sm text-muted-foreground tabular-nums">
+              {fmtUnits(current)}{metal ? ` ${METAL_UNIT}` : ""}
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="adj-qty">New quantity</Label>
+            <Input
+              id="adj-qty"
+              name="quantity"
+              type="number"
+              step="any"
+              min="0"
+              required
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              placeholder={metal ? METAL_UNIT_HINT : "units / shares / coins"}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="adj-date">Date</Label>
+            <Input id="adj-date" name="date" type="date" defaultValue={today} required />
+          </div>
+          <div className="grid gap-2">
+            <Label>Change</Label>
+            <div className="flex h-10 items-center px-1 font-mono text-body-sm tabular-nums">
+              {delta === 0 ? "—" : `${delta > 0 ? "+" : "−"}${fmtUnits(Math.abs(delta))}`}
+            </div>
+          </div>
+          <div className="grid gap-2 sm:col-span-2">
+            <Label htmlFor="adj-reason">Reason</Label>
+            <Input id="adj-reason" name="reason" required maxLength={120} placeholder="e.g. Moved to cold wallet, network fee" />
+          </div>
+          <div className="sm:col-span-2">
+            <Button type="submit" disabled={pending || delta === 0}>
+              {pending ? "Logging…" : "Log adjustment"}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -310,8 +399,8 @@ export function EditHoldingDialog({ holding, sources }: { holding: Instrument; s
         <DialogHeader>
           <DialogTitle>Edit holding</DialogTitle>
           <DialogDescription>
-            Update how {holding.name} is valued — price source, symbol, quantity, or the value used
-            when no live price is available.
+            Update how {holding.name} is valued — price source, symbol, or the value used when no
+            live price is available. Its quantity changes through transactions only.
           </DialogDescription>
         </DialogHeader>
         <HoldingForm

@@ -16,7 +16,7 @@ const TX_TYPES = {
   buy: "Buy / contribute",
   sell: "Sell / withdraw",
   dividend: "Cash dividend",
-  bonus: "Bonus units (stock dividend, split)",
+  bonus: "Units adjustment (split, bonus, transfer fee)",
 };
 
 export type ActionResult = { ok: boolean; message: string };
@@ -127,7 +127,7 @@ export function TxForm({
       {direction !== "dividend" && (
         <div className="grid gap-2">
           <Label htmlFor="quantity">
-            {direction === "bonus" ? "Units received" : weighed ? `Weight (${METAL_UNIT})` : "Quantity (optional)"}
+            {direction === "bonus" ? "Units (+ received, − removed)" : weighed ? `Weight (${METAL_UNIT})` : "Quantity (optional)"}
           </Label>
           <Input
             id="quantity"
@@ -138,7 +138,7 @@ export function TxForm({
             // their sign in the Type.
             defaultValue={tx?.quantity != null ? (direction === "bonus" ? tx.quantity : Math.abs(tx.quantity)) : undefined}
             placeholder={
-              direction === "bonus" ? "e.g. 15 per 100 held → 150"
+              direction === "bonus" ? "e.g. 150 bonus shares, or -0.0005 network fee"
                 : weighed ? METAL_UNIT_HINT : "units / shares / coins"
             }
             required={direction === "bonus" || weighed}
@@ -146,8 +146,15 @@ export function TxForm({
         </div>
       )}
       <div className="grid gap-2 sm:col-span-2">
-        <Label htmlFor="note">Note (optional)</Label>
-        <Input id="note" name="note" defaultValue={tx?.note ?? undefined} />
+        {/* An adjustment moves units with no money, so its note is the only record of why. */}
+        <Label htmlFor="note">{direction === "bonus" ? "Reason" : "Note (optional)"}</Label>
+        <Input
+          id="note"
+          name="note"
+          defaultValue={tx?.note ?? undefined}
+          required={direction === "bonus"}
+          placeholder={direction === "bonus" ? "e.g. 2-for-1 split, moved to cold wallet" : undefined}
+        />
       </div>
       {noHoldings && (
         <p className="text-body-sm text-muted-foreground sm:col-span-2">

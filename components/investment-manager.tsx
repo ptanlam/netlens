@@ -11,7 +11,7 @@ import { fmtUnits, fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconTooltip } from "@/components/ui/tooltip";
-import { AddHoldingDialog, EditHoldingDialog } from "@/components/add-holding-dialog";
+import { AddHoldingDialog, AdjustQuantityDialog, EditHoldingDialog } from "@/components/add-holding-dialog";
 import { AddTxDialog } from "@/components/add-tx-dialog";
 import { type InstrumentOption } from "@/components/tx-form";
 import { SummaryCards, type Stat } from "@/components/stat-card";
@@ -183,6 +183,7 @@ function HoldingRow({ holding, txCount, sourceKeys }: { holding: HoldingView; tx
             {inst.symbol && <span>Symbol: {inst.symbol}</span>}
             <span>Cost: <Amt>{fmtVND(cost)}</Amt></span>
             <div className="ml-auto flex items-center gap-1">
+              <AdjustQuantityDialog holding={inst} />
               <EditHoldingDialog holding={inst} sources={sourceKeys} />
               <ArchiveHoldingButton name={inst.name} archived={inst.archived === 1} />
               <DeleteHoldingButton name={inst.name} />

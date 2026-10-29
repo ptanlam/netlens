@@ -53,6 +53,12 @@ Apply the migration with `pnpm db:migrate` (local). Production is handled by `pn
 - **Animated primitives come from Animate UI.** Dialog, Select, Tooltip, Checkbox and Menu are imported from `@animate-ui/react/primitives/base-ui/<name>` (same API as Base UI, animated with Motion). Don't put `animate-in`/`data-starting-style` CSS animation classes on their popups, because Motion already animates them. For a slide-in panel, put `data-side` on the Dialog popup (see the mobile drawer in `nav.tsx`).
 - **React Compiler lint (`react-hooks/immutability`)** forbids reassigning a captured variable inside a `.map()` in `useMemo` (e.g. `sum += x`). Use prefix sums / `reduce` instead.
 - **Dividends and bonus units are transactions, told apart by shape** (`txKind` in `lib/types.ts`, no column). A cash dividend is `amount < 0` with `quantity` **0**; NULL would price it into units and read it as a sale. A stock dividend or split is `amount` 0 with positive `quantity`; any `amount` 0 row with units (old "Reconciliation" rows too) reads as a "Units adjustment". Branch on `txKind`, not on the sign of `amount`.
+- **A holding's quantity only moves through a transaction.** Never write `instruments.quantity`
+  from a form: the holding forms show it read-only and `addHolding`/`updateHolding` ignore one.
+  A hand change (coins to a cold wallet net of the fee, a recount) is **Adjust quantity** →
+  `adjustQuantity`: a units adjustment (`amount` 0, signed `quantity`) with a date and a
+  **required** reason, as is any units adjustment entered as a transaction. In place, the new
+  figure used to rewrite every past day and left no record of why.
 - **Missed dividends and splits are suggested, never recorded by themselves.** Yahoo's events per VN stock sit in `meta.corp_events` (refreshed daily by the cron, `refreshCorporateEvents`); `missedActions` in `lib/corporate-actions.ts` matches them against transactions (self-check: `node scripts/check-corporate-actions.mjs`). Yahoo's dividend amounts are adjusted for later splits, which `missedActions` undoes.
 - **Money is whole-VND integers** (signed: + in, − out). Format with `fmtVND` / `fmtMil` from `lib/format.ts`. Never hardcode currency.
 - **Verify every change**: `npx tsc --noEmit` + `pnpm lint`, then a headless-Chrome screenshot for UI. Both must be clean. Details in `docs/WORKFLOW.md`.

@@ -7,7 +7,7 @@ import {
 } from "@/lib/prices";
 import { cronLines, parseCron } from "@/lib/cron";
 import { symbolPage } from "@/lib/symbol-search";
-import { fmtVND } from "@/lib/format";
+import { fmtUnits, fmtVND } from "@/lib/format";
 import { currentValue } from "@/lib/savings";
 import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
 import { distanceKm, estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
@@ -70,11 +70,20 @@ function missingTxMessage(fd: FormData): string {
     : "A holding and a positive amount (or units) are required.";
 }
 
+/** A units adjustment moves units with no money, so the note is the only record of why. */
+function adjustmentError(fd: FormData): string | null {
+  return fd.get("direction") === "bonus" && !str(fd.get("note"))
+    ? "A units adjustment needs a reason in the note — a split, bonus shares, a transfer fee."
+    : null;
+}
+
 export async function addTx(fd: FormData) {
   const instrument = str(fd.get("instrument"));
   const signed = signedTx(fd);
   if (!instrument || !signed)
     return { ok: false, message: missingTxMessage(fd) };
+  const unexplained = adjustmentError(fd);
+  if (unexplained) return { ok: false, message: unexplained };
   await db.addTransaction(
     str(fd.get("date")) || db.todayIso(),
     str(fd.get("asset_type")) || "Funds",
@@ -91,6 +100,8 @@ export async function updateTx(id: number, fd: FormData) {
   const signed = signedTx(fd);
   if (!instrument || !signed)
     return { ok: false, message: missingTxMessage(fd) };
+  const unexplained = adjustmentError(fd);
+  if (unexplained) return { ok: false, message: unexplained };
   await db.updateTransaction(
     id,
     str(fd.get("date")) || db.todayIso(),
@@ -917,7 +928,9 @@ export async function addHolding(fd: FormData) {
     str(fd.get("asset_type")) || "Funds",
     str(fd.get("price_source")) || "manual",
     str(fd.get("symbol")) || null,
-    num(fd.get("quantity")),
+    // Never typed in: a holding's quantity is what its transactions add up to (see
+    // `adjustQuantity`), so it starts with none and its first buy sets it.
+    null,
     num(fd.get("manual_value")),
   );
   const logoError = await applyLogo(name, fd);
@@ -936,7 +949,7 @@ export async function updateHolding(name: string, fd: FormData) {
     assetType,
     str(fd.get("price_source")) || "manual",
     str(fd.get("symbol")) || null,
-    num(fd.get("quantity")),
+    before.quantity, // only a transaction moves it — see `adjustQuantity`
     manual,
   );
   await recordManualEdit(before, assetType, manual);
@@ -944,6 +957,30 @@ export async function updateHolding(name: string, fd: FormData) {
   revalidateAll();
   if (logoError) return { ok: true, message: `Holding updated, but not its logo. ${logoError}` };
   return { ok: true, message: "Holding updated." };
+}
+
+/**
+ * The one way to change a holding's quantity by hand: a units adjustment — a transaction
+ * with no money and the difference in units — dated and explained. Coins moved to a cold
+ * wallet net of the network fee, dust swept by an exchange, a recount.
+ *
+ * Typing over the quantity used to replace it in place, with no date and no reason. The new
+ * figure then applied to every past day too, so a fee vanished from the P&L instead of
+ * landing on the day it was paid, and nothing said what had happened. The holding forms no
+ * longer send a quantity, and the server ignores one if they do.
+ */
+export async function adjustQuantity(name: string, fd: FormData) {
+  const inst = await db.getInstrument(name);
+  if (!inst) return { ok: false, message: "Holding not found." };
+  const target = num(fd.get("quantity"));
+  const reason = str(fd.get("reason"));
+  if (target == null || target < 0) return { ok: false, message: "Enter the quantity it holds now." };
+  if (!reason) return { ok: false, message: "Say why the quantity changed — it's the only record of it." };
+  const delta = Math.round((target - (inst.quantity ?? 0)) * 1e8) / 1e8;
+  if (!delta) return { ok: false, message: "That's the quantity it already has." };
+  await db.addTransaction(str(fd.get("date")) || db.todayIso(), inst.asset_type, name, 0, delta, reason);
+  revalidateAll();
+  return { ok: true, message: `Logged a units adjustment of ${delta > 0 ? "+" : "−"}${fmtUnits(Math.abs(delta))}.` };
 }
 
 export async function setHoldingArchived(name: string, archived: boolean) {
@@ -976,7 +1013,7 @@ export async function saveHoldings(fd: FormData) {
       assetType,
       str(fd.get(`source_${i}`)) || "manual",
       str(fd.get(`symbol_${i}`)) || null,
-      num(fd.get(`qty_${i}`)),
+      before.get(name)?.quantity ?? null, // only a transaction moves it — see `adjustQuantity`
       manual,
     );
     await recordManualEdit(before.get(name), assetType, manual);
