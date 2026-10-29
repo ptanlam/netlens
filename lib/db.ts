@@ -18,7 +18,7 @@
  * The schema lives in `migrations/`, not in a string here — see `migrations/0001_init.sql`.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, SavingMovement, Subscription, Tx, ValuationSource } from "./types";
+import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, SavingMovement, Subscription, SymbolHit, Tx, ValuationSource } from "./types";
 import { DEFAULT_PRICE_SCHEDULE, goalIdOfProperty, goalPropertyKey, normalizePriceRefreshMs } from "./types";
 import { fundCashAt, type ApartmentEstimate, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
@@ -919,7 +919,84 @@ export async function priceSourceInUse(key: string): Promise<boolean> {
 }
 
 export async function deletePriceSource(key: string): Promise<void> {
-  await q("DELETE FROM price_sources WHERE key=?").run(key);
+  await db().batch([
+    q("DELETE FROM price_sources WHERE key=?").bound(key),
+    q("DELETE FROM symbol_catalog WHERE source=?").bound(key),
+  ]);
+}
+
+// ---------- symbol catalog (what the holding form's Symbol field searches) ----------
+
+/** D1 binds at most 100 parameters to a statement, and runs a bounded number per batch. */
+const CATALOG_ROWS_PER_INSERT = 20; // × 5 columns
+const CATALOG_KEYS_PER_DELETE = 90;
+const STATEMENTS_PER_BATCH = 50;
+
+export async function catalogSize(source: string): Promise<number> {
+  return (await q("SELECT COUNT(*) n FROM symbol_catalog WHERE source=?").get<{ n: number }>(source))?.n ?? 0;
+}
+
+/**
+ * Make `source`'s catalog exactly `rows`, in the feed's order, writing only what changed:
+ * most rows are the same from one day to the next, and rewriting all of them daily would
+ * spend D1 writes to change nothing.
+ */
+export async function replaceSymbolCatalog(source: string, rows: SymbolHit[]): Promise<void> {
+  type Row = SymbolHit & { position: number };
+  const have = await q("SELECT symbol, label, detail, position FROM symbol_catalog WHERE source=?").all<Row>(source);
+  const old = new Map(have.map((r) => [r.symbol, r]));
+  const keep = new Set(rows.map((r) => r.symbol));
+  const changed: Row[] = rows
+    .map((r, position) => ({ ...r, position }))
+    .filter((r) => {
+      const o = old.get(r.symbol);
+      return !o || o.label !== r.label || o.detail !== r.detail || o.position !== r.position;
+    });
+  const gone = have.filter((r) => !keep.has(r.symbol)).map((r) => r.symbol);
+
+  const stmts: D1PreparedStatement[] = [];
+  for (let i = 0; i < changed.length; i += CATALOG_ROWS_PER_INSERT) {
+    const chunk = changed.slice(i, i + CATALOG_ROWS_PER_INSERT);
+    stmts.push(
+      q(`INSERT INTO symbol_catalog(source, symbol, label, detail, position) VALUES ${chunk.map(() => "(?,?,?,?,?)").join(",")}
+         ON CONFLICT(source, symbol) DO UPDATE SET label=excluded.label, detail=excluded.detail, position=excluded.position`)
+        .bound(...chunk.flatMap((r) => [source, r.symbol, r.label, r.detail, r.position])),
+    );
+  }
+  for (let i = 0; i < gone.length; i += CATALOG_KEYS_PER_DELETE) {
+    const chunk = gone.slice(i, i + CATALOG_KEYS_PER_DELETE);
+    stmts.push(
+      q(`DELETE FROM symbol_catalog WHERE source=? AND symbol IN (${chunk.map(() => "?").join(",")})`)
+        .bound(source, ...chunk),
+    );
+  }
+  for (let i = 0; i < stmts.length; i += STATEMENTS_PER_BATCH)
+    await db().batch(stmts.slice(i, i + STATEMENTS_PER_BATCH));
+}
+
+/**
+ * One page of `source`'s catalog matching `query` anywhere in the symbol, name or second
+ * line, best first: the exact symbol, then symbols and names starting with it, then the
+ * rest. Within a band, named rows lead (PNJ's SJC bar before its bare product codes), then
+ * the feed's own order — market cap, for CoinGecko — so "bitcoin" outranks "bitcoin-cash".
+ */
+export async function searchSymbolCatalog(
+  source: string, query: string, limit: number, offset: number,
+): Promise<SymbolHit[]> {
+  const exact = query.toLowerCase();
+  const esc = exact.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const prefix = `${esc}%`;
+  const anywhere = `%${esc}%`;
+  return q(
+    `SELECT symbol, label, detail FROM symbol_catalog
+      WHERE source=? AND (symbol LIKE ? ESCAPE '\\' OR label LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\')
+      ORDER BY CASE
+                 WHEN lower(symbol) = ? THEN 0
+                 WHEN lower(symbol) LIKE ? ESCAPE '\\' OR lower(label) LIKE ? ESCAPE '\\' THEN 1
+                 ELSE 2
+               END, label IS NULL, position, symbol
+      LIMIT ? OFFSET ?`,
+  ).all<SymbolHit>(source, anywhere, anywhere, anywhere, exact, prefix, prefix, limit, offset);
 }
 
 // ---------- price history + meta ----------

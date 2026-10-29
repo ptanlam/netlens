@@ -172,6 +172,19 @@ function extractSingle(src: PriceSource, data: unknown): number | null {
   return scaled(src, toNumber(getPath(data, src.price_path)));
 }
 
+/** A source that answers with its whole list unasked — one batch request whose URL and body
+ *  name no `{symbols}` (PNJ's gold board, fmarket's funds). CoinGecko's batch names the ids
+ *  it wants, so it only ever answers for what it was asked and can't be listed this way. */
+export function listsItsSymbols(src: PriceSource): boolean {
+  return src.batch === 1 && !`${src.url} ${src.body ?? ""}`.includes("{symbols}");
+}
+
+/** Every symbol such a source quotes, with its price — what the holding form searches. */
+export async function listSourceSymbols(src: PriceSource): Promise<{ symbol: string; price: number }[]> {
+  const prices = extractBatch(src, await callSource(src, { symbols: "" }));
+  return Object.entries(prices).map(([symbol, price]) => ({ symbol, price }));
+}
+
 // ---------- exchange rates ----------
 
 /**

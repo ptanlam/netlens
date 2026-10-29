@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { SymbolAutocomplete } from "@/components/symbol-autocomplete";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -141,6 +142,8 @@ function HoldingForm({
   const [pending, startTransition] = React.useTransition();
   const [source, setSource] = React.useState(holding?.price_source ?? MANUAL_SOURCE);
   const [assetType, setAssetType] = React.useState(holding?.asset_type ?? "Funds");
+  // Bumped on a successful add, to start the symbol search over with the emptied form.
+  const [resets, setResets] = React.useState(0);
   const metal = assetType === METALS;
   const [logo, setLogo] = React.useState("");
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -164,6 +167,7 @@ function HoldingForm({
               formRef.current?.reset();
               setSource(MANUAL_SOURCE);
               setAssetType("Funds");
+              setResets((n) => n + 1);
             }
             setLogo("");
             onDone?.();
@@ -220,11 +224,12 @@ function HoldingForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="h-symbol">Symbol{priced ? "" : " (optional)"}</Label>
-        <Input
+        <SymbolAutocomplete
+          key={resets}
           id="h-symbol"
           name="symbol"
+          source={source}
           defaultValue={holding?.symbol ?? undefined}
-          placeholder={metal ? "SJC (bars) / N24K (9999 rings)" : "CoinGecko id / ticker / fmarket"}
         />
       </div>
       <div className="grid gap-2">

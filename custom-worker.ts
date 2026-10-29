@@ -28,6 +28,7 @@
 import { default as handler } from "./.open-next/worker.js";
 import { bindD1, recordJob } from "./lib/db";
 import { refreshCorporateEvents, refreshHistory, refreshScheduled, sweepRecentHistory } from "./lib/prices";
+import { syncSymbolCatalogs } from "./lib/symbol-search";
 import { backupTo } from "./lib/backup";
 
 /** The backup's own trigger in wrangler.jsonc: 20:00 UTC, 03:00 in Vietnam. */
@@ -93,6 +94,7 @@ export default {
           await refreshHistory();
           errors.push(...(await sweepRecentHistory())[1]);
           errors.push(...(await refreshCorporateEvents())); // daily, self-throttled
+          errors.push(...(await syncSymbolCatalogs())); // daily, self-throttled
           if (errors.length)
             console.error(
               `[price-cron] updated ${live?.[0] ?? 0}, ${errors.length} failed:\n  - ${errors.join("\n  - ")}`,

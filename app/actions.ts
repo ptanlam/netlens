@@ -6,6 +6,7 @@ import {
   refreshAll, refreshHistory, refreshRecentHistory, testPriceSource as runPriceSourceTest,
 } from "@/lib/prices";
 import { cronLines, parseCron } from "@/lib/cron";
+import { symbolPage } from "@/lib/symbol-search";
 import { fmtVND } from "@/lib/format";
 import { currentValue } from "@/lib/savings";
 import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
@@ -14,7 +15,7 @@ import {
   BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, METAL_UNIT, METALS, PRICE_REFRESH_INTERVALS, RECURRING_FREQS, ROAD_ACCESS,
   SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, TERM_UNITS, goalIdOfProperty, normalizePriceRefreshMs,
   type BillingCycle, type CompInput, type CompKind, type GoalMetric, type Instrument, type LandUse,
-  type PriceRefreshSchedule, type RecurringFreq, type RoadAccess, type SubscriptionCategory, type TargetCurrency, type TermUnit,
+  type PriceRefreshSchedule, type RecurringFreq, type RoadAccess, type SymbolPage, type SubscriptionCategory, type TargetCurrency, type TermUnit,
 } from "@/lib/types";
 
 function num(v: FormDataEntryValue | null): number | null {
@@ -1149,6 +1150,14 @@ export async function deletePriceSource(key: string) {
   await db.deletePriceSource(key);
   revalidateAll();
   return { ok: true, message: "Price source deleted." };
+}
+
+/** The holding form's symbol search, against the feed the holding would be priced from.
+ *  Writes nothing. */
+export async function searchSymbols(sourceKey: string, query: string, page = 0): Promise<SymbolPage> {
+  const src = sourceKey === db.MANUAL_SOURCE ? undefined : await db.getPriceSource(sourceKey);
+  if (!src) return { items: [], hasMore: false, searchable: false };
+  return symbolPage(src, query.trim().slice(0, 64), Math.max(0, Math.min(50, Math.floor(page) || 0)));
 }
 
 /** Dry-run the (possibly unsaved) config in the form against a sample symbol. */

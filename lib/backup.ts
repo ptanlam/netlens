@@ -31,6 +31,10 @@ function literal(v: unknown): string {
 
 const ident = (name: string) => `"${name.replaceAll('"', '""')}"`;
 
+/** Tables whose rows are a cache some job refills: their schema is backed up, their rows
+ *  aren't. `symbol_catalog` is a thousand-odd rows the daily sync rewrites anyway. */
+const CACHE_TABLES = new Set(["symbol_catalog"]);
+
 export async function dumpSql(d1: Queryable): Promise<string> {
   // `_cf_%` is D1's own bookkeeping, `sqlite_%` SQLite's (AUTOINCREMENT counters rebuild
   // themselves from the inserted ids).
@@ -42,7 +46,7 @@ export async function dumpSql(d1: Queryable): Promise<string> {
   const out = ["PRAGMA defer_foreign_keys = TRUE;"];
   for (const o of objects) {
     out.push(`${o.sql};`);
-    if (o.type !== "table") continue;
+    if (o.type !== "table" || CACHE_TABLES.has(o.name)) continue;
     const { results: rows } = await d1.prepare(`SELECT * FROM ${ident(o.name)}`).all<Row>();
     for (const r of rows) {
       const cols = Object.keys(r);

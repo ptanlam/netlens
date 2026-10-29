@@ -245,6 +245,24 @@ request, `masp` as the symbol (`SJC` bars, `N24K` 9999 rings), `giamua` × `pric
 IPs and so not the Worker. The board has no history, so its strategy is `daily`: the live price
 is kept as each day's close (`CONTINUOUS_STRATEGIES`), from the first refresh on.
 
+## Holding symbols are searched, not remembered
+
+The holding form's Symbol field is an autocomplete (`components/symbol-autocomplete.tsx`):
+free text, with suggestions for the price source picked beside it. Typing waits 300 ms for a
+pause, then calls `searchSymbols`; scrolling to the end of the list loads the next page of 8.
+Whatever is in the box is what's saved, so a symbol the search can't find can still be typed.
+
+- **The search reads D1, not the feed** (`symbol_catalog`, migration `0019`). The cron refills
+  it once a day (`syncSymbolCatalogs`, self-throttled, like the corporate events), writing only
+  rows that changed; a source with an empty catalog is filled on its first search instead.
+  It is a cache, so backups keep its schema but skip its rows (`CACHE_TABLES`).
+- **What has a catalog:** any batch source that returns its whole list unasked
+  (`listsItsSymbols` — PNJ gold, fmarket), and CoinGecko's top 1,000 coins by market cap.
+- **Yahoo searches live** (its ticker search API), because Yahoo has no "every ticker" list to
+  sync. Any other source can't be searched, and the field is plain text with a hint.
+- Sources are told apart by their URL, not their key, so a copied source behaves the same.
+  English names for bare codes live in `SYMBOL_NAMES`, per-source hints in `SYMBOL_HELP`.
+
 ## Holding logos
 
 A row's avatar shows, in order: a logo you **uploaded** in the holding form, a **bundled** mark

@@ -12,6 +12,39 @@ export const METALS: AssetType = "Precious Metals";
 export const METAL_UNIT = "mace";
 /** The conversion shown beside a weight field — in English, like the rest of the UI. */
 export const METAL_UNIT_HINT = "1 tael = 10 mace (37.5 g)";
+
+/** One suggestion in the holding form's symbol search. `symbol` is what's saved; `label`
+ *  and `detail` only help you pick it. */
+export interface SymbolHit {
+  symbol: string;
+  label: string | null;
+  detail: string | null;
+}
+
+export interface SymbolPage {
+  items: SymbolHit[];
+  hasMore: boolean;
+  /** False when the source has no way to look symbols up: the field is then plain text. */
+  searchable: boolean;
+  error?: string;
+}
+
+/** English names for codes a feed gives only as codes — PNJ's `masp`. A code missing here
+ *  still turns up in the search, under its code. */
+export const SYMBOL_NAMES: Record<string, Record<string, string>> = {
+  pnj_gold: { SJC: "SJC gold bar", N24K: "PNJ 9999 plain ring" },
+};
+
+/** What the symbol is for each built-in source, shown under the field. */
+export const SYMBOL_HELP: Record<string, string> = {
+  manual: "Optional. Nothing is fetched for a manual holding, so this is only a label.",
+  yahoo: "Search by company or ticker. Vietnamese stocks end in .VN, e.g. FPT.VN.",
+  coingecko: "Search the top 1,000 coins by name or ticker. Its CoinGecko id is what's saved, e.g. bitcoin.",
+  fmarket: "Search fmarket's fund list by its short name, e.g. VESAF.",
+  pnj_gold: "Pick the product you hold from PNJ's price board.",
+};
+export const SYMBOL_HELP_DEFAULT =
+  "The id this source's feed uses for the holding. Settings → Price sources → Test tries one.";
 /** The always-present, no-fetch source. Every other source is user-defined in the DB. */
 export const MANUAL_SOURCE = "manual";
 
