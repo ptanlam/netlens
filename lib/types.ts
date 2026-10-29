@@ -3,13 +3,15 @@
 export const ASSET_TYPES = ["Funds", "Stocks", "Crypto", "Real Estate", "Precious Metals"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
 
-/** Gold and the like. A metal holding is counted in **chỉ**, the unit a Vietnamese dealer
- *  quotes (10 chỉ make a lượng, 37.5 g), and priced at what a dealer pays you for it — the
+/** Gold and the like. A metal holding is counted in **mace** — the English name for a chỉ,
+ *  the unit a Vietnamese dealer quotes (10 mace make a tael, or lượng, of 37.5 g) — and priced at what a dealer pays you for it — the
  *  seeded `pnj_gold` source reads PNJ's buy-back board. Its units are always typed in, never
  *  priced out of the amount: that would divide what you paid (the dealer's sell price) by
  *  the buy-back price and invent the spread as extra metal. */
 export const METALS: AssetType = "Precious Metals";
-export const METAL_UNIT = "chỉ";
+export const METAL_UNIT = "mace";
+/** The conversion shown beside a weight field — in English, like the rest of the UI. */
+export const METAL_UNIT_HINT = "1 tael = 10 mace (37.5 g)";
 /** The always-present, no-fetch source. Every other source is user-defined in the DB. */
 export const MANUAL_SOURCE = "manual";
 

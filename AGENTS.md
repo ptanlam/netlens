@@ -232,7 +232,8 @@ somewhere.
 
 Gold is a holding like any other (`METALS` = "Precious Metals" in `lib/types.ts`), with two rules:
 
-- **Counted in chỉ** (`METAL_UNIT`; 10 chỉ = 1 lượng = 37.5 g) and **valued at the dealer's
+- **Counted in mace** (`METAL_UNIT`, the English name for a chỉ; 10 mace = 1 tael/lượng = 37.5 g;
+  the forms say it in English) and **valued at the dealer's
   buy-back price** — what you'd get selling today, so a fresh purchase shows the spread as a loss.
 - **Its weight is always typed in.** A buy or sell of a metal requires the quantity (form and
   `signedTx`), and a recurring rule can't buy one (`ruleError`): pricing units out of the amount

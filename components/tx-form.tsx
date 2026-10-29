@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { METAL_UNIT, METALS, txKind, type Tx } from "@/lib/types";
+import { METAL_UNIT, METAL_UNIT_HINT, METALS, txKind, type Tx } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
@@ -139,7 +139,7 @@ export function TxForm({
             defaultValue={tx?.quantity != null ? (direction === "bonus" ? tx.quantity : Math.abs(tx.quantity)) : undefined}
             placeholder={
               direction === "bonus" ? "e.g. 15 per 100 held → 150"
-                : weighed ? `1 lượng = 10 ${METAL_UNIT}` : "units / shares / coins"
+                : weighed ? METAL_UNIT_HINT : "units / shares / coins"
             }
             required={direction === "bonus" || weighed}
           />

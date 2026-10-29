@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ImageIcon, Pencil, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { ASSET_TYPES, MANUAL_SOURCE, METAL_UNIT, METALS, type Instrument } from "@/lib/types";
+import { ASSET_TYPES, MANUAL_SOURCE, METAL_UNIT, METAL_UNIT_HINT, METALS, type Instrument } from "@/lib/types";
 import { addHolding, updateHolding } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { instrumentLogo } from "@/lib/logos";
@@ -235,7 +235,7 @@ function HoldingForm({
           type="number"
           step="any"
           defaultValue={holding?.quantity ?? undefined}
-          placeholder={metal ? `1 lượng = 10 ${METAL_UNIT}` : "units / shares / coins"}
+          placeholder={metal ? METAL_UNIT_HINT : "units / shares / coins"}
         />
       </div>
       <div className="grid gap-2 sm:col-span-2">
