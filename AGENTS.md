@@ -205,8 +205,10 @@ Both of those are deliberate narrowings, and both cost something:
 
 - **Sells used to net off.** That stopped a sale being counted twice when its proceeds landed on
   something else the app tracks, but it also read a sale you simply held in cash as dissaving —
-  which the app cannot tell apart, having no cash account. Selling investments to repay a debt now
-  counts on both sides.
+  which the app cannot tell apart, having no cash account. Now a sale's proceeds (`tradesByMonth`
+  `sold`) go into `StreakWorld.released` with withdrawn deposits: they cancel what was bought or
+  deposited **the same month**, never below zero, and kept as cash they subtract nothing.
+  Selling investments to repay a debt still counts on both sides.
 - **Fund cash and debt repayments used to be levers too.** They are out: a repayment is mostly a
   promise being kept rather than a decision to save, and fund cash is money moved between your own
   pockets. What is left is the two acts that put money to work — which is also what the recurring

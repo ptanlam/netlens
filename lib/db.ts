@@ -1675,7 +1675,7 @@ export async function plannedMonthly(): Promise<number> {
 
 /** ₫/month **bought** into investments over the trailing window — what a goal compares
  *  against your recurring rules (see `resolvePace`). Purchases only, the same reading as
- *  the Transactions page's "Monthly average" and `investedByMonth`: netting a sell in would
+ *  the Transactions page's "Monthly average" and `tradesByMonth`: netting a sell in would
  *  read a month you took profit in as a quiet one. */
 export async function actualMonthly(months = 6): Promise<number> {
   const since = addMonthsIso(todayIso(), -months);
@@ -1686,8 +1686,10 @@ export async function actualMonthly(months = 6): Promise<number> {
 }
 
 /**
- * ₫ **bought** into investments per calendar month, keyed `YYYY-MM`. Purchases only —
- * sells are not subtracted.
+ * ₫ **bought** into investments per calendar month, keyed `YYYY-MM`, and beside it what
+ * sales brought back out. Purchases are never netted against sales here; the streak decides
+ * what a sale cancels (`StreakWorld.released`: only what went back to work the same month).
+ * A cash dividend (`quantity` 0, see `txKind`) is not a sale and isn't in `sold`.
  *
  * Aggregated in SQL rather than by pulling the ledger: it's one row per month however many
  * years of transactions there are, which is what lets the streak walk the whole history on
@@ -1699,13 +1701,20 @@ export async function actualMonthly(months = 6): Promise<number> {
  * in. Buys-only is the reading the app can always justify from its own rows; the cost is
  * that money moved from investments to a tracked debt now counts on both sides.
  */
-export async function investedByMonth(): Promise<Record<string, number>> {
+export async function tradesByMonth(): Promise<{ bought: Record<string, number>; sold: Record<string, number> }> {
   const rows = await q(
-    "SELECT substr(date,1,7) m, SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) s FROM transactions GROUP BY 1",
-  ).all<{ m: string; s: number }>();
-  const out: Record<string, number> = {};
-  for (const r of rows) out[r.m] = r.s;
-  return out;
+    `SELECT substr(date,1,7) m,
+            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) b,
+            SUM(CASE WHEN amount < 0 AND (quantity IS NULL OR quantity <> 0) THEN -amount ELSE 0 END) s
+       FROM transactions GROUP BY 1`,
+  ).all<{ m: string; b: number; s: number }>();
+  const bought: Record<string, number> = {};
+  const sold: Record<string, number> = {};
+  for (const r of rows) {
+    bought[r.m] = r.b;
+    if (r.s) sold[r.m] = r.s;
+  }
+  return { bought, sold };
 }
 
 function addMonthsIso(iso: string, months: number): string {

@@ -45,4 +45,12 @@ const u = streak(world({
   released: [{ date: "2026-10-02", amount: 9_000_000 }],
 }));
 assert.deepEqual(month(u, "2026-10").levers, { invest: 0, deposit: 5_000_000 });
+// A sale's proceeds and a deposit's payout pool in the month: selling shares to buy others
+// counts only what was added on top of the proceeds.
+const v = streak(world({
+  investedByMonth: { "2026-09": 80_000_000 },
+  released: [{ date: "2026-09-01", amount: 50_000_000 }, { date: "2026-09-18", amount: 20_000_000 }],
+}));
+assert.equal(month(v, "2026-09").total, 10_000_000);
+assert.equal(month(v, "2026-09").reused, 70_000_000);
 console.log("streak ok");

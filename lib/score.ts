@@ -35,8 +35,9 @@ export type MonthKey = string;
 /**
  * The two ways a month counts: money you put into investments, and principal you put into a
  * new term deposit. Neither can be negative — money out is not subtracted, it is simply not
- * counted in. The one exception is money coming back out of a deposit and going straight
- * back in that month (`StreakWorld.released`), which counted once already.
+ * counted in. The one exception is money coming back out — a deposit's payout, a sale's
+ * proceeds — and going straight back in that month (`StreakWorld.released`): it counted once
+ * already, when it first went in.
  *
  * Fund cash and debt repayments used to be levers here too. They are deliberately out: a
  * repayment is mostly a promise being kept rather than a decision to save, and fund cash is
@@ -70,23 +71,24 @@ export interface StreakWorld {
   /** ISO date the streak is anchored to — which month counts as "in progress". */
   today: string;
   /**
-   * ₫ **bought** into investments per month — purchases only, sells not subtracted, so this
-   * is never negative (`db.investedByMonth`).
+   * ₫ **bought** into investments per month — purchases only, so this is never negative
+   * (`db.tradesByMonth`). A sale's proceeds come in through `released` instead.
    *
-   * Netting sells off was the earlier reading. It kept a sale from being counted twice when
-   * the proceeds landed on something else the app tracks — a debt repayment, a new deposit —
-   * but it also booked a sale you simply held in cash as dissaving, which the app cannot see
-   * either way for want of a cash account. The trade is stated where the query lives.
+   * Netting every sale off was the earlier reading. It kept a sale from being counted twice
+   * when the proceeds went back in, but it also booked a sale you simply held in cash as
+   * dissaving, which the app cannot see either way for want of a cash account. `released`
+   * keeps the first half and drops the second.
    */
   investedByMonth: Record<MonthKey, number>;
   /** New deposits, by the month they started — the principal is the money you committed. */
   savings: Pick<Saving, "start_date" | "principal">[];
   /**
-   * Money taken back out of a deposit — an archived deposit's payout, or a withdrawal from
-   * one — dated the day it left. It counted when it went in, so whatever you put to work
-   * the same month (shares bought with it, a new deposit) is that money moving again, not
-   * new money, and doesn't count a second time. What isn't put to work that month is taken
-   * as spent and offsets nothing: a withdrawal on its own is not subtracted.
+   * Money that came back out: an archived deposit's payout, a withdrawal from one, a sale's
+   * proceeds — dated the day (for a sale, the month) it left. It counted when it went in, so
+   * whatever you put to work the same month (shares bought with it, a new deposit) is that
+   * money moving again, not new money, and doesn't count a second time. What isn't put to
+   * work that month is taken as spent or kept as cash and offsets nothing: a withdrawal or a
+   * sale on its own is not subtracted.
    *
    * Same month only, because the app can't tell which buy a payout paid for. Reaching
    * further would let a deposit you withdrew for a car quietly cancel next month's salary
@@ -103,7 +105,7 @@ export interface StreakMonth {
   /** What the two levers came to. Neither can be negative, so nor can this. */
   total: number;
   levers: Record<Lever, number>;
-  /** What was put in this month from money released from a deposit (see
+  /** What was put in this month from money that came back out of a deposit or a sale (see
    *  `StreakWorld.released`) — already taken off `levers` and `total`. */
   reused: number;
   status: MonthStatus;

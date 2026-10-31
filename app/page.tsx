@@ -38,7 +38,7 @@ export default async function Dashboard() {
   // Everything below is independent, so it goes out as one fan-out rather than eight
   // sequential round trips. On better-sqlite3 that ordering was free; on D1 each call is
   // a network hop, and in series they were the slowest thing on the page.
-  const [payload, pending, savings, debtPayments, debts, fundsCash, goalRows, invested, historyStamp, instruments, predictions] =
+  const [payload, pending, savings, debtPayments, debts, fundsCash, goalRows, trades, historyStamp, instruments, predictions] =
     await Promise.all([
       db.buildPayload(),
       db.pendingFundUnits(),
@@ -47,7 +47,7 @@ export default async function Dashboard() {
       db.listDebts(),
       db.fundsCashTotal(),
       db.listGoals(),
-      db.investedByMonth(),
+      db.tradesByMonth(),
       db.historyStamp(),
       db.listInstruments(),
       db.realEstatePredictions(),
@@ -82,8 +82,8 @@ export default async function Dashboard() {
   // can't change it, which is why it doesn't go through the client's re-projection below.
   const streakView = streak({
     today: world.today,
-    investedByMonth: invested,
-    // A top-up is new deposit money too; a withdrawal isn't subtracted, as a sell isn't.
+    investedByMonth: trades.bought,
+    // A top-up is new deposit money too; a withdrawal on its own isn't subtracted, nor a sell.
     savings: [
       // A rollover counts only what you added on top of the old deposit's payout.
       ...savings.map((s) => ({
@@ -92,8 +92,12 @@ export default async function Dashboard() {
       })),
       ...savings.flatMap((s) => s.movements.filter((m) => m.amount > 0).map((m) => ({ start_date: m.date, principal: m.amount }))),
     ],
-    // Money back out of a deposit, so buying shares with it the same month isn't new money.
-    released: savings.flatMap((s) => releasedFrom(s, savings.find((r) => r.rolled_from === s.id))),
+    // Money back out of a deposit or a sale, so putting it to work the same month isn't new
+    // money. Sales are already bucketed by month, which is all `released` reads of a date.
+    released: [
+      ...savings.flatMap((s) => releasedFrom(s, savings.find((r) => r.rolled_from === s.id))),
+      ...Object.entries(trades.sold).map(([month, amount]) => ({ date: `${month}-01`, amount })),
+    ],
     ...commitment(world.plannedMonthly, goalRows),
   });
 
