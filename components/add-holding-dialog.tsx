@@ -124,8 +124,9 @@ function LogoField({
   );
 }
 
-/** Shared fields for adding or editing a holding. On edit the name is fixed
- *  (renaming would orphan its transactions), so it's shown read-only. */
+/** Shared fields for adding or editing a holding. On edit, changing the name renames the
+ *  holding, and its transactions, prices, rules and valuation go with it
+ *  (`db.renameInstrument`). */
 function HoldingForm({
   holding,
   action,
@@ -178,12 +179,11 @@ function HoldingForm({
     >
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="h-name">Name</Label>
-        {holding ? (
-          <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-body-sm text-muted-foreground">
-            {holding.name}
-          </div>
-        ) : (
-          <Input id="h-name" name="name" placeholder="e.g. VCBF-TBF" required />
+        <Input id="h-name" name="name" defaultValue={holding?.name} placeholder="e.g. VCBF-TBF" required />
+        {holding && (
+          <p className="text-caption text-muted-foreground">
+            Renaming keeps its transactions, price history and recurring rules.
+          </p>
         )}
       </div>
       <LogoField holding={holding} value={logo} onChange={setLogo} />
@@ -399,8 +399,9 @@ export function EditHoldingDialog({ holding, sources }: { holding: Instrument; s
         <DialogHeader>
           <DialogTitle>Edit holding</DialogTitle>
           <DialogDescription>
-            Update how {holding.name} is valued — price source, symbol, or the value used when no
-            live price is available. Its quantity changes through transactions only.
+            Rename {holding.name}, or change how it&apos;s valued: price source, symbol, or
+            the value used when no live price is available. Its quantity changes through
+            transactions only.
           </DialogDescription>
         </DialogHeader>
         <HoldingForm

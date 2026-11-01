@@ -59,6 +59,13 @@ Apply the migration with `pnpm db:migrate` (local). Production is handled by `pn
   `adjustQuantity`: a units adjustment (`amount` 0, signed `quantity`) with a date and a
   **required** reason, as is any units adjustment entered as a transaction. In place, the new
   figure used to rewrite every past day and left no record of why.
+- **A holding's name is its key, and renaming rewrites it everywhere.** Nothing has a
+  foreign key: `transactions`, `recurring_rules`, `price_history`, `instrument_logos` and the
+  four `property_*` tables store the name as text, as do `meta.corp_events` and
+  `corp_dismissed`. Editing the name in the holding form calls `db.renameInstrument`, which
+  rewrites all of them in one `batch()`. **A new table keyed on the holding name must be
+  added there**, or a rename will orphan its rows. `goal:<id>` can't be a holding name (it's
+  how an apartment goal's property rows are keyed).
 - **Missed dividends and splits are suggested, never recorded by themselves.** Yahoo's events per VN stock sit in `meta.corp_events` (refreshed daily by the cron, `refreshCorporateEvents`); `missedActions` in `lib/corporate-actions.ts` matches them against transactions (self-check: `node scripts/check-corporate-actions.mjs`). Yahoo's dividend amounts are adjusted for later splits, which `missedActions` undoes.
 - **Money is whole-VND integers** (signed: + in, − out). Format with `fmtVND` / `fmtMil` from `lib/format.ts`. Never hardcode currency.
 - **Verify every change**: `npx tsc --noEmit` + `pnpm lint`, then a headless-Chrome screenshot for UI. Both must be clean. Details in `docs/WORKFLOW.md`.

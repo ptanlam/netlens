@@ -679,6 +679,48 @@ export async function setInstrumentArchived(name: string, archived: boolean) {
     .run(archived ? 1 : 0, nowIso(), name);
 }
 
+/**
+ * Rename a holding, carrying everything keyed on its name along with it.
+ *
+ * The name is the key: there are no foreign keys, and nine tables plus two `meta` blobs store
+ * it as plain text. Renaming only `instruments.name` would leave its transactions, price
+ * history, rules, logo and land valuation pointing at a holding that no longer exists, which
+ * is why the form used to refuse. One `batch()`, so D1 applies all of it or none.
+ *
+ * `corp_events` is keyed by name, and a dismissal is `name:kind:date` (`MissedAction.key`);
+ * both are rewritten here, or Yahoo's events would wait a day to reappear and every dismissed
+ * suggestion would come back. The dismissal match is anchored on the whole key shape, so a
+ * holding called "A" doesn't take "A:B"'s dismissals with it.
+ *
+ * The caller checks that `to` is free. Bumps history: the series names its holdings.
+ */
+export async function renameInstrument(from: string, to: string) {
+  const { events, dismissed } = await corporateState();
+  const stmts = [
+    q("UPDATE instruments SET name=?, updated_at=? WHERE name=?").bound(to, nowIso(), from),
+    ...[
+      "transactions", "recurring_rules", "price_history", "instrument_logos",
+      "properties", "property_comps", "property_index", "property_valuations",
+    ].map((t) => q(`UPDATE ${t} SET instrument=? WHERE instrument=?`).bound(to, from)),
+    // Unused since auto-comps were removed, but kept equal to `instrument` where it's set.
+    q("UPDATE property_comps SET auto_for=? WHERE auto_for=?").bound(to, from),
+  ];
+  if (from in events) {
+    events[to] = events[from];
+    delete events[from];
+    stmts.push(q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").bound("corp_events", JSON.stringify(events)));
+  }
+  const prefix = `${from}:`;
+  const shape = /^(dividend|bonus):\d{4}-\d{2}-\d{2}$/;
+  const owned = (k: string) => k.startsWith(prefix) && shape.test(k.slice(prefix.length));
+  if ([...dismissed].some(owned)) {
+    const next = [...dismissed].map((k) => (owned(k) ? `${to}:${k.slice(prefix.length)}` : k));
+    stmts.push(q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").bound("corp_dismissed", JSON.stringify(next)));
+  }
+  await db().batch(stmts);
+  await bumpHistory();
+}
+
 export async function updatePrice(name: string, price: number) {
   await q("UPDATE instruments SET last_price=?, last_price_at=? WHERE name=?")
     .run(price, nowIso(), name);

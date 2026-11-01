@@ -919,10 +919,20 @@ async function applyLogo(name: string, fd: FormData): Promise<string | null> {
   return null;
 }
 
+/** Why `name` can't be a holding's name, or null if it can. `goal:<id>` is taken: it's how
+ *  an apartment goal's location and comps are keyed (`goalPropertyKey`), in the same
+ *  `properties` / `property_comps` rows a Real Estate holding's are. */
+async function holdingNameError(name: string): Promise<string | null> {
+  if (!name) return "A holding name is required.";
+  if (goalIdOfProperty(name) != null) return `"${name}" is reserved. Pick another name.`;
+  if (await db.getInstrument(name)) return `"${name}" already exists.`;
+  return null;
+}
+
 export async function addHolding(fd: FormData) {
   const name = str(fd.get("name"));
-  if (!name) return { ok: false, message: "A holding name is required." };
-  if (await db.getInstrument(name)) return { ok: false, message: `"${name}" already exists.` };
+  const nameError = await holdingNameError(name);
+  if (nameError) return { ok: false, message: nameError };
   await db.addInstrument(
     name,
     str(fd.get("asset_type")) || "Funds",
@@ -939,9 +949,21 @@ export async function addHolding(fd: FormData) {
   return { ok: true, message: "Holding added." };
 }
 
-export async function updateHolding(name: string, fd: FormData) {
-  const before = await db.getInstrument(name);
-  if (!before) return { ok: false, message: "Holding not found." };
+/**
+ * Save the edit form. A changed name is a rename (`db.renameInstrument`), done first so the
+ * other fields, the booking and the logo all land on the new name. A form that sends no
+ * name keeps the old one.
+ */
+export async function updateHolding(current: string, fd: FormData) {
+  const found = await db.getInstrument(current);
+  if (!found) return { ok: false, message: "Holding not found." };
+  const name = fd.has("name") ? str(fd.get("name")) : current;
+  if (name !== current) {
+    const nameError = await holdingNameError(name);
+    if (nameError) return { ok: false, message: nameError };
+    await db.renameInstrument(current, name);
+  }
+  const before = { ...found, name };
   const assetType = str(fd.get("asset_type")) || "Funds";
   const manual = num(fd.get("manual_value"));
   await db.updateInstrumentFields(
@@ -955,8 +977,9 @@ export async function updateHolding(name: string, fd: FormData) {
   await recordManualEdit(before, assetType, manual);
   const logoError = await applyLogo(name, fd);
   revalidateAll();
-  if (logoError) return { ok: true, message: `Holding updated, but not its logo. ${logoError}` };
-  return { ok: true, message: "Holding updated." };
+  const what = name === current ? "Holding updated." : `Holding renamed to ${name}.`;
+  if (logoError) return { ok: true, message: `${what} Its logo wasn't saved. ${logoError}` };
+  return { ok: true, message: what };
 }
 
 /**
