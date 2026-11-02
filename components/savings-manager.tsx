@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Archive, ArchiveRestore, ArrowDownUp, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { INTEREST_TYPES, TERM_UNITS, type Saving, type TermUnit, type SavingMovement } from "@/lib/types";
@@ -28,6 +29,7 @@ import { SummaryCards } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
 import { GoalBar } from "@/components/goal-strip";
 import { Amt } from "@/components/amt";
+import { DataTable } from "@/components/data-table";
 
 type ActionResult = { ok: boolean; message: string };
 
@@ -455,6 +457,71 @@ function SavingCard({ row, funds, all }: { row: SavingRow; funds: FundOption[]; 
   );
 }
 
+/** Archived deposits are history, so a table: one line each, sortable, newest out first. */
+function archivedColumns(funds: FundOption[], all: Saving[]): ColumnDef<SavingRow>[] {
+  return [
+    {
+      id: "bank",
+      header: "Deposit",
+      accessorFn: (r) => r.saving.bank ?? "Term deposit",
+      size: 220,
+      cell: ({ row }) => {
+        const d = row.original.saving;
+        return (
+          <div>
+            <div className="font-semibold">{d.bank ?? "Term deposit"}</div>
+            <div className="text-caption text-muted-foreground tabular-nums">
+              {d.rate}% · {fmtTerm(d.term_months, d.term_unit)} · opened {d.start_date}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "archived",
+      header: "Closed",
+      accessorFn: (r) => r.saving.archived_date,
+      size: 145,
+      cell: ({ row }) => <span className="tabular-nums">{row.original.saving.archived_date}</span>,
+    },
+    {
+      id: "principal",
+      header: "Principal",
+      accessorFn: (r) => r.net,
+      size: 155,
+      meta: { align: "right" },
+      cell: ({ row }) => <span data-amount className="font-mono tabular-nums">{fmtVND(row.original.net)}</span>,
+    },
+    {
+      id: "interest",
+      header: "Interest",
+      accessorFn: (r) => r.interest,
+      size: 145,
+      meta: { align: "right" },
+      cell: ({ row }) => (
+        <span data-amount className="font-mono tabular-nums text-muted-foreground">
+          {row.original.interest >= 0 ? "+" : ""}{fmtVND(row.original.interest)}
+        </span>
+      ),
+    },
+    {
+      id: "value",
+      header: "Payout",
+      accessorFn: (r) => r.cur,
+      size: 140,
+      meta: { align: "right" },
+      cell: ({ row }) => <span data-amount className="font-mono font-semibold tabular-nums">{fmtVND(row.original.cur)}</span>,
+    },
+    {
+      id: "actions",
+      header: "",
+      enableSorting: false,
+      size: 110,
+      cell: ({ row }) => <SavingActions row={row.original} funds={funds} all={all} />,
+    },
+  ];
+}
+
 /** Newest deposit first, a page at a time. */
 function SavingCards({ rows, funds, all, empty }: { rows: SavingRow[]; funds: FundOption[]; all: Saving[]; empty: string }) {
   const PAGE = 9;
@@ -532,6 +599,7 @@ export function SavingsManager({
   );
   const active = rows.filter((r) => !r.archived);
   const inactive = rows.filter((r) => r.archived);
+  const archivedCols = React.useMemo(() => archivedColumns(funds, savings), [funds, savings]);
   const isOut = (d: Saving, at: Date) => d.archived_date != null && at > endOf(d);
   // Baseline is what you'd put in and not taken out by then, so the band is interest, and
   // every top-up and withdrawal shows as a step on the day it happened.
@@ -589,7 +657,14 @@ export function SavingsManager({
             <span className="font-normal text-muted-foreground">withdrawn, no longer counted in net worth</span>
           </summary>
           <div className="border-t border-divider-soft panel-body">
-            <SavingCards rows={inactive} funds={funds} all={savings} empty="" />
+            <DataTable
+              columns={archivedCols}
+              data={inactive}
+              initialSorting={[{ id: "archived", desc: true }]}
+              emptyMessage=""
+              pageSize={10}
+              storageKey="savings-archived"
+            />
           </div>
         </details>
       )}
