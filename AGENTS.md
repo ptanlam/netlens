@@ -97,8 +97,9 @@ round of upstream API calls, and put the schedule in whichever tab happened to b
 
 A rule buys a fixed amount (or, for a metal, a fixed weight) on a schedule: a fixed step
 (`RECURRING_FREQS`) or a **cron expression** (`freq` = `CRON_FREQ`, `recurring_rules.cron`,
-migration `0022`), the same 5-field syntax as the price schedule (`lib/cron.ts`), plus Quartz's `d#n` for the
-n-th weekday of the month (`3#2` = 2nd Wednesday; a `#` only starts a schedule comment after a space). A rule
+migration `0022`), the same 5-field syntax as the price schedule (`lib/cron.ts`, on the **croner** library):
+names, `L` (last), `W` (nearest weekday) and `d#n` for the n-th weekday of the month (`3#2` =
+2nd Wednesday; a `#` only starts a schedule comment after a space). A rule
 turns into at most one transaction a day, so a cron rule runs once on each matching **day**;
 minute and hour are ignored. The schedule maths is `lib/recurring.ts` (self-check:
 `node scripts/check-recurring.mjs`).

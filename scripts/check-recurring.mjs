@@ -48,7 +48,8 @@ const cronRuns = (expr, start, after, until) =>
 assert.deepEqual(cronRuns("0 9 1,15 * *", "2026-11-01", null, "2026-12-15"), ["2026-11-01", "2026-11-15", "2026-12-01", "2026-12-15"]);
 assert.deepEqual(cronRuns("0 9 1,15 * *", "2026-11-01", "2026-11-15", "2026-12-15"), ["2026-12-01", "2026-12-15"]);
 assert.deepEqual(cronRuns("*/5 * * * 1", "2026-11-01", null, "2026-11-20"), ["2026-11-02", "2026-11-09", "2026-11-16"]); // Mondays
-assert.deepEqual(cronRuns("0 0 L * *", "2026-11-01", null, "2026-12-01"), []); // malformed: never, not a crash
+assert.deepEqual(cronRuns("0 0 X * *", "2026-11-01", null, "2026-12-01"), []); // malformed: never, not a crash
+assert.deepEqual(cronRuns("0 0 L * *", "2026-11-01", null, "2026-12-31"), ["2026-11-30", "2026-12-31"]); // last day
 assert.deepEqual(cronRuns("0 0 30 2 *", "2026-01-01", null, "2030-01-01"), []);
 assert.equal(ruleMonthly({ amount: 1_200_000, freq: "cron", cron: "0 9 1,15 * *" }), 2_400_000);
 assert.equal(ruleMonthly({ amount: 1_200_000, freq: "cron", cron: "nope" }), 0);

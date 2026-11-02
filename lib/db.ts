@@ -24,7 +24,6 @@ import { fundCashAt, type ApartmentEstimate, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
 import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
 import { instrumentLogo } from "./logos";
-import type { CronMoment } from "./cron";
 import { missedActions, type CorpEvents, type MissedAction } from "./corporate-actions";
 import { occurrences, ruleMonthly } from "./recurring";
 
@@ -1404,22 +1403,6 @@ export async function priceSchedulingState(): Promise<{ status: PriceStatus; sch
     },
     schedule,
   };
-}
-
-const clockFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: APP_TIMEZONE, weekday: "short", month: "numeric", day: "numeric",
-  hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-});
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-/** `at` as cron sees it in the app timezone — not the runtime's, which is UTC on the Worker
- *  (see `APP_TIMEZONE`). */
-export function appCronMoment(at: Date): CronMoment {
-  const parts = Object.fromEntries(clockFormatter.formatToParts(at).map((p) => [p.type, p.value]));
-  return [
-    Number(parts.minute), Number(parts.hour), Number(parts.day), Number(parts.month),
-    WEEKDAYS.indexOf(parts.weekday),
-  ];
 }
 
 /** A flat cadence. Picking one turns the schedule off — otherwise the pick would do nothing

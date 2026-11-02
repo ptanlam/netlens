@@ -10,7 +10,7 @@
  */
 import {
   deletePriceHistory, isDormant, listInstruments, listPriceSources, markPricesRefreshed,
-  appCronMoment, metaGet, metaSet, priceSchedulingState, setFxRates, syncFxTargets, todayIso, updatePrice,
+  APP_TIMEZONE, metaGet, metaSet, priceSchedulingState, setFxRates, syncFxTargets, todayIso, updatePrice,
   upsertPriceHistory,
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
@@ -367,9 +367,8 @@ export async function refreshScheduled(at = new Date()): Promise<[number, string
   if (schedule.enabled) {
     // Cron: due on any minute a line matches. A line that no longer parses (saved before a
     // rule changed, or hand-edited) is skipped rather than stopping the others.
-    const moment = appCronMoment(at);
     const due = cronLines(schedule.cron).some((line) => {
-      try { return cronMatches(parseCron(line), moment); } catch { return false; }
+      try { return cronMatches(parseCron(line, APP_TIMEZONE), at); } catch { return false; }
     });
     // A manual refresh moments ago already did this minute's work.
     if (!due || (atMs != null && at.valueOf() - atMs < 30_000)) return null;

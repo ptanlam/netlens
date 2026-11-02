@@ -7,7 +7,7 @@
  * off the previous one, so a rule anchored on the 31st lands on the 31st again in every
  * long month instead of drifting down to the 28th for good.
  */
-import { cronMatches, parseCron } from "./cron";
+import { cronDayMatcher } from "./cron";
 import { CRON_FREQ, type RecurringFreq } from "./types";
 
 /** How a frequency steps: a fixed number of days, or of calendar months. */
@@ -40,17 +40,13 @@ function freqOf(freq: string): RecurringFreq {
 }
 
 /** Whether a day matches a cron rule — or null if the expression doesn't parse. A rule runs
- *  once a day at most, so minute and hour are ignored: any member of each will do. */
+ *  once a day at most, so minute and hour are ignored. */
 function cronDays(expr: string | null | undefined): ((d: Date) => boolean) | null {
-  let p;
   try {
-    p = parseCron(expr ?? "");
+    return cronDayMatcher(expr ?? "");
   } catch {
     return null;
   }
-  const [min] = p.sets[0];
-  const [hour] = p.sets[1];
-  return (d) => cronMatches(p, [min, hour, d.getDate(), d.getMonth() + 1, d.getDay()]);
 }
 
 /** Runs a year on average, over four years so a leap day and every weekday count fairly. */
