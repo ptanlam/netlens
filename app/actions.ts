@@ -1221,7 +1221,8 @@ async function ruleFields(fd: FormData): Promise<{ amount: number; quantity: num
       return { error: `A holding and a positive weight in ${METAL_UNIT} are required.` };
     const sell = await db.sellPriceOf(instrument);
     if (sell == null)
-      return { error: `Couldn't get a sell price for ${instrument}: a rule can only buy metal priced from PNJ's board.` };
+      // e.g. RAW_9999: raw gold PNJ only buys back, so its board leaves the sell price blank.
+      return { error: `No sell price for ${instrument}: PNJ doesn't sell that product, or its board couldn't be reached. A rule can buy a product PNJ sells, such as SJC bars or N24K rings.` };
     return { amount: Math.round(quantity * sell), quantity };
   }
   const amount = num(fd.get("amount"));
