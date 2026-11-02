@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { METAL_UNIT, METAL_UNIT_HINT, METALS, txKind, type Tx } from "@/lib/types";
+import { ASSET_TYPES, METAL_UNIT, METAL_UNIT_HINT, METALS, txKind, type Tx } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ export type InstrumentOption = { name: string; asset_type: string };
 
 export function TxForm({
   action,
-  instruments,
+  instruments: all,
   tx,
   submitLabel = "Save transaction",
   onDone,
@@ -41,12 +41,20 @@ export function TxForm({
   const formRef = React.useRef<HTMLFormElement>(null);
   const today = new Date().toLocaleDateString("sv-SE");
 
+  // Only the types you hold, in the app's order; the holding list is then cut down to one.
+  const types = ASSET_TYPES.filter((t) => all.some((i) => i.asset_type === t));
+  // Editing: the holding's own type wins, so an old row whose stored type drifted still finds it.
+  const [assetType, setAssetType] = React.useState<string>(
+    all.find((i) => i.name === tx?.instrument)?.asset_type ?? tx?.asset_type ?? types[0] ?? "Funds",
+  );
+  const instruments = all.filter((i) => i.asset_type === assetType);
   const [instrument, setInstrument] = React.useState(tx?.instrument ?? instruments[0]?.name ?? "");
   const [direction, setDirection] = React.useState<string>(tx ? txKind(tx) : "buy");
-  // Asset type is inherited from the chosen holding — a transaction can't drift from it.
-  const assetType =
-    instruments.find((i) => i.name === instrument)?.asset_type ?? tx?.asset_type ?? "Funds";
-  const noHoldings = instruments.length === 0;
+  const pickType = (t: string) => {
+    setAssetType(t);
+    setInstrument(all.find((i) => i.asset_type === t)?.name ?? "");
+  };
+  const noHoldings = all.length === 0;
   // A metal's weight is never priced out of the amount (see `METALS`), so it's asked for.
   const weighed = assetType === METALS && direction !== "bonus";
 
@@ -60,7 +68,7 @@ export function TxForm({
             toast.success(res.message);
             if (!tx) {
               formRef.current?.reset();
-              setInstrument(instruments[0]?.name ?? "");
+              pickType(types[0] ?? "Funds");
               setDirection("buy");
             }
             onDone?.();
@@ -87,6 +95,24 @@ export function TxForm({
         </Select>
       </div>
       <div className="grid gap-2">
+        <Label htmlFor="asset_type">Asset type</Label>
+        <Select
+          name="asset_type"
+          value={assetType}
+          onValueChange={(v) => v != null && pickType(v as string)}
+          disabled={noHoldings}
+        >
+          <SelectTrigger id="asset_type" className="w-full">
+            <SelectValue placeholder="Select a type" />
+          </SelectTrigger>
+          <SelectContent>
+            {types.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-2">
         <Label htmlFor="instrument">Holding</Label>
         <Select
           name="instrument"
@@ -103,13 +129,6 @@ export function TxForm({
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="grid gap-2">
-        <Label>Asset type</Label>
-        <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-body-sm text-muted-foreground">
-          {assetType}
-        </div>
-        <input type="hidden" name="asset_type" value={assetType} />
       </div>
       {/* A dividend is only money and bonus units are only units, so each hides the other field. */}
       {direction !== "bonus" && (
