@@ -52,4 +52,7 @@ assert.deepEqual(cronRuns("0 0 L * *", "2026-11-01", null, "2026-12-01"), []); /
 assert.deepEqual(cronRuns("0 0 30 2 *", "2026-01-01", null, "2030-01-01"), []);
 assert.equal(ruleMonthly({ amount: 1_200_000, freq: "cron", cron: "0 9 1,15 * *" }), 2_400_000);
 assert.equal(ruleMonthly({ amount: 1_200_000, freq: "cron", cron: "nope" }), 0);
+// The 2nd Wednesday of each month.
+assert.deepEqual(cronRuns("0 9 * * 3#2", "2026-11-01", null, "2027-01-31"), ["2026-11-11", "2026-12-09", "2027-01-13"]);
+assert.equal(ruleMonthly({ amount: 1_200_000, freq: "cron", cron: "0 9 * * 3#2" }), 1_200_000);
 console.log("cron rules ok");

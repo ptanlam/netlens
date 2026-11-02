@@ -210,7 +210,8 @@ export function RuleForm({
           {/* A rule turns into one transaction per day, so only the date fields matter. */}
           <p className="text-caption text-muted-foreground">
             minute hour day-of-month month day-of-week — runs once on each day it matches; the
-            time is ignored. {cron.trim() && cronPreview(cron, start)}
+            time is ignored. <span className="font-mono">0 9 * * 3#2</span> is the 2nd Wednesday
+            of each month. {cron.trim() && cronPreview(cron, start)}
           </p>
         </div>
       )}

@@ -50,8 +50,9 @@ export function PriceScheduleSettings({ schedule }: { schedule: PriceRefreshSche
         <span className="font-mono">minute hour day month weekday</span> — e.g.{" "}
         <span className="font-mono">*/5 9-14 * * 1-5</span> is every 5 minutes, 09:00–14:55,
         Monday to Friday. Supports <span className="font-mono">* , - /</span>; weekday 0 or 7
-        is Sunday. <span className="font-mono">#</span> starts a comment. Nothing finer than a
-        minute.
+        is Sunday, and <span className="font-mono">3#2</span> is the 2nd Wednesday of the month.
+        A <span className="font-mono">#</span> after a space starts a comment. Nothing finer
+        than a minute.
       </div>
 
       <div className="mt-4 flex gap-2">
