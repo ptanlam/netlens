@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Pause, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { ASSET_TYPES, METAL_UNIT, METAL_UNIT_HINT, METALS, RECURRING_FREQS, RECURRING_FREQ_LABELS, type RecurringRule } from "@/lib/types";
+import { ASSET_TYPES, CRON_FREQ, METAL_UNIT, METAL_UNIT_HINT, METALS, RECURRING_FREQS, RECURRING_FREQ_LABELS, type RecurringRule } from "@/lib/types";
 import { addRule, deleteRule, toggleRule, updateRule } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -21,12 +21,34 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { type InstrumentOption } from "@/components/tx-form";
 import { Amt } from "@/components/amt";
+import { occurrences } from "@/lib/recurring";
 
 type ActionResult = { ok: boolean; message: string };
 
+const CRON_LABEL = "Cron expression";
+
 /** A hand-edited row may hold a value the list doesn't know; show it as stored. */
 function freqLabel(freq: string): string {
+  if (freq === CRON_FREQ) return CRON_LABEL;
   return RECURRING_FREQ_LABELS[freq as keyof typeof RECURRING_FREQ_LABELS] ?? freq;
+}
+
+/** How a rule's schedule reads in its row and the delete prompt. */
+function scheduleText(rule: RecurringRule): string {
+  return rule.freq === CRON_FREQ ? `on cron ${rule.cron}` : freqLabel(rule.freq).toLowerCase();
+}
+
+/** The next few days a cron expression runs on from `start`, or why it never does. */
+function cronPreview(cron: string, start: string): string {
+  const [y, m, d] = start.split("-").map(Number);
+  const from = new Date(y, (m || 1) - 1, d || 1);
+  const until = new Date(from.getFullYear() + 2, from.getMonth(), from.getDate());
+  const runs: string[] = [];
+  for (const occ of occurrences(CRON_FREQ, from, null, until, cron)) {
+    runs.push(occ.toLocaleDateString("sv-SE"));
+    if (runs.length === 3) break;
+  }
+  return runs.length ? `Next: ${runs.join(", ")}…` : "Matches no day — check the expression.";
 }
 
 export function RuleForm({
@@ -54,6 +76,9 @@ export function RuleForm({
   };
   // A metal is bought by weight (see `METALS`), priced at the dealer's sell price each run.
   const metal = assetType === METALS;
+  const [freq, setFreq] = React.useState<string>(rule?.freq ?? "weekly");
+  const [cron, setCron] = React.useState(rule?.cron ?? "");
+  const [start, setStart] = React.useState(rule?.start_date ?? today);
   const noHoldings = all.length === 0;
 
   return (
@@ -67,6 +92,9 @@ export function RuleForm({
             if (!rule) {
               formRef.current?.reset();
               pickType(types[0] ?? "Funds");
+              setFreq("weekly");
+              setCron("");
+              setStart(today);
             }
             onDone?.();
           } else toast.error(res.message);
@@ -143,7 +171,7 @@ export function RuleForm({
       )}
       <div className="grid gap-2">
         <Label htmlFor="r-freq">Frequency</Label>
-        <Select name="freq" defaultValue={rule?.freq ?? "weekly"}>
+        <Select name="freq" value={freq} onValueChange={(v) => v != null && setFreq(v as string)}>
           <SelectTrigger id="r-freq" className="w-full">
             <SelectValue>{(v: string) => freqLabel(v)}</SelectValue>
           </SelectTrigger>
@@ -151,19 +179,41 @@ export function RuleForm({
             {RECURRING_FREQS.map((f) => (
               <SelectItem key={f} value={f}>{RECURRING_FREQ_LABELS[f]}</SelectItem>
             ))}
+            <SelectItem value={CRON_FREQ}>{CRON_LABEL}</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="r-start">Start date (anchor)</Label>
+        <Label htmlFor="r-start">{freq === CRON_FREQ ? "Start date" : "Start date (anchor)"}</Label>
         <Input
           id="r-start"
           name="start_date"
           type="date"
-          defaultValue={rule?.start_date ?? today}
+          value={start}
+          onChange={(e) => setStart(e.target.value)}
           required
         />
       </div>
+      {freq === CRON_FREQ && (
+        <div className="grid gap-2 sm:col-span-2">
+          <Label htmlFor="r-cron">Cron expression</Label>
+          <Input
+            id="r-cron"
+            name="cron"
+            value={cron}
+            onChange={(e) => setCron(e.target.value)}
+            placeholder="0 9 1,15 * *"
+            className="font-mono"
+            autoComplete="off"
+            required
+          />
+          {/* A rule turns into one transaction per day, so only the date fields matter. */}
+          <p className="text-caption text-muted-foreground">
+            minute hour day-of-month month day-of-week — runs once on each day it matches; the
+            time is ignored. {cron.trim() && cronPreview(cron, start)}
+          </p>
+        </div>
+      )}
       <div className="grid gap-2">
         <Label htmlFor="r-note">Note (optional)</Label>
         <Input id="r-note" name="note" defaultValue={rule?.note ?? undefined} />
@@ -210,7 +260,7 @@ function RuleRow({
         </div>
         <div className="text-body-sm text-muted-foreground">
           {rule.quantity != null && `${rule.quantity} ${METAL_UNIT} ≈ `}
-          <Amt>{fmtVND(rule.amount)}</Amt> · {freqLabel(rule.freq).toLowerCase()} · since {rule.start_date}
+          <Amt>{fmtVND(rule.amount)}</Amt> · {scheduleText(rule)} · since {rule.start_date}
           {nextDue && ` · next ${nextDue}`}
         </div>
       </div>
@@ -253,7 +303,7 @@ function RuleRow({
             aria-label="Delete rule"
             disabled={pending}
             onClick={() => {
-              if (!confirm(`Delete the ${freqLabel(rule.freq).toLowerCase()} rule for ${rule.instrument}? Already-created transactions stay.`))
+              if (!confirm(`Delete the rule for ${rule.instrument} (${scheduleText(rule)})? Already-created transactions stay.`))
                 return;
               run(() => deleteRule(rule.id));
             }}

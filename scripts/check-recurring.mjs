@@ -1,6 +1,14 @@
 // Self-check for lib/recurring.ts: `node scripts/check-recurring.mjs` (Node 24 strips the types).
 import assert from "node:assert/strict";
-import { occurrences, ruleMonthly } from "../lib/recurring.ts";
+import { registerHooks } from "node:module";
+
+// lib/recurring.ts imports "./cron" without an extension, as the bundler allows; let Node find it.
+registerHooks({
+  resolve: (spec, ctx, next) => {
+    try { return next(spec, ctx); } catch (e) { if (spec.startsWith(".")) return next(`${spec}.ts`, ctx); throw e; }
+  },
+});
+const { occurrences, ruleMonthly } = await import("../lib/recurring.ts");
 
 const d = (iso) => { const [y, m, day] = iso.split("-").map(Number); return new Date(y, m - 1, day); };
 const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
@@ -33,3 +41,15 @@ assert.equal(ruleMonthly({ amount: 1_200_000, freq: "semiannually" }), 200_000);
 assert.equal(ruleMonthly({ amount: 1_200_000, freq: "yearly" }), 100_000);
 assert.equal(ruleMonthly({ amount: 12_000, freq: "daily" }), 365_000);
 console.log("recurring ok");
+
+// Cron rules: once on each matching day, time fields ignored; `after` excludes its own day.
+const cronRuns = (expr, start, after, until) =>
+  [...occurrences("cron", d(start), after && d(after), d(until), expr)].map(iso);
+assert.deepEqual(cronRuns("0 9 1,15 * *", "2026-11-01", null, "2026-12-15"), ["2026-11-01", "2026-11-15", "2026-12-01", "2026-12-15"]);
+assert.deepEqual(cronRuns("0 9 1,15 * *", "2026-11-01", "2026-11-15", "2026-12-15"), ["2026-12-01", "2026-12-15"]);
+assert.deepEqual(cronRuns("*/5 * * * 1", "2026-11-01", null, "2026-11-20"), ["2026-11-02", "2026-11-09", "2026-11-16"]); // Mondays
+assert.deepEqual(cronRuns("0 0 L * *", "2026-11-01", null, "2026-12-01"), []); // malformed: never, not a crash
+assert.deepEqual(cronRuns("0 0 30 2 *", "2026-01-01", null, "2030-01-01"), []);
+assert.equal(ruleMonthly({ amount: 1_200_000, freq: "cron", cron: "0 9 1,15 * *" }), 2_400_000);
+assert.equal(ruleMonthly({ amount: 1_200_000, freq: "cron", cron: "nope" }), 0);
+console.log("cron rules ok");

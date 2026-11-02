@@ -148,6 +148,8 @@ export const RECURRING_FREQS = [
   "daily", "weekly", "biweekly", "monthly", "quarterly", "semiannually", "yearly",
 ] as const;
 export type RecurringFreq = (typeof RECURRING_FREQS)[number];
+/** A rule's `freq` when it runs on `cron` instead of a fixed step. */
+export const CRON_FREQ = "cron";
 
 export const RECURRING_FREQ_LABELS: Record<RecurringFreq, string> = {
   daily: "Daily",
@@ -167,7 +169,9 @@ export interface RecurringRule {
   /** Weight bought per run (a metal, in `METAL_UNIT`), or null for an amount rule. Then
    *  `amount` is the estimate at save time; each run is priced at the day's sell price. */
   quantity: number | null;
-  freq: RecurringFreq;
+  freq: RecurringFreq | typeof CRON_FREQ;
+  /** The 5-field expression when `freq` is `CRON_FREQ`: runs once on each matching day. */
+  cron: string | null;
   start_date: string;
   last_run: string | null;
   active: number;

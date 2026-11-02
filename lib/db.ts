@@ -787,21 +787,21 @@ export async function setInstrumentLogo(name: string, data: string | null) {
 
 export async function addRecurring(
   instrument: string, assetType: string, amount: number, quantity: number | null,
-  freq: string, startDate: string, note: string | null,
+  freq: string, cron: string | null, startDate: string, note: string | null,
 ) {
   await q(
-    "INSERT INTO recurring_rules(instrument, asset_type, amount, quantity, freq, start_date, note) VALUES (?,?,?,?,?,?,?)",
-  ).run(instrument.trim(), assetType, Math.round(amount), quantity, freq, startDate, note);
+    "INSERT INTO recurring_rules(instrument, asset_type, amount, quantity, freq, cron, start_date, note) VALUES (?,?,?,?,?,?,?,?)",
+  ).run(instrument.trim(), assetType, Math.round(amount), quantity, freq, cron, startDate, note);
   await ensureInstrument(instrument.trim(), assetType);
 }
 
 export async function updateRecurring(
   id: number, instrument: string, assetType: string, amount: number, quantity: number | null,
-  freq: string, startDate: string, note: string | null,
+  freq: string, cron: string | null, startDate: string, note: string | null,
 ) {
   await q(
-    "UPDATE recurring_rules SET instrument=?, asset_type=?, amount=?, quantity=?, freq=?, start_date=?, note=? WHERE id=?",
-  ).run(instrument.trim(), assetType, Math.round(amount), quantity, freq, startDate, note, id);
+    "UPDATE recurring_rules SET instrument=?, asset_type=?, amount=?, quantity=?, freq=?, cron=?, start_date=?, note=? WHERE id=?",
+  ).run(instrument.trim(), assetType, Math.round(amount), quantity, freq, cron, startDate, note, id);
   await ensureInstrument(instrument.trim(), assetType);
 }
 
@@ -848,7 +848,7 @@ export async function materializeRecurring(): Promise<number> {
   for (const rule of rules) {
     const start = dateOf(rule.start_date);
     const after = rule.last_run ? dateOf(rule.last_run) : null;
-    const due = [...occurrences(rule.freq, start, after, today)];
+    const due = [...occurrences(rule.freq, start, after, today, rule.cron)];
     if (!due.length) continue;
     // shortcut: a backfilled run is priced at today's sell price, as the board keeps no
     // history of it; fix the amount on the transaction if it matters.
@@ -872,7 +872,7 @@ export function ruleNextDue(rule: RecurringRule): string | null {
   const start = dateOf(rule.start_date);
   const after = rule.last_run ? dateOf(rule.last_run) : null;
   const horizon = new Date(Date.now() + 800 * 86400000);
-  for (const occ of occurrences(rule.freq, start, after, horizon)) return isoOf(occ);
+  for (const occ of occurrences(rule.freq, start, after, horizon, rule.cron)) return isoOf(occ);
   return null;
 }
 
@@ -1723,8 +1723,8 @@ export async function fundsCashTotal(today = new Date()): Promise<number> {
 /** ₫/month you've committed to via active recurring rules — the *forward* contribution
  *  rate, which is what a projection actually wants (a trailing average only looks back). */
 export async function plannedMonthly(): Promise<number> {
-  const rules = await q("SELECT amount, freq FROM recurring_rules WHERE active=1")
-    .all<{ amount: number; freq: string }>();
+  const rules = await q("SELECT amount, freq, cron FROM recurring_rules WHERE active=1")
+    .all<{ amount: number; freq: string; cron: string | null }>();
   return rules.reduce((a, r) => a + ruleMonthly(r), 0);
 }
 

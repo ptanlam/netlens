@@ -93,6 +93,15 @@ browser are both deliberate acts — the header's Refresh button and the pull-to
 gesture. **Don't re-add an open-time or interval fetch here**: that made every visit spend a
 round of upstream API calls, and put the schedule in whichever tab happened to be open.
 
+## Recurring rules
+
+A rule buys a fixed amount (or, for a metal, a fixed weight) on a schedule: a fixed step
+(`RECURRING_FREQS`) or a **cron expression** (`freq` = `CRON_FREQ`, `recurring_rules.cron`,
+migration `0022`), the same 5-field syntax as the price schedule (`lib/cron.ts`). A rule
+turns into at most one transaction a day, so a cron rule runs once on each matching **day**;
+minute and hour are ignored. The schedule maths is `lib/recurring.ts` (self-check:
+`node scripts/check-recurring.mjs`).
+
 ## Subscriptions
 
 A subscription is a **rate of spend**, and the only tracked entity that deliberately stays

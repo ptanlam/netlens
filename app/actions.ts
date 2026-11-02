@@ -9,10 +9,11 @@ import { cronLines, parseCron } from "@/lib/cron";
 import { symbolPage } from "@/lib/symbol-search";
 import { fmtUnits, fmtVND } from "@/lib/format";
 import { currentValue } from "@/lib/savings";
+import { occurrences } from "@/lib/recurring";
 import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
 import { distanceKm, estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
-  BILLING_CYCLES, COMP_KINDS, GOAL_METRICS, LAND_USES, METAL_UNIT, METALS, PRICE_REFRESH_INTERVALS, RECURRING_FREQS, ROAD_ACCESS,
+  BILLING_CYCLES, COMP_KINDS, CRON_FREQ, GOAL_METRICS, LAND_USES, METAL_UNIT, METALS, PRICE_REFRESH_INTERVALS, RECURRING_FREQS, ROAD_ACCESS,
   SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, TERM_UNITS, goalIdOfProperty, normalizePriceRefreshMs,
   type BillingCycle, type CompInput, type CompKind, type GoalMetric, type Instrument, type LandUse,
   type PriceRefreshSchedule, type RecurringFreq, type RoadAccess, type SymbolPage, type SubscriptionCategory, type TargetCurrency, type TermUnit,
@@ -1213,8 +1214,27 @@ export async function testPriceSource(fd: FormData) {
 
 // ---------- recurring rules ----------
 
-function recurringFreq(v: FormDataEntryValue | null): RecurringFreq {
+function recurringFreq(v: FormDataEntryValue | null): RecurringFreq | typeof CRON_FREQ {
+  if (v === CRON_FREQ) return CRON_FREQ;
   return RECURRING_FREQS.includes(v as RecurringFreq) ? (v as RecurringFreq) : "weekly";
+}
+
+/** The rule's schedule, or why it can't be saved: a cron rule needs an expression that
+ *  parses and that some day in the next two years actually matches (`0 0 30 2 *` never does). */
+function ruleSchedule(fd: FormData): { freq: string; cron: string | null } | { error: string } {
+  const freq = recurringFreq(fd.get("freq"));
+  if (freq !== CRON_FREQ) return { freq, cron: null };
+  const cron = str(fd.get("cron")).replace(/\s+/g, " ");
+  try {
+    parseCron(cron);
+  } catch (e) {
+    return { error: `Cron expression: ${(e as Error).message}.` };
+  }
+  const from = new Date(`${str(fd.get("start_date")) || db.todayIso()}T00:00:00`);
+  const until = new Date(from.getFullYear() + 2, from.getMonth(), from.getDate());
+  if (occurrences(CRON_FREQ, from, null, until, cron).next().done)
+    return { error: `"${cron}" matches no day in the next two years.` };
+  return { freq, cron };
 }
 
 /** The rule's amount and weight, or why it can't be saved. A metal is bought by weight (see
@@ -1239,10 +1259,12 @@ async function ruleFields(fd: FormData): Promise<{ amount: number; quantity: num
 }
 
 export async function addRule(fd: FormData) {
+  const schedule = ruleSchedule(fd);
+  if ("error" in schedule) return { ok: false, message: schedule.error };
   const fields = await ruleFields(fd);
   if ("error" in fields) return { ok: false, message: fields.error };
   await db.addRecurring(str(fd.get("instrument")), str(fd.get("asset_type")) || "Funds",
-    fields.amount, fields.quantity, recurringFreq(fd.get("freq")),
+    fields.amount, fields.quantity, schedule.freq, schedule.cron,
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);
   const created = await db.materializeRecurring();
   revalidateAll();
@@ -1250,10 +1272,12 @@ export async function addRule(fd: FormData) {
 }
 
 export async function updateRule(id: number, fd: FormData) {
+  const schedule = ruleSchedule(fd);
+  if ("error" in schedule) return { ok: false, message: schedule.error };
   const fields = await ruleFields(fd);
   if ("error" in fields) return { ok: false, message: fields.error };
   await db.updateRecurring(id, str(fd.get("instrument")), str(fd.get("asset_type")) || "Funds",
-    fields.amount, fields.quantity, recurringFreq(fd.get("freq")),
+    fields.amount, fields.quantity, schedule.freq, schedule.cron,
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);
   revalidateAll();
   return { ok: true, message: "Rule updated." };

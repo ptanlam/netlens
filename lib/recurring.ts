@@ -7,7 +7,8 @@
  * off the previous one, so a rule anchored on the 31st lands on the 31st again in every
  * long month instead of drifting down to the 28th for good.
  */
-import type { RecurringFreq } from "./types";
+import { cronMatches, parseCron } from "./cron";
+import { CRON_FREQ, type RecurringFreq } from "./types";
 
 /** How a frequency steps: a fixed number of days, or of calendar months. */
 const STEP: Record<RecurringFreq, { days: number } | { months: number }> = {
@@ -38,9 +39,34 @@ function freqOf(freq: string): RecurringFreq {
   return freq in STEP ? (freq as RecurringFreq) : "monthly";
 }
 
+/** Whether a day matches a cron rule — or null if the expression doesn't parse. A rule runs
+ *  once a day at most, so minute and hour are ignored: any member of each will do. */
+function cronDays(expr: string | null | undefined): ((d: Date) => boolean) | null {
+  let p;
+  try {
+    p = parseCron(expr ?? "");
+  } catch {
+    return null;
+  }
+  const [min] = p.sets[0];
+  const [hour] = p.sets[1];
+  return (d) => cronMatches(p, [min, hour, d.getDate(), d.getMonth() + 1, d.getDay()]);
+}
+
+/** Runs a year on average, over four years so a leap day and every weekday count fairly. */
+function cronPerYear(expr: string | null | undefined): number {
+  const matches = cronDays(expr);
+  if (!matches) return 0;
+  let n = 0;
+  for (let d = new Date(2024, 0, 1); d.getFullYear() < 2028; d.setDate(d.getDate() + 1))
+    if (matches(d)) n++;
+  return n / 4;
+}
+
 /** One rule's ₫/month. */
-export function ruleMonthly(r: { amount: number; freq: string }): number {
-  return (r.amount * PER_YEAR[freqOf(r.freq)]) / 12;
+export function ruleMonthly(r: { amount: number; freq: string; cron?: string | null }): number {
+  const perYear = r.freq === CRON_FREQ ? cronPerYear(r.cron) : PER_YEAR[freqOf(r.freq)];
+  return (r.amount * perYear) / 12;
 }
 
 /** Whole days between two local dates, immune to a DST shift in between. */
@@ -61,10 +87,20 @@ function runAt(freq: RecurringFreq, start: Date, k: number): Date {
   return new Date(start.getFullYear(), m, Math.min(start.getDate(), daysInMonth));
 }
 
-/** Every run strictly after `after` (if set), from `start` up to and including `until`. */
+/** Every run strictly after `after` (if set), from `start` up to and including `until`.
+ *  A cron rule whose expression doesn't parse never runs (the form refuses one anyway). */
 export function* occurrences(
-  freq: string, start: Date, after: Date | null, until: Date,
+  freq: string, start: Date, after: Date | null, until: Date, cron?: string | null,
 ): Generator<Date> {
+  if (freq === CRON_FREQ) {
+    const matches = cronDays(cron);
+    if (!matches) return;
+    const d = after && after >= start
+      ? new Date(after.getFullYear(), after.getMonth(), after.getDate() + 1)
+      : new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    for (; d <= until; d.setDate(d.getDate() + 1)) if (matches(d)) yield new Date(d);
+    return;
+  }
   const f = freqOf(freq);
   const step = STEP[f];
   let k = 0;
