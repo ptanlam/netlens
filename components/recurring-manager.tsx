@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { type InstrumentOption } from "@/components/tx-form";
 import { Amt } from "@/components/amt";
 import { occurrences } from "@/lib/recurring";
+import { parseCron } from "@/lib/cron";
 import { cn } from "@/lib/utils";
 
 type ActionResult = { ok: boolean; message: string };
@@ -39,17 +40,23 @@ function scheduleText(rule: RecurringRule): string {
   return rule.freq === CRON_FREQ ? `on cron ${rule.cron}` : freqLabel(rule.freq).toLowerCase();
 }
 
-/** The next few days a cron expression runs on from `start`, or why it never does. */
-function cronPreview(cron: string, start: string): string {
+/** The next 10 days a cron expression runs on from `start`, or why it never does. */
+function cronPreview(cron: string, start: string): string | string[] {
+  try {
+    parseCron(cron);
+  } catch (e) {
+    return (e as Error).message;
+  }
   const [y, m, d] = start.split("-").map(Number);
   const from = new Date(y, (m || 1) - 1, d || 1);
-  const until = new Date(from.getFullYear() + 2, from.getMonth(), from.getDate());
+  // Ten years, so even a yearly expression shows ten runs.
+  const until = new Date(from.getFullYear() + 10, from.getMonth(), from.getDate());
   const runs: string[] = [];
   for (const occ of occurrences(CRON_FREQ, from, null, until, cron)) {
     runs.push(occ.toLocaleDateString("sv-SE"));
-    if (runs.length === 3) break;
+    if (runs.length === 10) break;
   }
-  return runs.length ? `Next: ${runs.join(", ")}…` : "Matches no day — check the expression.";
+  return runs.length ? runs : "Matches no day.";
 }
 
 export function RuleForm({
@@ -104,7 +111,8 @@ export function RuleForm({
           } else toast.error(res.message);
         })
       }
-      className="grid gap-4 sm:grid-cols-2"
+      // Cells sit at the top: a hint under one field mustn't spread out its neighbour's.
+      className="grid items-start gap-4 sm:grid-cols-2"
     >
       <div className="grid gap-2">
         <Label htmlFor="r-type">Asset type</Label>
@@ -173,10 +181,25 @@ export function RuleForm({
           />
         </div>
       )}
-      <div className={cn("grid gap-2", useCron && "sm:col-span-2")}>
+      <div className="grid gap-2">
+        <Label htmlFor="r-start">{useCron ? "Start date" : "Start date (anchor)"}</Label>
+        <Input
+          id="r-start"
+          name="start_date"
+          type="date"
+          value={start}
+          onChange={(e) => setStart(e.target.value)}
+          required
+        />
+      </div>
+      <div className="grid gap-2 sm:col-span-2">
+        <Label htmlFor="r-note">Note (optional)</Label>
+        <Input id="r-note" name="note" defaultValue={rule?.note ?? undefined} />
+      </div>
+      <div className="grid gap-2 sm:col-span-2">
         <div className="flex items-center justify-between gap-2">
           <Label htmlFor={useCron ? "r-cron" : "r-freq"}>Frequency</Label>
-          <div role="group" aria-label="Schedule kind" className="flex gap-0.5 rounded-full bg-pane p-0.5">
+          <div role="group" aria-label="Schedule kind" className="-my-1 flex gap-0.5 rounded-full bg-pane p-0.5">
             {([false, true] as const).map((c) => (
               <button
                 key={String(c)}
@@ -208,13 +231,25 @@ export function RuleForm({
               autoComplete="off"
               required
             />
-            {/* A rule turns into one transaction per day, so only the date fields matter. */}
-            <p className="text-caption text-muted-foreground">
-              minute hour day-of-month month day-of-week — runs once on each day it matches; the
-              time is ignored. <span className="font-mono">0 9 * * 3#2</span> is the 2nd Wednesday,{" "}
-              <span className="font-mono">0 9 L * *</span> the last day of each month.{" "}
-              {cron.trim() && cronPreview(cron, start)}
-            </p>
+            {cron.trim() && (() => {
+              const preview = cronPreview(cron, start);
+              return (
+                <p className="text-caption text-muted-foreground tabular-nums">
+                  {typeof preview === "string" ? preview : (
+                    <>
+                      Next runs:{" "}
+                      {preview.map((d, i) => (
+                        // A date never breaks at its hyphens; the line breaks between dates.
+                        <React.Fragment key={d}>
+                          {i > 0 && ", "}
+                          <span className="whitespace-nowrap">{d}</span>
+                        </React.Fragment>
+                      ))}
+                    </>
+                  )}
+                </p>
+              );
+            })()}
           </>
         ) : (
           <Select value={preset} onValueChange={(v) => v != null && setPreset(v as string)}>
@@ -228,21 +263,6 @@ export function RuleForm({
             </SelectContent>
           </Select>
         )}
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="r-start">{useCron ? "Start date" : "Start date (anchor)"}</Label>
-        <Input
-          id="r-start"
-          name="start_date"
-          type="date"
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
-          required
-        />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="r-note">Note (optional)</Label>
-        <Input id="r-note" name="note" defaultValue={rule?.note ?? undefined} />
       </div>
       {noHoldings && (
         <p className="text-body-sm text-muted-foreground sm:col-span-2">
