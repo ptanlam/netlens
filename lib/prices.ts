@@ -141,23 +141,25 @@ function scaled(src: PriceSource, n: number | null): number | null {
   return n == null ? null : n * (src.price_multiplier || 1);
 }
 
-/** Batch json → `{ lookupKey: price }`. Handles both an array of rows
- *  (matched via `key_field`) and an object keyed by symbol (e.g. CoinGecko). */
+/** A batch answer's rows, each with its symbol. Handles both an array of rows (matched via
+ *  `key_field`) and an object keyed by symbol (e.g. CoinGecko). */
+function batchRows(src: PriceSource, data: unknown): [string, unknown][] {
+  const rows = getPath(data, src.rows_path);
+  if (Array.isArray(rows))
+    return rows.flatMap((row): [string, unknown][] => {
+      if (row == null || typeof row !== "object") return [];
+      const k = src.key_field ? (row as Record<string, unknown>)[src.key_field] : undefined;
+      return k != null ? [[String(k), row]] : [];
+    });
+  return rows && typeof rows === "object" ? Object.entries(rows as Record<string, unknown>) : [];
+}
+
+/** Batch json → `{ lookupKey: price }`. */
 function extractBatch(src: PriceSource, data: unknown): Record<string, number> {
   const out: Record<string, number> = {};
-  const rows = getPath(data, src.rows_path);
-  if (Array.isArray(rows)) {
-    for (const row of rows) {
-      if (row == null || typeof row !== "object") continue;
-      const k = src.key_field ? (row as Record<string, unknown>)[src.key_field] : undefined;
-      const n = scaled(src, toNumber(src.price_field ? getPath(row, src.price_field) : row));
-      if (k != null && n != null) out[String(k)] = n;
-    }
-  } else if (rows && typeof rows === "object") {
-    for (const [k, v] of Object.entries(rows as Record<string, unknown>)) {
-      const n = scaled(src, toNumber(src.price_field ? getPath(v, src.price_field) : v));
-      if (n != null) out[k] = n;
-    }
+  for (const [k, row] of batchRows(src, data)) {
+    const n = scaled(src, toNumber(src.price_field ? getPath(row, src.price_field) : row));
+    if (n != null) out[k] = n;
   }
   return out;
 }
@@ -179,10 +181,18 @@ export function listsItsSymbols(src: PriceSource): boolean {
   return src.batch === 1 && !`${src.url} ${src.body ?? ""}`.includes("{symbols}");
 }
 
-/** Every symbol such a source quotes, with its price — what the holding form searches. */
-export async function listSourceSymbols(src: PriceSource): Promise<{ symbol: string; price: number }[]> {
-  const prices = extractBatch(src, await callSource(src, { symbols: "" }));
-  return Object.entries(prices).map(([symbol, price]) => ({ symbol, price }));
+/** Every symbol such a source quotes, with its name from `name_field` where it has one —
+ *  what the holding form searches. A row with no price isn't something it can quote. */
+export async function listSourceSymbols(src: PriceSource): Promise<{ symbol: string; name: string | null }[]> {
+  const data = await callSource(src, { symbols: "" });
+  const prices = extractBatch(src, data);
+  const out = new Map<string, string | null>(); // one per symbol: the catalog's key
+  for (const [symbol, row] of batchRows(src, data)) {
+    if (prices[symbol] == null || out.has(symbol)) continue;
+    const name = src.name_field ? getPath(row, src.name_field) : null;
+    out.set(symbol, typeof name === "string" && name.trim() ? name.trim() : null);
+  }
+  return [...out].map(([symbol, name]) => ({ symbol, name }));
 }
 
 /** What a dealer *sells* each symbol at, from a board that quotes both sides (PNJ's

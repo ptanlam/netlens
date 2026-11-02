@@ -35,12 +35,15 @@ export function SymbolAutocomplete({
   name,
   source,
   defaultValue,
+  onPick,
 }: {
   id: string;
   name: string;
   /** The price source key chosen in the form. */
   source: string;
   defaultValue?: string;
+  /** A suggestion was chosen (not typed). */
+  onPick?: (hit: SymbolHit) => void;
 }) {
   const [value, setValue] = React.useState(defaultValue ?? "");
   const [results, setResults] = React.useState<Results | null>(null);
@@ -110,6 +113,10 @@ export function SymbolAutocomplete({
         onValueChange={(next, details) => {
           setValue(next);
           if (!manual && (details.reason === "input-change" || details.reason === "input-clear")) search(next);
+          else {
+            const hit = current?.items.find((h) => h.symbol === next);
+            if (hit) onPick?.(hit);
+          }
         }}
         onOpenChange={(open) => {
           // First open for this source: show what the feed has for what's already typed.

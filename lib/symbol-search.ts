@@ -17,7 +17,7 @@
  */
 import { catalogSize, listPriceSources, metaGet, metaSet, replaceSymbolCatalog, searchSymbolCatalog } from "./db";
 import { listSourceSymbols, listsItsSymbols } from "./prices";
-import { SYMBOL_NAMES, type PriceSource, type SymbolHit, type SymbolPage } from "./types";
+import { type PriceSource, type SymbolHit, type SymbolPage } from "./types";
 
 export const SYMBOL_PAGE_SIZE = 8;
 
@@ -46,11 +46,9 @@ interface GeckoMarket {
 
 /** Everything a source can quote, for its catalog — or null when it can't list it. */
 function catalogFetcher(src: PriceSource): (() => Promise<SymbolHit[]>) | null {
-  if (listsItsSymbols(src)) {
-    const names = SYMBOL_NAMES[src.key] ?? {};
+  if (listsItsSymbols(src))
     return async () =>
-      (await listSourceSymbols(src)).map(({ symbol }) => ({ symbol, label: names[symbol] ?? null, detail: null }));
-  }
+      (await listSourceSymbols(src)).map(({ symbol, name }) => ({ symbol, label: name, detail: null }));
   if (isGecko(src))
     return async () => {
       const pages = await Promise.all(

@@ -1141,6 +1141,7 @@ function priceSourceFields(fd: FormData, key: string, builtin: number): db.Price
     rows_path: nullable("rows_path"),
     key_field: nullable("key_field"),
     price_field: nullable("price_field"),
+    name_field: nullable("name_field"),
     price_path: nullable("price_path"),
     price_regex: nullable("price_regex"),
     history_strategy: str(fd.get("history_strategy")) || "none",

@@ -147,6 +147,9 @@ function HoldingForm({
   const metal = assetType === METALS;
   const [logo, setLogo] = React.useState("");
   const formRef = React.useRef<HTMLFormElement>(null);
+  const nameRef = React.useRef<HTMLInputElement>(null);
+  // The Name the last picked symbol filled in: a later pick may replace it, a typed one stays.
+  const autoName = React.useRef("");
   const priced = source !== MANUAL_SOURCE;
   // Same condition as db.holdingValue(): manual_value is only consulted when one of
   // these is missing. Non-null means manual_value is inert right now.
@@ -165,6 +168,7 @@ function HoldingForm({
             toast.success(res.message);
             if (!holding) {
               formRef.current?.reset();
+              autoName.current = "";
               setSource(MANUAL_SOURCE);
               setAssetType("Funds");
               setResets((n) => n + 1);
@@ -183,7 +187,7 @@ function HoldingForm({
             {holding.name}
           </div>
         ) : (
-          <Input id="h-name" name="name" placeholder="e.g. VCBF-TBF" required />
+          <Input ref={nameRef} id="h-name" name="name" placeholder="e.g. VCBF-TBF" required />
         )}
       </div>
       <LogoField holding={holding} value={logo} onChange={setLogo} />
@@ -230,6 +234,11 @@ function HoldingForm({
           name="symbol"
           source={source}
           defaultValue={holding?.symbol ?? undefined}
+          onPick={(hit) => {
+            const el = nameRef.current;
+            if (!el || (el.value && el.value !== autoName.current)) return;
+            el.value = autoName.current = hit.label ?? hit.symbol;
+          }}
         />
       </div>
       <div className="grid gap-2">

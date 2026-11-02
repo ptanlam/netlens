@@ -272,7 +272,8 @@ Whatever is in the box is what's saved, so a symbol the search can't find can st
 - **Yahoo searches live** (its ticker search API), because Yahoo has no "every ticker" list to
   sync. Any other source can't be searched, and the field is plain text with a hint.
 - Sources are told apart by their URL, not their key, so a copied source behaves the same.
-  English names for bare codes live in `SYMBOL_NAMES`, per-source hints in `SYMBOL_HELP`.
+  A batch source's `name_field` (migration `0021`; PNJ's `tensp`) names each row in the search,
+  and picking a hit fills an empty holding Name with it. Per-source hints live in `SYMBOL_HELP`.
 
 ## Holding logos
 

@@ -29,35 +29,6 @@ export interface SymbolPage {
   error?: string;
 }
 
-/** English names for codes a feed gives only as codes — PNJ's `masp`. A code missing here
- *  still turns up in the search, under its code. */
-export const SYMBOL_NAMES: Record<string, Record<string, string>> = {
-  // PNJ's board, in its own order. A bare number is a karat grade: "41" is 416 gold (10K).
-  pnj_gold: {
-    SJC: "SJC gold bar",
-    N24K: "PNJ 9999 plain ring",
-    KB: "Kim Bao 9999 gold",
-    TL: "Phuc Loc Tai 9999 gold",
-    PNJ: "PNJ Phoenix gold",
-    "24K": "9999 jewellery gold (24K)",
-    "999": "999 jewellery gold",
-    "9920": "99.20 jewellery gold",
-    "99": "99 jewellery gold",
-    "22K": "916 gold (22K)",
-    "75": "750 gold (18K)",
-    "68": "680 gold (16.3K)",
-    "65": "650 gold (15.6K)",
-    "61": "610 gold (14.6K)",
-    "58.5": "585 gold (14K)",
-    "41": "416 gold (10K)",
-    "37.5": "375 gold (9K)",
-    "33": "333 gold (8K)",
-    // PNJ only buys raw gold back, so the board quotes no sell price and a rule can't buy it.
-    RAW_9999: "Raw gold 99.99 (buy-back only)",
-    RAW_9900: "Raw gold 99 (buy-back only)",
-  },
-};
-
 /** What the symbol is for each built-in source, shown under the field. */
 export const SYMBOL_HELP: Record<string, string> = {
   manual: "Optional. Nothing is fetched for a manual holding, so this is only a label.",
@@ -103,6 +74,7 @@ export interface PriceSource {
   rows_path: string | null;     // batch json: dot-path to the rows array/object ("" = root)
   key_field: string | null;     // batch json: field in each row matching the instrument symbol
   price_field: string | null;   // batch json: field holding the price value
+  name_field: string | null;    // batch json: field naming the product, for the symbol search
   price_path: string | null;    // single json: dot-path to the price value
   price_regex: string | null;   // html: regex with one capture group
   history_strategy: string;     // HistoryStrategy — which built-in history fetcher to use

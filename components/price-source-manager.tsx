@@ -136,6 +136,9 @@ function SourceForm({ source, action, submitLabel, onDone }: {
           <Field label="Price field" htmlFor="ps-pricefield" hint="Field holding the price within each row.">
             <Input id="ps-pricefield" name="price_field" defaultValue={source?.price_field ?? ""} placeholder="nav" />
           </Field>
+          <Field label="Name field" htmlFor="ps-namefield" hint="Optional. Field naming each row's product, shown in the symbol search and filled in as a new holding's name.">
+            <Input id="ps-namefield" name="name_field" defaultValue={source?.name_field ?? ""} placeholder="name" />
+          </Field>
         </>
       )}
 
