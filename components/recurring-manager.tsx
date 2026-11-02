@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { type InstrumentOption } from "@/components/tx-form";
 import { Amt } from "@/components/amt";
 import { occurrences } from "@/lib/recurring";
+import { cn } from "@/lib/utils";
 
 type ActionResult = { ok: boolean; message: string };
 
@@ -76,7 +77,9 @@ export function RuleForm({
   };
   // A metal is bought by weight (see `METALS`), priced at the dealer's sell price each run.
   const metal = assetType === METALS;
-  const [freq, setFreq] = React.useState<string>(rule?.freq ?? "weekly");
+  // Preset or cron, toggled; the preset you picked survives a trip to cron and back.
+  const [useCron, setUseCron] = React.useState(rule?.freq === CRON_FREQ);
+  const [preset, setPreset] = React.useState<string>(rule && rule.freq !== CRON_FREQ ? rule.freq : "weekly");
   const [cron, setCron] = React.useState(rule?.cron ?? "");
   const [start, setStart] = React.useState(rule?.start_date ?? today);
   const noHoldings = all.length === 0;
@@ -92,7 +95,8 @@ export function RuleForm({
             if (!rule) {
               formRef.current?.reset();
               pickType(types[0] ?? "Funds");
-              setFreq("weekly");
+              setUseCron(false);
+              setPreset("weekly");
               setCron("");
               setStart(today);
             }
@@ -169,22 +173,64 @@ export function RuleForm({
           />
         </div>
       )}
-      <div className="grid gap-2">
-        <Label htmlFor="r-freq">Frequency</Label>
-        <Select name="freq" value={freq} onValueChange={(v) => v != null && setFreq(v as string)}>
-          <SelectTrigger id="r-freq" className="w-full">
-            <SelectValue>{(v: string) => freqLabel(v)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {RECURRING_FREQS.map((f) => (
-              <SelectItem key={f} value={f}>{RECURRING_FREQ_LABELS[f]}</SelectItem>
+      <div className={cn("grid gap-2", useCron && "sm:col-span-2")}>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor={useCron ? "r-cron" : "r-freq"}>Frequency</Label>
+          <div role="group" aria-label="Schedule kind" className="flex gap-0.5 rounded-full bg-pane p-0.5">
+            {([false, true] as const).map((c) => (
+              <button
+                key={String(c)}
+                type="button"
+                aria-pressed={useCron === c}
+                onClick={() => setUseCron(c)}
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-caption font-semibold transition-colors",
+                  useCron === c
+                    ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {c ? "Cron" : "Preset"}
+              </button>
             ))}
-            <SelectItem value={CRON_FREQ}>{CRON_LABEL}</SelectItem>
-          </SelectContent>
-        </Select>
+          </div>
+        </div>
+        <input type="hidden" name="freq" value={useCron ? CRON_FREQ : preset} />
+        {useCron ? (
+          <>
+            <Input
+              id="r-cron"
+              name="cron"
+              value={cron}
+              onChange={(e) => setCron(e.target.value)}
+              placeholder="0 9 1,15 * *"
+              className="font-mono"
+              autoComplete="off"
+              required
+            />
+            {/* A rule turns into one transaction per day, so only the date fields matter. */}
+            <p className="text-caption text-muted-foreground">
+              minute hour day-of-month month day-of-week — runs once on each day it matches; the
+              time is ignored. <span className="font-mono">0 9 * * 3#2</span> is the 2nd Wednesday,{" "}
+              <span className="font-mono">0 9 L * *</span> the last day of each month.{" "}
+              {cron.trim() && cronPreview(cron, start)}
+            </p>
+          </>
+        ) : (
+          <Select value={preset} onValueChange={(v) => v != null && setPreset(v as string)}>
+            <SelectTrigger id="r-freq" className="w-full">
+              <SelectValue>{(v: string) => freqLabel(v)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {RECURRING_FREQS.map((f) => (
+                <SelectItem key={f} value={f}>{RECURRING_FREQ_LABELS[f]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="r-start">{freq === CRON_FREQ ? "Start date" : "Start date (anchor)"}</Label>
+        <Label htmlFor="r-start">{useCron ? "Start date" : "Start date (anchor)"}</Label>
         <Input
           id="r-start"
           name="start_date"
@@ -194,27 +240,6 @@ export function RuleForm({
           required
         />
       </div>
-      {freq === CRON_FREQ && (
-        <div className="grid gap-2 sm:col-span-2">
-          <Label htmlFor="r-cron">Cron expression</Label>
-          <Input
-            id="r-cron"
-            name="cron"
-            value={cron}
-            onChange={(e) => setCron(e.target.value)}
-            placeholder="0 9 1,15 * *"
-            className="font-mono"
-            autoComplete="off"
-            required
-          />
-          {/* A rule turns into one transaction per day, so only the date fields matter. */}
-          <p className="text-caption text-muted-foreground">
-            minute hour day-of-month month day-of-week — runs once on each day it matches; the
-            time is ignored. <span className="font-mono">0 9 * * 3#2</span> is the 2nd Wednesday
-            of each month. {cron.trim() && cronPreview(cron, start)}
-          </p>
-        </div>
-      )}
       <div className="grid gap-2">
         <Label htmlFor="r-note">Note (optional)</Label>
         <Input id="r-note" name="note" defaultValue={rule?.note ?? undefined} />
