@@ -1210,24 +1210,31 @@ function recurringFreq(v: FormDataEntryValue | null): RecurringFreq {
   return RECURRING_FREQS.includes(v as RecurringFreq) ? (v as RecurringFreq) : "weekly";
 }
 
-/** A rule buys a fixed amount and leaves the units to be priced out of it, which a metal
- *  can't be (see `METALS`). */
-function ruleError(fd: FormData): string | null {
+/** The rule's amount and weight, or why it can't be saved. A metal is bought by weight (see
+ *  `METALS`): its amount is only today's estimate, weight × the dealer's sell price, and
+ *  each run is priced on its own day. */
+async function ruleFields(fd: FormData): Promise<{ amount: number; quantity: number | null } | { error: string }> {
+  const instrument = str(fd.get("instrument"));
+  if (fd.get("asset_type") === METALS) {
+    const quantity = num(fd.get("quantity"));
+    if (!instrument || quantity == null || quantity <= 0)
+      return { error: `A holding and a positive weight in ${METAL_UNIT} are required.` };
+    const sell = await db.sellPriceOf(instrument);
+    if (sell == null)
+      return { error: `Couldn't get a sell price for ${instrument}: a rule can only buy metal priced from PNJ's board.` };
+    return { amount: Math.round(quantity * sell), quantity };
+  }
   const amount = num(fd.get("amount"));
-  if (!str(fd.get("instrument")) || amount == null || amount <= 0)
-    return "Instrument and a positive amount are required.";
-  if (fd.get("asset_type") === METALS)
-    return `A recurring rule can't buy ${METALS.toLowerCase()}: each purchase needs its weight in ${METAL_UNIT}.`;
-  return null;
+  if (!instrument || amount == null || amount <= 0)
+    return { error: "Instrument and a positive amount are required." };
+  return { amount, quantity: null };
 }
 
 export async function addRule(fd: FormData) {
-  const instrument = str(fd.get("instrument"));
-  const amount = num(fd.get("amount"))!;
-  const error = ruleError(fd);
-  if (error) return { ok: false, message: error };
-  const freq = recurringFreq(fd.get("freq"));
-  await db.addRecurring(instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
+  const fields = await ruleFields(fd);
+  if ("error" in fields) return { ok: false, message: fields.error };
+  await db.addRecurring(str(fd.get("instrument")), str(fd.get("asset_type")) || "Funds",
+    fields.amount, fields.quantity, recurringFreq(fd.get("freq")),
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);
   const created = await db.materializeRecurring();
   revalidateAll();
@@ -1235,12 +1242,10 @@ export async function addRule(fd: FormData) {
 }
 
 export async function updateRule(id: number, fd: FormData) {
-  const instrument = str(fd.get("instrument"));
-  const amount = num(fd.get("amount"))!;
-  const error = ruleError(fd);
-  if (error) return { ok: false, message: error };
-  const freq = recurringFreq(fd.get("freq"));
-  await db.updateRecurring(id, instrument, str(fd.get("asset_type")) || "Funds", amount, freq,
+  const fields = await ruleFields(fd);
+  if ("error" in fields) return { ok: false, message: fields.error };
+  await db.updateRecurring(id, str(fd.get("instrument")), str(fd.get("asset_type")) || "Funds",
+    fields.amount, fields.quantity, recurringFreq(fd.get("freq")),
     str(fd.get("start_date")) || db.todayIso(), str(fd.get("note")) || null);
   revalidateAll();
   return { ok: true, message: "Rule updated." };

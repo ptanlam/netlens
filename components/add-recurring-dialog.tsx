@@ -23,7 +23,7 @@ export function AddRecurringDialog({ instruments }: { instruments: InstrumentOpt
         <DialogHeader>
           <DialogTitle>Add recurring rule</DialogTitle>
           <DialogDescription>
-            Auto-invest a fixed amount into a holding on a schedule. Due purchases are
+            Auto-invest a fixed amount (or, for gold, a fixed weight) into a holding on a schedule. Due purchases are
             created automatically, and missed dates are backfilled.
           </DialogDescription>
         </DialogHeader>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Pause, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { METALS, RECURRING_FREQS, RECURRING_FREQ_LABELS, type RecurringRule } from "@/lib/types";
+import { ASSET_TYPES, METAL_UNIT, METAL_UNIT_HINT, METALS, RECURRING_FREQS, RECURRING_FREQ_LABELS, type RecurringRule } from "@/lib/types";
 import { addRule, deleteRule, toggleRule, updateRule } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -43,14 +43,18 @@ export function RuleForm({
   const [pending, startTransition] = React.useTransition();
   const formRef = React.useRef<HTMLFormElement>(null);
   const today = new Date().toLocaleDateString("sv-SE");
-  // A metal purchase needs its weight, which a rule can't know (see `METALS`).
-  const instruments = all.filter((i) => i.asset_type !== METALS);
-
+  // Only the types you hold, in the app's order; the holding list is then cut down to one.
+  const types = ASSET_TYPES.filter((t) => all.some((i) => i.asset_type === t));
+  const [assetType, setAssetType] = React.useState<string>(rule?.asset_type ?? types[0] ?? "Funds");
+  const instruments = all.filter((i) => i.asset_type === assetType);
   const [instrument, setInstrument] = React.useState(rule?.instrument ?? instruments[0]?.name ?? "");
-  // Asset type follows the chosen holding — a rule can't drift from it.
-  const assetType =
-    instruments.find((i) => i.name === instrument)?.asset_type ?? rule?.asset_type ?? "Funds";
-  const noHoldings = instruments.length === 0;
+  const pickType = (t: string) => {
+    setAssetType(t);
+    setInstrument(all.find((i) => i.asset_type === t)?.name ?? "");
+  };
+  // A metal is bought by weight (see `METALS`), priced at the dealer's sell price each run.
+  const metal = assetType === METALS;
+  const noHoldings = all.length === 0;
 
   return (
     <form
@@ -62,7 +66,7 @@ export function RuleForm({
             toast.success(res.message);
             if (!rule) {
               formRef.current?.reset();
-              setInstrument(instruments[0]?.name ?? "");
+              pickType(types[0] ?? "Funds");
             }
             onDone?.();
           } else toast.error(res.message);
@@ -70,6 +74,24 @@ export function RuleForm({
       }
       className="grid gap-4 sm:grid-cols-2"
     >
+      <div className="grid gap-2">
+        <Label htmlFor="r-type">Asset type</Label>
+        <Select
+          name="asset_type"
+          value={assetType}
+          onValueChange={(v) => v != null && pickType(v as string)}
+          disabled={noHoldings}
+        >
+          <SelectTrigger id="r-type" className="w-full">
+            <SelectValue placeholder="Select a type" />
+          </SelectTrigger>
+          <SelectContent>
+            {types.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <div className="grid gap-2">
         <Label htmlFor="r-instrument">Holding</Label>
         <Select
@@ -88,23 +110,37 @@ export function RuleForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="grid gap-2">
-        <Label>Asset type</Label>
-        <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-body-sm text-muted-foreground">
-          {assetType}
+      {metal ? (
+        <div className="grid gap-2">
+          <Label htmlFor="r-quantity">Weight ({METAL_UNIT})</Label>
+          <Input
+            key="quantity"
+            id="r-quantity"
+            name="quantity"
+            type="number"
+            step="any"
+            min="0"
+            defaultValue={rule?.quantity ?? undefined}
+            placeholder={METAL_UNIT_HINT}
+            required
+          />
+          <p className="text-caption text-muted-foreground">
+            Each run is booked at the dealer&apos;s sell price that day.
+          </p>
         </div>
-        <input type="hidden" name="asset_type" value={assetType} />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="r-amount">Amount (VND)</Label>
-        <CurrencyInput
-          id="r-amount"
-          name="amount"
-          defaultValue={rule?.amount}
-          placeholder="5.000.000"
-          required
-        />
-      </div>
+      ) : (
+        <div className="grid gap-2">
+          <Label htmlFor="r-amount">Amount (VND)</Label>
+          <CurrencyInput
+            key="amount"
+            id="r-amount"
+            name="amount"
+            defaultValue={rule?.amount}
+            placeholder="5.000.000"
+            required
+          />
+        </div>
+      )}
       <div className="grid gap-2">
         <Label htmlFor="r-freq">Frequency</Label>
         <Select name="freq" defaultValue={rule?.freq ?? "weekly"}>
@@ -173,6 +209,7 @@ function RuleRow({
           {!rule.active && <Badge variant="secondary">paused</Badge>}
         </div>
         <div className="text-body-sm text-muted-foreground">
+          {rule.quantity != null && `${rule.quantity} ${METAL_UNIT} ≈ `}
           <Amt>{fmtVND(rule.amount)}</Amt> · {freqLabel(rule.freq).toLowerCase()} · since {rule.start_date}
           {nextDue && ` · next ${nextDue}`}
         </div>

@@ -169,6 +169,9 @@ export interface RecurringRule {
   instrument: string;
   asset_type: string;
   amount: number;
+  /** Weight bought per run (a metal, in `METAL_UNIT`), or null for an amount rule. Then
+   *  `amount` is the estimate at save time; each run is priced at the day's sell price. */
+  quantity: number | null;
   freq: RecurringFreq;
   start_date: string;
   last_run: string | null;

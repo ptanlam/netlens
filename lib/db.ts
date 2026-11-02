@@ -752,22 +752,22 @@ export async function setInstrumentLogo(name: string, data: string | null) {
 // ---------- recurring rules (auto-DCA) ----------
 
 export async function addRecurring(
-  instrument: string, assetType: string, amount: number,
+  instrument: string, assetType: string, amount: number, quantity: number | null,
   freq: string, startDate: string, note: string | null,
 ) {
   await q(
-    "INSERT INTO recurring_rules(instrument, asset_type, amount, freq, start_date, note) VALUES (?,?,?,?,?,?)",
-  ).run(instrument.trim(), assetType, Math.round(amount), freq, startDate, note);
+    "INSERT INTO recurring_rules(instrument, asset_type, amount, quantity, freq, start_date, note) VALUES (?,?,?,?,?,?,?)",
+  ).run(instrument.trim(), assetType, Math.round(amount), quantity, freq, startDate, note);
   await ensureInstrument(instrument.trim(), assetType);
 }
 
 export async function updateRecurring(
-  id: number, instrument: string, assetType: string, amount: number,
+  id: number, instrument: string, assetType: string, amount: number, quantity: number | null,
   freq: string, startDate: string, note: string | null,
 ) {
   await q(
-    "UPDATE recurring_rules SET instrument=?, asset_type=?, amount=?, freq=?, start_date=?, note=? WHERE id=?",
-  ).run(instrument.trim(), assetType, Math.round(amount), freq, startDate, note, id);
+    "UPDATE recurring_rules SET instrument=?, asset_type=?, amount=?, quantity=?, freq=?, start_date=?, note=? WHERE id=?",
+  ).run(instrument.trim(), assetType, Math.round(amount), quantity, freq, startDate, note, id);
   await ensureInstrument(instrument.trim(), assetType);
 }
 
@@ -792,6 +792,20 @@ function dateOf(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
+/** ₫ per unit the dealer sells `instrument` at right now — what a rule buying by weight
+ *  pays. Null when its feed quotes no sell price or can't be reached. */
+export async function sellPriceOf(instrument: string): Promise<number | null> {
+  const inst = await getInstrument(instrument);
+  const src = inst?.symbol ? await getPriceSource(inst.price_source) : undefined;
+  if (!inst?.symbol || !src) return null;
+  const { sellPrices } = await import("./prices"); // lazily: prices.ts imports this module
+  try {
+    return (await sellPrices(src))[inst.symbol] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Insert due transactions for active rules. Idempotent; called on page load. */
 export async function materializeRecurring(): Promise<number> {
   const today = dateOf(todayIso());
@@ -800,10 +814,17 @@ export async function materializeRecurring(): Promise<number> {
   for (const rule of rules) {
     const start = dateOf(rule.start_date);
     const after = rule.last_run ? dateOf(rule.last_run) : null;
+    const due = [...occurrences(rule.freq, start, after, today)];
+    if (!due.length) continue;
+    // shortcut: a backfilled run is priced at today's sell price, as the board keeps no
+    // history of it; fix the amount on the transaction if it matters.
+    const sell = rule.quantity != null ? await sellPriceOf(rule.instrument) : null;
+    // No price, no run: last_run stays put, so the next page load tries again.
+    if (rule.quantity != null && sell == null) continue;
     let last: Date | null = null;
-    for (const occ of occurrences(rule.freq, start, after, today)) {
-      await addTransaction(isoOf(occ), rule.asset_type, rule.instrument, rule.amount,
-        null, rule.note ?? "Auto-DCA");
+    for (const occ of due) {
+      await addTransaction(isoOf(occ), rule.asset_type, rule.instrument,
+        sell != null ? rule.quantity! * sell : rule.amount, rule.quantity, rule.note ?? "Auto-DCA");
       last = occ;
       inserted += 1;
     }

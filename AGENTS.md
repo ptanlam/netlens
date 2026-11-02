@@ -244,8 +244,11 @@ Gold is a holding like any other (`METALS` = "Precious Metals" in `lib/types.ts`
   the forms say it in English) and **valued at the dealer's
   buy-back price** — what you'd get selling today, so a fresh purchase shows the spread as a loss.
 - **Its weight is always typed in.** A buy or sell of a metal requires the quantity (form and
-  `signedTx`), and a recurring rule can't buy one (`ruleError`): pricing units out of the amount
-  would divide the dealer's *sell* price by the *buy-back* price and invent metal.
+  `signedTx`): pricing units out of the amount would divide the dealer's *sell* price by the
+  *buy-back* price and invent metal. So a recurring rule buys a metal **by weight**
+  (`recurring_rules.quantity`, migration `0020`): each run books that weight at the board's
+  sell price (`giaban`, `sellPrices` in `lib/prices.ts`), fetched at run time; the rule's
+  `amount` is only the estimate at save time. No sell price, no run — it retries on the next load.
 
 The price is the seeded `pnj_gold` source (migration `0018`): PNJ's public board, one batch
 request, `masp` as the symbol (`SJC` bars, `N24K` 9999 rings), `giamua` × `price_multiplier`

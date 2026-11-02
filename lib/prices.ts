@@ -185,6 +185,14 @@ export async function listSourceSymbols(src: PriceSource): Promise<{ symbol: str
   return Object.entries(prices).map(([symbol, price]) => ({ symbol, price }));
 }
 
+/** What a dealer *sells* each symbol at, from a board that quotes both sides (PNJ's
+ *  `giaban`). `price_field` is the buy-back side, the value of metal you hold; a recurring
+ *  rule buying by weight pays this one. Matched on the URL, so a copied source works too. */
+export async function sellPrices(src: PriceSource): Promise<Record<string, number>> {
+  if (!listsItsSymbols(src) || !src.url.includes("edge-api.pnj.io/")) return {};
+  return extractBatch({ ...src, price_field: "giaban" }, await callSource(src, { symbols: "" }));
+}
+
 // ---------- exchange rates ----------
 
 /**
