@@ -182,13 +182,8 @@ function HoldingForm({
     >
       <div className="grid gap-2 sm:col-span-2">
         <Label htmlFor="h-name">Name</Label>
-        {holding ? (
-          <div className="flex h-9 items-center rounded-lg border border-input bg-muted/40 px-3 text-body-sm text-muted-foreground">
-            {holding.name}
-          </div>
-        ) : (
-          <Input ref={nameRef} id="h-name" name="name" placeholder="e.g. VCBF-TBF" required />
-        )}
+        {/* Editing renames it everywhere: its transactions, rules, prices, logo and plot. */}
+        <Input ref={nameRef} id="h-name" name="name" defaultValue={holding?.name} placeholder="e.g. VCBF-TBF" required />
       </div>
       <LogoField holding={holding} value={logo} onChange={setLogo} />
       <div className="grid gap-2">
@@ -408,8 +403,9 @@ export function EditHoldingDialog({ holding, sources }: { holding: Instrument; s
         <DialogHeader>
           <DialogTitle>Edit holding</DialogTitle>
           <DialogDescription>
-            Update how {holding.name} is valued — price source, symbol, or the value used when no
-            live price is available. Its quantity changes through transactions only.
+            Rename {holding.name}, or change how it&apos;s valued — price source, symbol, or the
+            value used when no live price is available. Its quantity changes through
+            transactions only.
           </DialogDescription>
         </DialogHeader>
         <HoldingForm

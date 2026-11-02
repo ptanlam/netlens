@@ -942,6 +942,9 @@ export async function addHolding(fd: FormData) {
 export async function updateHolding(name: string, fd: FormData) {
   const before = await db.getInstrument(name);
   if (!before) return { ok: false, message: "Holding not found." };
+  const to = str(fd.get("name")) || name;
+  if (to !== name && (await db.getInstrument(to)))
+    return { ok: false, message: `"${to}" already exists.` };
   const assetType = str(fd.get("asset_type")) || "Funds";
   const manual = num(fd.get("manual_value"));
   await db.updateInstrumentFields(
@@ -954,9 +957,12 @@ export async function updateHolding(name: string, fd: FormData) {
   );
   await recordManualEdit(before, assetType, manual);
   const logoError = await applyLogo(name, fd);
+  // Last, so everything above wrote under the old name and moves with the rest.
+  if (to !== name) await db.renameInstrument(name, to);
   revalidateAll();
-  if (logoError) return { ok: true, message: `Holding updated, but not its logo. ${logoError}` };
-  return { ok: true, message: "Holding updated." };
+  const done = to !== name ? `Renamed to "${to}".` : "Holding updated.";
+  if (logoError) return { ok: true, message: `${done} Not its logo: ${logoError}` };
+  return { ok: true, message: done };
 }
 
 /**

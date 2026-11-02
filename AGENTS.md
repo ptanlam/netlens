@@ -59,6 +59,10 @@ Apply the migration with `pnpm db:migrate` (local). Production is handled by `pn
   `adjustQuantity`: a units adjustment (`amount` 0, signed `quantity`) with a date and a
   **required** reason, as is any units adjustment entered as a transaction. In place, the new
   figure used to rewrite every past day and left no record of why.
+- **A holding's name is its key**, stored as plain text in ten columns with no foreign key.
+  Renaming goes through `renameInstrument` (`lib/db.ts`), which rewrites every column in
+  `NAME_COLUMNS` plus the `meta` corporate-action rows in one batch. **A new table that stores
+  a holding's name must be added to `NAME_COLUMNS`**, or a rename strands its rows.
 - **Missed dividends and splits are suggested, never recorded by themselves.** Yahoo's events per VN stock sit in `meta.corp_events` (refreshed daily by the cron, `refreshCorporateEvents`); `missedActions` in `lib/corporate-actions.ts` matches them against transactions (self-check: `node scripts/check-corporate-actions.mjs`). Yahoo's dividend amounts are adjusted for later splits, which `missedActions` undoes.
 - **Money is whole-VND integers** (signed: + in, − out). Format with `fmtVND` / `fmtMil` from `lib/format.ts`. Never hardcode currency.
 - **Verify every change**: `npx tsc --noEmit` + `pnpm lint`, then a headless-Chrome screenshot for UI. Both must be clean. Details in `docs/WORKFLOW.md`.

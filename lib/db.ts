@@ -672,6 +672,40 @@ export async function updateInstrumentFields(
   await bumpHistory();
 }
 
+/** Every column that holds a holding's name. Nothing in the schema links them to
+ *  `instruments`, so a rename has to rewrite each one itself. */
+const NAME_COLUMNS: [table: string, column: string][] = [
+  ["instruments", "name"],
+  ["transactions", "instrument"],
+  ["recurring_rules", "instrument"],
+  ["price_history", "instrument"],
+  ["instrument_logos", "instrument"],
+  ["properties", "instrument"],
+  ["property_comps", "instrument"],
+  ["property_comps", "auto_for"],
+  ["property_index", "instrument"],
+  ["property_valuations", "instrument"],
+];
+
+/** Rename a holding everywhere its name is the key, in one batch, so it lands whole or not
+ *  at all. Also the two `meta` rows keyed by it: its dividend/split events, and the
+ *  suggestions you dismissed (`name:kind:date`), or those would come back. */
+export async function renameInstrument(from: string, to: string) {
+  const { events, dismissed } = await corporateState();
+  if (from in events) {
+    events[to] = events[from];
+    delete events[from];
+  }
+  const keys = [...dismissed].map((k) => (k.startsWith(`${from}:`) ? to + k.slice(from.length) : k));
+  await db().batch([
+    ...NAME_COLUMNS.map(([table, column]) =>
+      q(`UPDATE ${table} SET ${column}=? WHERE ${column}=?`).bound(to, from)),
+    q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").bound("corp_events", JSON.stringify(events)),
+    q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").bound("corp_dismissed", JSON.stringify(keys)),
+  ]);
+  await bumpHistory();
+}
+
 /** Hide a fully-sold holding from the active list without losing its transaction or
  *  P&L history. Reversible — net worth already ignores it since its value is 0. */
 export async function setInstrumentArchived(name: string, archived: boolean) {
