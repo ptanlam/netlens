@@ -10,7 +10,7 @@ import {
 } from "@/app/actions";
 import { cn } from "@/lib/utils";
 import { fmtTerm, fmtVND } from "@/lib/format";
-import { currentValue, isMatured, maturityDate, maturityValue, netPrincipal, summarize } from "@/lib/savings";
+import { currentValue, isMatured, maturityDate, maturityValue, netPrincipal, summarize, termFor } from "@/lib/savings";
 import { ValueOverTime, buildDailySeries } from "@/components/value-over-time";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,23 @@ function SavingForm({
 }) {
   const [pending, startTransition] = React.useTransition();
   const [goalId, setGoalId] = React.useState(String(saving?.goal_id ?? NO_GOAL));
+  const today = new Date().toLocaleDateString("sv-SE");
+  // The term, its unit and the start decide the maturity date, and picking a maturity date
+  // writes the term back (`termFor`), so all four stay controlled. Only the term and unit are
+  // posted: the date is derived, and storing it as well would be two answers to one question.
+  const [term, setTerm] = React.useState(saving ? String(saving.term_months) : "");
+  const [unit, setUnit] = React.useState<TermUnit>(saving?.term_unit ?? "month");
+  const [start, setStart] = React.useState(saving?.start_date ?? today);
+  const termN = Number(term);
+  const maturity = start && Number.isInteger(termN) && termN > 0
+    ? maturityDate({ start_date: start, term_months: termN, term_unit: unit })
+    : "";
+  const pickMaturity = (date: string) => {
+    const t = date && start ? termFor(start, date, unit) : null;
+    if (!t) return void (date && toast.error("The maturity date has to be after the deposit date."));
+    setTerm(String(t.term));
+    setUnit(t.unit);
+  };
   // "" is "new money", for the same FormData reason as NO_GOAL.
   const [rolledFrom, setRolledFrom] = React.useState(String(saving?.rolled_from ?? ""));
   // Matured deposits not already rolled into another one (this deposit's own source stays).
@@ -66,7 +83,6 @@ function SavingForm({
   const sourceLabel = (d: Saving) => `${d.bank ?? "Term deposit"} · ${fmtVND(d.principal)} · matured ${maturityDate(d)}`;
   const rolledLabel = sources.find((d) => String(d.id) === rolledFrom);
   const formRef = React.useRef<HTMLFormElement>(null);
-  const today = new Date().toLocaleDateString("sv-SE");
   const goalLabel = funds.find((f) => String(f.id) === goalId)?.name ?? "Not earmarked";
 
   return (
@@ -77,7 +93,12 @@ function SavingForm({
           const res = await action(fd);
           if (res.ok) {
             toast.success(res.message);
-            if (!saving) formRef.current?.reset();
+            if (!saving) {
+              formRef.current?.reset();
+              setTerm("");
+              setUnit("month");
+              setStart(today);
+            }
             onDone?.();
           } else toast.error(res.message);
         })
@@ -99,8 +120,14 @@ function SavingForm({
       <div className="grid gap-2">
         <Label htmlFor="s-term">Term</Label>
         <div className="flex gap-2">
-          <Input id="s-term" name="term_months" type="number" min="1" step="1" defaultValue={saving?.term_months} placeholder="12" required />
-          <Select name="term_unit" defaultValue={saving?.term_unit ?? "month"} items={TERM_UNIT_LABELS}>
+          <Input
+            id="s-term" name="term_months" type="number" min="1" step="1" placeholder="12" required
+            value={term} onChange={(e) => setTerm(e.target.value)}
+          />
+          <Select
+            name="term_unit" value={unit} items={TERM_UNIT_LABELS}
+            onValueChange={(v) => v != null && setUnit(v as TermUnit)}
+          >
             <SelectTrigger aria-label="Term unit" className="w-32 shrink-0">
               <SelectValue />
             </SelectTrigger>
@@ -114,9 +141,21 @@ function SavingForm({
           </Select>
         </div>
       </div>
-      <div className="grid gap-2">
+      <div className="grid content-start gap-2">
         <Label htmlFor="s-start">Deposit date</Label>
-        <Input id="s-start" name="start_date" type="date" defaultValue={saving?.start_date ?? today} required />
+        <Input id="s-start" name="start_date" type="date" value={start} onChange={(e) => setStart(e.target.value)} required />
+      </div>
+      <div className="grid content-start gap-2">
+        <Label htmlFor="s-maturity">Maturity date</Label>
+        {/* No name: it's derived from the term, and sets the term when you pick a date. */}
+        <Input
+          id="s-maturity" type="date" min={start || undefined}
+          value={maturity} onChange={(e) => pickMaturity(e.target.value)}
+        />
+        <p className="text-caption text-muted-foreground">
+          Pick it instead of a term and the term follows — in months when it lands on one,
+          otherwise in days.
+        </p>
       </div>
       <div className="grid gap-2">
         <Label htmlFor="s-interest">Interest type</Label>

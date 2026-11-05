@@ -35,6 +35,31 @@ export function maturityDate(s: Pick<Accruing, "start_date" | "term_months" | "t
   return addMonths(s.start_date, s.term_unit === "year" ? n * 12 : n);
 }
 
+/**
+ * The term that matures a deposit started on `start` on exactly `maturity` — what the deposit
+ * form stores when you pick the maturity date rather than type a term, so the date you see is
+ * the date the maths uses. Whole months when the date falls on one (whole years if you were
+ * already counting in years), else days (weeks if you were, and it divides). Null when the
+ * date isn't after the start.
+ */
+export function termFor(
+  start: string,
+  maturity: string,
+  prefer: TermUnit = "month",
+): { term: number; unit: TermUnit } | null {
+  const days = Math.round((Date.parse(maturity + "T00:00:00Z") - Date.parse(start + "T00:00:00Z")) / DAY_MS);
+  if (!Number.isFinite(days) || days <= 0) return null;
+  const [ys, ms] = start.split("-").map(Number);
+  const [ye, me] = maturity.split("-").map(Number);
+  // `addMonths` clamps to the month's end, so the 31st + 1 month is the 28th — check either side.
+  const approx = (ye - ys) * 12 + (me - ms);
+  for (const n of [approx - 1, approx, approx + 1]) {
+    if (n > 0 && addMonths(start, n) === maturity)
+      return prefer === "year" && n % 12 === 0 ? { term: n / 12, unit: "year" } : { term: n, unit: "month" };
+  }
+  return prefer === "week" && days % 7 === 0 ? { term: days / 7, unit: "week" } : { term: days, unit: "day" };
+}
+
 /** The term in years, for the closed-form maturity value. Months and years stay exact
  *  fractions of a year, as they always were; days and weeks count actual days. */
 function termYears(s: Accruing): number {

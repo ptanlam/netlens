@@ -1,6 +1,6 @@
 // Self-check for deposit movements in lib/savings.ts. Run: node scripts/check-savings.mjs
 import assert from "node:assert/strict";
-import { currentValue, freshPrincipal, maturityDate, maturityValue, netPrincipal, releasedFrom, summarize } from "../lib/savings.ts";
+import { currentValue, freshPrincipal, maturityDate, maturityValue, netPrincipal, releasedFrom, summarize, termFor } from "../lib/savings.ts";
 
 const at = (d) => new Date(`${d}T00:00:00Z`);
 const near = (a, b, tol = 1) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
@@ -54,5 +54,19 @@ assert.deepEqual(releasedFrom({ ...base, archived_date: null }), []);
 const rolledAll = { ...base, archived_date: next.start_date };
 assert.deepEqual(releasedFrom(rolledAll, { ...next, principal: payout + 5_000_000 }), []);
 near(releasedFrom(rolledAll, { ...next, principal: 50_000_000 })[0].amount, payout - 50_000_000);
+
+// Picking a maturity date: whole months when it lands on one, else days; always round-trips.
+assert.deepEqual(termFor("2026-01-15", "2026-07-15"), { term: 6, unit: "month" });
+assert.deepEqual(termFor("2026-01-31", "2026-02-28"), { term: 1, unit: "month" }); // month-end clamp
+assert.deepEqual(termFor("2026-01-15", "2028-01-15", "year"), { term: 2, unit: "year" });
+assert.deepEqual(termFor("2026-01-15", "2027-01-15"), { term: 12, unit: "month" });
+assert.deepEqual(termFor("2026-01-15", "2026-02-20"), { term: 36, unit: "day" });
+assert.deepEqual(termFor("2026-01-15", "2026-02-19", "week"), { term: 5, unit: "week" });
+assert.equal(termFor("2026-01-15", "2026-01-15"), null);
+assert.equal(termFor("2026-01-15", "2025-12-01"), null);
+for (const [start, end] of [["2026-03-31", "2026-06-30"], ["2026-01-15", "2026-04-02"], ["2024-02-29", "2025-02-28"]]) {
+  const t = termFor(start, end);
+  assert.equal(maturityDate({ start_date: start, term_months: t.term, term_unit: t.unit }), end);
+}
 
 console.log("ok");
