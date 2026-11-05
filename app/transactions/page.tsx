@@ -66,8 +66,8 @@ export default async function TransactionsPage({
     };
   });
 
-  // Any other buy or sell of a priced holding saved without units (an old fund buy that
-  // was never confirmed, a stock or coin typed as an amount only). Same panel, same Save.
+  // Any buy or sell of a priced, non-fund holding saved without units (a stock or coin
+  // typed as an amount only). Same panel, same Save.
   // Whether its units are already in the holding's quantity can't be known for sure: they
   // are not if that quantity is exactly the sum of the units the transactions do carry,
   // which is what "only a transaction moves it" leaves behind. Otherwise it was set by

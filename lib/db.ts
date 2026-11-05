@@ -910,20 +910,22 @@ export async function pendingFundUnits(days = AWAITING_DAYS): Promise<Tx[]> {
 export type MissingUnitsTx = Tx & { px_at: number | null };
 
 /**
- * Buys and sells of a **priced** holding that were recorded without a unit count, other
- * than the fund buys still inside their confirmation window (`pendingFundUnits`).
+ * Buys and sells of a **priced**, non-fund holding that were recorded without a unit count.
  *
  * Nothing breaks on one — `buildDaily` divides the amount by that day's close and carries
  * on — but the units it invents are the close's, not your fill's, so the history drifts by
- * the spread and fees, and a metal's comes out at the buy-back price. A fund buy left
- * unconfirmed past its window is worse: `AWAITING_UNITS` keeps it out of P&L altogether.
+ * the spread and fees, and a metal's comes out at the buy-back price.
  *
- * Left out on purpose: a manually-valued holding (no units to have), a dividend or units
- * adjustment (both carry a `quantity` by shape, see `txKind`), and a zero-amount row.
+ * Left out on purpose: **funds**, which have their own place — `pendingFundUnits`, for the
+ * T+1/T+2 window only. An older fund buy without units is one whose units you carried into
+ * the holding some other way (its quantity typed in, before only a transaction could move
+ * it), and listing every one of them buried the rows that do need units. Also out: a
+ * manually-valued holding (no units to have), a dividend or units adjustment (both carry a
+ * `quantity` by shape, see `txKind`), and a zero-amount row.
  * `px_at` is that close — the figure the app is assuming now, offered as the estimate —
  * falling back to the earliest close for a row older than the series, as `priceAt` does.
  */
-export async function missingUnitsTxs(days = AWAITING_DAYS): Promise<MissingUnitsTx[]> {
+export async function missingUnitsTxs(): Promise<MissingUnitsTx[]> {
   return q(
     `SELECT t.*,
             COALESCE(
@@ -936,9 +938,9 @@ export async function missingUnitsTxs(days = AWAITING_DAYS): Promise<MissingUnit
        FROM transactions t
        JOIN instruments i ON i.name = t.instrument
       WHERE t.quantity IS NULL AND t.amount <> 0 AND i.price_source <> ?
-        AND NOT (t.asset_type='Funds' AND t.amount > 0 AND t.date >= ?)
+        AND t.asset_type <> 'Funds'
       ORDER BY t.date DESC, t.id DESC`,
-  ).all<MissingUnitsTx>(MANUAL_SOURCE, awaitingCutoff(days));
+  ).all<MissingUnitsTx>(MANUAL_SOURCE);
 }
 
 export function addBusinessDays(iso: string, n: number): Date {
