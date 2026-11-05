@@ -90,7 +90,7 @@ export function PortfolioChart({
   error: string | null;
 }) {
   const [metric, setMetric] = React.useState<Metric>("value");
-  const [timeframe, setTimeframe] = React.useState<Bucket>("Weekly");
+  const [timeframe, setTimeframe] = React.useState<Bucket>("Monthly");
   // `null` means "whatever the default is", not a stored pair: the series is fetched after
   // mount, so there is no span to seed a default from at first render — and this way a
   // rebuild that extends the history is reflected in an untouched window straight away.
