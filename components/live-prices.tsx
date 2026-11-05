@@ -407,14 +407,18 @@ export function LivePrices() {
           )}
         >
           <span className={cn("size-[7px] rounded-full", live ? "animate-pulse-dot bg-accent-brand" : "bg-disabled-foreground")} />
-          <span className={word}>Live</span>
           {live ? (
-            <span className="tabular-nums">
-              <span className={word}>· </span>
-              {label}
-            </span>
+            <>
+              <span className={word}>Live</span>
+              <span className="tabular-nums">
+                <span className={word}>· </span>
+                {label}
+              </span>
+            </>
           ) : (
-            <span className="sm:hidden">Off</span>
+            // Off reads "Off" at every width: the wide pill used to keep its "Live" word
+            // with only the dot greyed, which claimed the opposite of the setting.
+            <span>Off</span>
           )}
         </SelectTrigger>
         <SelectContent>

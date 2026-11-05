@@ -282,6 +282,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
     header: "Subscription",
     accessorFn: (r) => r.sub.name,
     size: 210,
+    meta: { phone: 160 },
     cell: ({ row }) => {
       const s = row.original.sub;
       return (
@@ -302,7 +303,9 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
     id: "category",
     header: "Category",
     enableSorting: false,
-    size: 120,
+    // Wide enough for the longest tag, "Entertainment".
+    size: 148,
+    meta: { phone: false },
     cell: ({ row }) => <Badge variant="tag">{row.original.sub.category}</Badge>,
   },
   {
@@ -310,6 +313,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
     header: "Next charge",
     accessorFn: (r) => r.days,
     size: 150,
+    meta: { phone: false },
     cell: ({ row }) => {
       const r = row.original;
       if (r.cancelled)
@@ -333,7 +337,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
     header: "Per month",
     accessorFn: (r) => r.monthly,
     size: 130,
-    meta: { align: "right" },
+    meta: { align: "right", phone: 128 },
     cell: ({ row }) => (
       // A cancelled plan costs nothing from here on, so it loses the emphasis — the figure
       // stays visible as what it *used* to commit you to.
@@ -353,7 +357,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
     header: "Per year",
     accessorFn: (r) => r.yearly,
     size: 130,
-    meta: { align: "right" },
+    meta: { align: "right", phone: false },
     cell: ({ row }) => (
       <span data-amount className="font-mono tabular-nums text-muted-foreground">
         {fmtVND(row.original.yearly)}
@@ -365,7 +369,7 @@ function makeColumns(today: string): ColumnDef<SubRow>[] {
     header: "Spent so far",
     accessorFn: (r) => r.spent,
     size: 130,
-    meta: { align: "right" },
+    meta: { align: "right", phone: false },
     cell: ({ row }) => (
       <span data-amount className="font-mono tabular-nums text-muted-foreground">
         {row.original.spent ? fmtVND(row.original.spent) : "—"}

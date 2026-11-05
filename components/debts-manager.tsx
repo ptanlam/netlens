@@ -480,13 +480,16 @@ const columns: ColumnDef<DebtRow>[] = [
     header: "Debt",
     enableSorting: false,
     size: 180,
+    meta: { phone: 168 },
     cell: ({ row }) => {
       const d = row.original.debt;
       return (
         <div>
-          <div className="font-semibold">{d.lender ?? "Loan"}</div>
-          <div className="text-caption text-muted-foreground">
+          <div className="truncate font-semibold">{d.lender ?? "Loan"}</div>
+          <div className="truncate text-caption text-muted-foreground">
             <Amt>{fmtVND(d.principal)}</Amt> · {row.original.isCredit ? `since ${d.start_date}` : `${d.term_months}mo`}
+            {/* The Rate column gives way on a phone; the list is sorted by it, so it stays. */}
+            <span className="sm:hidden"> · {d.rate}%</span>
           </div>
         </div>
       );
@@ -497,7 +500,7 @@ const columns: ColumnDef<DebtRow>[] = [
     header: "Rate",
     accessorFn: (r) => r.debt.rate,
     size: 90,
-    meta: { align: "right" },
+    meta: { align: "right", phone: false },
     cell: ({ row }) => <span className="font-mono tabular-nums">{row.original.debt.rate}%</span>,
   },
   {
@@ -505,6 +508,7 @@ const columns: ColumnDef<DebtRow>[] = [
     header: "Type",
     enableSorting: false,
     size: 100,
+    meta: { phone: false },
     cell: ({ row }) => typeBadge(row.original.debt),
   },
   {
@@ -512,6 +516,7 @@ const columns: ColumnDef<DebtRow>[] = [
     header: "Due date",
     accessorFn: (r) => r.maturityMs,
     size: 130,
+    meta: { phone: false },
     cell: ({ row }) =>
       row.original.isCredit ? (
         <span className="text-muted-foreground">—</span>
@@ -524,7 +529,7 @@ const columns: ColumnDef<DebtRow>[] = [
     header: "Owed",
     accessorFn: (r) => r.owed,
     size: 150,
-    meta: { align: "right" },
+    meta: { align: "right", phone: 120 },
     cell: ({ row }) => (
       // Nothing outstanding isn't a liability, so it loses the red.
       <span data-amount className={cn(
@@ -540,7 +545,7 @@ const columns: ColumnDef<DebtRow>[] = [
     header: "Paid",
     accessorFn: (r) => r.paid,
     size: 120,
-    meta: { align: "right" },
+    meta: { align: "right", phone: false },
     cell: ({ row }) => (
       <span data-amount={row.original.paid ? true : undefined} className="font-mono tabular-nums text-muted-foreground">
         {row.original.paid ? fmtVND(row.original.paid) : "—"}
@@ -552,6 +557,7 @@ const columns: ColumnDef<DebtRow>[] = [
     header: "Note",
     enableSorting: false,
     size: 160,
+    meta: { phone: false },
     cell: ({ row }) => (
       <span className="block max-w-40 truncate text-body-sm text-muted-foreground">
         {row.original.debt.note}

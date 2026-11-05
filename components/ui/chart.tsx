@@ -153,6 +153,7 @@ export const CHIP_LEGEND_CLASS = "legend-chips";
 const LEGEND_CSS = `
 .${CHIP_LEGEND_CLASS} .ts-chart__interactive-legend {
   display: flex !important;
+  height: auto !important;
   flex-wrap: wrap;
   align-content: center;
   justify-content: center;
@@ -279,11 +280,9 @@ const AXIS_GUTTER = 64;
  * keeps the shape it wants at every width, and extra series push the card down the page rather
  * than flattening the thing they're a key to.
  *
- * `chip` is the widest a name may be drawn before it truncates, and it is the whole of the
- * promise the wrapped layout makes to the reserved height: hand the row as many chips as the
- * reserved rows have to hold and no more, and the wrap can only come out shorter than the
- * grid. Four series on a wide panel get a fifth of it each and their names in full; a dozen
- * share the same row, and the long ones give way to an ellipsis.
+ * `chip` is the widest a name may be drawn before it truncates: the plot's width, up to
+ * `LEGEND_ITEM_MAX`. Chips wrap at their own width, so the wrap can come out taller than the
+ * band the library reserved; `useLegendBand` pads the panel by the difference.
  *
  * The plot's own proportions shift with width because a phone is not a wide screen with less
  * in it: twelve stacked columns in a 3:1 strip would be 90px tall there. `aspect` overrides
@@ -301,10 +300,13 @@ export function legendChartMetrics(
   // The measured band when there is one; the library's own arithmetic on a pessimistic plot
   // width until then.
   const legend = band ?? predictedLegendBand(count, plot, legendItemWidth(width));
-  const rows = Math.max(1, Math.round((legend - LEGEND_PAD * 2 + LEGEND_GAP) / (LEGEND_ROW + LEGEND_GAP)));
   return {
     height: Math.round(width / aspect(width)) + legend,
-    chip: Math.min(LEGEND_ITEM_MAX, Math.floor((plot + LEGEND_GAP) / Math.ceil(count / rows)) - LEGEND_GAP),
+    // A name is drawn in full up to the cap. Holding it to the library's column width cut
+    // phone chips to "Lan…" / "VF…", and a sub-pixel miss on that width still wrapped them a
+    // row past the band; the rows the wrap needs beyond the band are paid for by
+    // `useLegendBand`, which pads the panel by the difference.
+    chip: Math.min(LEGEND_ITEM_MAX, plot),
   };
 }
 
@@ -336,16 +338,34 @@ export function useLegendBand(): [number | null, (node: HTMLDivElement | null) =
   const ref = React.useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
     let resize: ResizeObserver | undefined;
+    let restyle: MutationObserver | undefined;
     const watch = () => {
       const el = node.querySelector<HTMLElement>(".ts-chart__interactive-legend");
       if (!el) return false;
-      resize = new ResizeObserver(([entry]) => setBand(entry.contentRect.height));
+      // The band is what the library reserved (its inline height); the legend itself is
+      // `height: auto` and may wrap taller than that, in which case the panel grows by the
+      // difference so the chips never spill onto whatever sits under the chart.
+      const sync = () => {
+        const reserved = parseFloat(el.style.height);
+        if (!Number.isFinite(reserved)) return;
+        setBand(reserved);
+        node.style.paddingBottom = `${Math.max(0, Math.ceil(el.offsetHeight - reserved))}px`;
+      };
+      resize = new ResizeObserver(sync);
       resize.observe(el);
+      restyle = new MutationObserver(sync);
+      restyle.observe(el, { attributes: true, attributeFilter: ["style"] });
+      sync();
       return true;
     };
     // The legend is built by the chart after mount, so it is usually not there on the first
     // call — wait for it rather than giving up and keeping the prediction forever.
-    if (watch()) return () => resize?.disconnect();
+    if (watch()) {
+      return () => {
+        resize?.disconnect();
+        restyle?.disconnect();
+      };
+    }
     const appear = new MutationObserver(() => {
       if (watch()) appear.disconnect();
     });
@@ -353,6 +373,7 @@ export function useLegendBand(): [number | null, (node: HTMLDivElement | null) =
     return () => {
       appear.disconnect();
       resize?.disconnect();
+      restyle?.disconnect();
     };
   }, []);
   return [band, ref];

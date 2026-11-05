@@ -549,7 +549,8 @@ function GoalCard({
           </div>
           <div className="mt-1 font-mono text-caption text-muted-foreground tabular-nums">
             <Amt>{fmtVND(proj.current)} / {fmtVND(proj.target)}</Amt>
-            {goal.target_date && ` · by ${goal.target_date}`}
+            {/* Kept whole: a date broken at its hyphen read as "by 2027-06-" over "30". */}
+            {goal.target_date && <> · <span className="whitespace-nowrap">by {goal.target_date}</span></>}
             {goal.note && ` · ${goal.note}`}
           </div>
           {/* A target that moves on its own has to say why, or "Behind" becomes a number

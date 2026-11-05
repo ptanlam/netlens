@@ -41,6 +41,38 @@ import { cn } from "@/lib/utils";
 
 type Align = "left" | "right";
 
+/**
+ * Per-column `meta`. `phone` is how the column behaves below `sm`: `false` drops it, a number
+ * replaces its width. A table is as wide as its columns and scrolls past that, so on a phone
+ * the figure a row exists to show (an amount, what's owed) sat off the right edge behind a
+ * swipe, under a header squeezed to "R..". A column that gives way usually has its gist moved
+ * into the name cell's subline (`sm:hidden`) by the page that owns it.
+ */
+export type ColumnMeta = { align?: Align; phone?: false | number };
+
+const PHONE_QUERY = "(max-width: 639.98px)";
+
+function subscribePhone(onChange: () => void) {
+  const mq = window.matchMedia(PHONE_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+/** False on the server and on the first client render, so hydration matches the desktop
+ *  markup; a phone switches over right after, as the saved table state already does. */
+function useIsPhone(): boolean {
+  return React.useSyncExternalStore(
+    subscribePhone,
+    () => window.matchMedia(PHONE_QUERY).matches,
+    () => false,
+  );
+}
+
+function colId(c: unknown): string {
+  const col = c as { id?: string; accessorKey?: string };
+  return col.id ?? col.accessorKey ?? "";
+}
+
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
 
 const MENU_POPUP =
@@ -130,16 +162,21 @@ export function DataTable<TData, TValue>({
   // render can't overwrite what's in storage before we've loaded it.
   const [hydrated, setHydrated] = React.useState(false);
 
-  const columnIds = React.useMemo(
-    () =>
-      columns
-        .map((c) => {
-          const col = c as { id?: string; accessorKey?: string };
-          return col.id ?? col.accessorKey ?? "";
-        })
-        .filter(Boolean),
-    [columns],
-  );
+  const columnIds = React.useMemo(() => columns.map(colId).filter(Boolean), [columns]);
+
+  const phone = useIsPhone();
+  // The phone layout is applied on top of the saved state rather than written into it:
+  // hidden columns and narrower widths there must not become the desktop's next visit.
+  const { shownColumns, columnVisibility } = React.useMemo(() => {
+    if (!phone) return { shownColumns: columns, columnVisibility: {} };
+    const visibility: Record<string, boolean> = {};
+    const shown = columns.map((c) => {
+      const p = (c.meta as ColumnMeta | undefined)?.phone;
+      if (p === false) visibility[colId(c)] = false;
+      return typeof p === "number" ? { ...c, size: p } : c;
+    });
+    return { shownColumns: shown, columnVisibility: visibility };
+  }, [columns, phone]);
 
   // Load once, after mount — never during the SSR/first render, so hydration matches.
   React.useEffect(() => {
@@ -186,8 +223,15 @@ export function DataTable<TData, TValue>({
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
-    columns,
-    state: { sorting, columnOrder, columnPinning, columnSizing, pagination },
+    columns: shownColumns,
+    state: {
+      sorting,
+      columnOrder,
+      columnPinning,
+      columnSizing: phone ? {} : columnSizing,
+      columnVisibility,
+      pagination,
+    },
     onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
     onColumnPinningChange: setColumnPinning,
@@ -385,7 +429,7 @@ export function DataTable<TData, TValue>({
         <TableBody>
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={columns.length} className="h-20 text-center text-muted-foreground">
+              <TableCell colSpan={table.getVisibleLeafColumns().length} className="h-20 text-center text-muted-foreground">
                 {emptyMessage}
               </TableCell>
             </TableRow>
@@ -497,7 +541,9 @@ function ColumnMenu<TData>({
             size="icon-xs"
             aria-label="Column options"
             className={cn(
-              "opacity-0 transition-opacity group-hover/th:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100",
+              // Gone on a phone: it only shows on hover, which touch doesn't have, and its
+              // width is what squeezed narrow headers to "AM…".
+              "opacity-0 transition-opacity group-hover/th:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 max-sm:hidden",
               align === "right" ? "-ml-1 mr-auto" : "-mr-1 ml-auto",
             )}
           />

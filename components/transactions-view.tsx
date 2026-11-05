@@ -181,6 +181,7 @@ export function TransactionsView({
         accessorKey: "date",
         header: "Date",
         size: 110,
+        meta: { phone: false },
         cell: ({ row }) => (
           <span className="font-mono text-caption text-muted-foreground tabular-nums">{row.original.date}</span>
         ),
@@ -189,21 +190,36 @@ export function TransactionsView({
         accessorKey: "instrument",
         header: "Holding",
         size: 250,
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <EntityAvatar
-              name={row.original.instrument}
-              color={typeColor(row.original.asset_type)}
-              logo={logos[row.original.instrument]}
-            />
-            <span className="truncate text-body-sm font-semibold">{row.original.instrument}</span>
-          </div>
-        ),
+        meta: { phone: 128 },
+        cell: ({ row }) => {
+          const kind = txKind(row.original);
+          return (
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              {/* A phone gives this column ~100px, and the name and date need it more. */}
+              <span className="contents max-sm:hidden">
+                <EntityAvatar
+                  name={row.original.instrument}
+                  color={typeColor(row.original.asset_type)}
+                  logo={logos[row.original.instrument]}
+                />
+              </span>
+              <div className="min-w-0">
+                <div className="truncate text-body-sm font-semibold">{row.original.instrument}</div>
+                {/* On a phone the Date and Type columns give way, so their gist rides here. */}
+                <div className="truncate font-mono text-caption text-muted-foreground tabular-nums sm:hidden">
+                  {row.original.date}
+                  {kind !== "buy" && <span className="font-sans text-accent-brand"> · {TX_KIND_LABEL[kind]}</span>}
+                </div>
+              </div>
+            </div>
+          );
+        },
       },
       {
         id: "type",
         header: "Type",
         size: 90,
+        meta: { phone: false },
         enableSorting: false,
         cell: ({ row }) => {
           const kind = txKind(row.original);
@@ -220,7 +236,7 @@ export function TransactionsView({
         accessorKey: "quantity",
         header: "Units",
         size: 145,
-        meta: { align: "right" },
+        meta: { align: "right", phone: false },
         cell: ({ row }) => (
           <span data-amount className="font-mono text-caption text-muted-foreground tabular-nums">
             {row.original.quantity != null ? fmtUnits(row.original.quantity) : "—"}
@@ -233,7 +249,7 @@ export function TransactionsView({
         size: 145,
         // No price without both sides: bonus units cost nothing, a dividend moves no units.
         accessorFn: (t) => (t.quantity && t.amount ? t.amount / t.quantity : null),
-        meta: { align: "right" },
+        meta: { align: "right", phone: false },
         cell: ({ row }) => {
           const t = row.original;
           const price = t.quantity && t.amount ? t.amount / t.quantity : null;
@@ -248,7 +264,7 @@ export function TransactionsView({
         accessorKey: "amount",
         header: "Amount",
         size: 160,
-        meta: { align: "right" },
+        meta: { align: "right", phone: 108 },
         cell: ({ row }) => (
           <span data-amount className="font-mono text-caption tabular-nums">{fmtVND(row.original.amount)}</span>
         ),
@@ -256,7 +272,9 @@ export function TransactionsView({
       {
         id: "actions",
         header: "",
-        size: 72,
+        // Two 28px icon buttons and the cell's padding; at 72 the delete button was cut off.
+        size: 96,
+        meta: { phone: 76 },
         enableSorting: false,
         cell: ({ row }) => <TxRowActions tx={row.original} instruments={options} />,
       },

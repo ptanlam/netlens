@@ -26,6 +26,7 @@ const columns: ColumnDef<EstateRow>[] = [
     header: "Plot",
     accessorKey: "name",
     size: 230,
+    meta: { phone: 136 },
     cell: ({ row }) => {
       const r = row.original;
       return (
@@ -38,6 +39,12 @@ const columns: ColumnDef<EstateRow>[] = [
               ? `${LAND_USE_LABELS[r.property.land_use]} · ${r.property.area_m2.toLocaleString("de-DE")} m²`
               : "Not placed yet"}
           </div>
+          {/* The Estimate column gives way on a phone, so its midpoint rides here. */}
+          {predictedMid(r) != null && (
+            <div className="truncate text-caption text-muted-foreground sm:hidden">
+              Est. <span data-amount className="font-mono tabular-nums">{fmtVND(predictedMid(r)!)}</span>
+            </div>
+          )}
         </div>
       );
     },
@@ -47,7 +54,7 @@ const columns: ColumnDef<EstateRow>[] = [
     header: "Booked",
     accessorKey: "booked",
     size: 150,
-    meta: { align: "right" },
+    meta: { align: "right", phone: 120 },
     cell: ({ row }) => <span data-amount className="font-mono tabular-nums">{fmtVND(row.original.booked)}</span>,
   },
   {
@@ -55,7 +62,7 @@ const columns: ColumnDef<EstateRow>[] = [
     header: "Estimate",
     accessorFn: (r) => predictedMid(r) ?? -1,
     size: 220,
-    meta: { align: "right" },
+    meta: { align: "right", phone: false },
     cell: ({ row }) => {
       const r = row.original;
       const mid = predictedMid(r);
@@ -81,7 +88,7 @@ const columns: ColumnDef<EstateRow>[] = [
       return mid == null ? 0 : mid - r.booked;
     },
     size: 140,
-    meta: { align: "right" },
+    meta: { align: "right", phone: false },
     cell: ({ row }) => {
       const mid = predictedMid(row.original);
       if (mid == null) return <span className="text-muted-foreground">—</span>;
@@ -98,6 +105,7 @@ const columns: ColumnDef<EstateRow>[] = [
     header: "Evidence",
     accessorFn: (r) => r.valuation?.used ?? 0,
     size: 170,
+    meta: { phone: false },
     cell: ({ row }) => {
       const v = row.original.valuation;
       if (!v || predictedMid(row.original) == null) return <span className="text-muted-foreground">—</span>;
@@ -116,7 +124,8 @@ const columns: ColumnDef<EstateRow>[] = [
     id: "open",
     header: "",
     enableSorting: false,
-    size: 48,
+    size: 64,
+    meta: { phone: 56 },
     cell: ({ row }) => (
       <Link
         href={estateHref(row.original.name)}
