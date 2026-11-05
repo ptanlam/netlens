@@ -16,7 +16,7 @@ import { tooltip } from "@tanstack/charts/tooltip";
 import { stackRowsY } from "@tanstack/charts/transform/stack";
 import { scaleUtc } from "d3-scale";
 import { Download, RefreshCw } from "lucide-react";
-import { TX_KIND_LABEL, txKind, type Tx } from "@/lib/types";
+import { ASSET_TYPES, TX_KIND_LABEL, txKind, type Tx } from "@/lib/types";
 import { BIL_FROM, fmtUnits, fmtVND, MIL_FROM, MONTHS } from "@/lib/format";
 import { readMasked } from "@/lib/mask";
 import { Badge } from "@/components/ui/badge";
@@ -112,21 +112,34 @@ export function TransactionsView({
   const [to, setTo] = React.useState(initial.to);
   const [filterHolding, setFilterHolding] = React.useState(initialHolding);
   const [filterType, setFilterType] = React.useState("All");
+  const [filterAsset, setFilterAsset] = React.useState("All");
 
+  // The holding types that have any activity, in the app's own order, with anything outside
+  // `ASSET_TYPES` (an older row's type) after them.
+  const assetTypes = React.useMemo(() => {
+    const seen = new Set(txs.map((t) => t.asset_type));
+    const known: string[] = ASSET_TYPES.filter((a) => seen.has(a));
+    return [...known, ...[...seen].filter((a) => !known.includes(a)).sort()];
+  }, [txs]);
+
+  // Narrowed by the holding-type picker, so the holding list only offers what it admits.
   const holdingNames = React.useMemo(
-    () => Array.from(new Set(txs.map((t) => t.instrument))).sort(),
-    [txs],
+    () => Array.from(new Set(
+      txs.filter((t) => filterAsset === "All" || t.asset_type === filterAsset).map((t) => t.instrument),
+    )).sort(),
+    [txs, filterAsset],
   );
 
-  // Everything the holding and type pickers admit, over the whole history.
+  // Everything the holding, holding-type and type pickers admit, over the whole history.
   const selected = React.useMemo(() => {
     return txs
+      .filter((t) => filterAsset === "All" || t.asset_type === filterAsset)
       .filter((t) => filterHolding === "All" || t.instrument === filterHolding)
       .filter((t) => {
         if (filterType === "All") return true;
         return txKind(t) === filterType;
       });
-  }, [txs, filterHolding, filterType]);
+  }, [txs, filterAsset, filterHolding, filterType]);
 
   // The picked window. Everything below reads it, tiles and table included, because a
   // panel quoting two different windows at once is unreadable.
@@ -338,6 +351,26 @@ export function TransactionsView({
 
         <div className="mt-4 flex flex-wrap items-center gap-2.5">
           <span className="text-caption text-muted-foreground">Filter</span>
+          {/* Picking a type drops a holding of another type rather than leaving the two
+              pickers agreeing on nothing, which would read as an empty history. */}
+          <Select
+            value={filterAsset}
+            onValueChange={(v) => {
+              const asset = String(v ?? "All");
+              setFilterAsset(asset);
+              if (asset !== "All" && !txs.some((t) => t.instrument === filterHolding && t.asset_type === asset))
+                setFilterHolding("All");
+            }}
+            items={{ All: "All holding types", ...Object.fromEntries(assetTypes.map((a) => [a, a])) }}
+          >
+            <SelectTrigger size="sm" aria-label="Holding type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All holding types</SelectItem>
+              {assetTypes.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+            </SelectContent>
+          </Select>
           {/* The house Select rather than a native one, so the list opens animated like every
               other picker in the app. `items` gives the "All" value its label. */}
           <Select
@@ -356,13 +389,13 @@ export function TransactionsView({
           <Select
             value={filterType}
             onValueChange={(v) => setFilterType(String(v ?? "All"))}
-            items={{ All: "All types", ...TX_KIND_LABEL }}
+            items={{ All: "All activity", ...TX_KIND_LABEL }}
           >
             <SelectTrigger size="sm" aria-label="Type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="All">All types</SelectItem>
+              <SelectItem value="All">All activity</SelectItem>
               {Object.entries(TX_KIND_LABEL).map(([k, label]) => (
                 <SelectItem key={k} value={k}>{label}</SelectItem>
               ))}
