@@ -98,9 +98,9 @@ export function PortfolioChart({
 
   const minDate = series?.length ? series[0].date : "";
   const maxDate = series?.length ? series[series.length - 1].date : "";
-  // The last year, matching the preset of that name so its pill reads as active on arrival.
-  // Clamped to the first point: on a series younger than a year the window is the whole of
-  // it, and "All" is then the honest label for what you're looking at.
+  // The year to date, matching the preset of that name so its pill reads as active on
+  // arrival. Clamped to the first point: on a series that starts this year the window is the
+  // whole of it, and "All" is then the honest label for what you're looking at.
   const fallback = defaultWindow(minDate, maxDate);
   const from = range?.from ?? fallback.from;
   const to = range?.to ?? fallback.to;

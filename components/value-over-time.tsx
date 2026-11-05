@@ -134,7 +134,7 @@ export function ValueOverTime({
   const minDate = series.length ? series[0].date : "";
   const maxDate = series.length ? series[series.length - 1].date : "";
 
-  // The last year rather than the whole history: a deposit ladder or a debt run going back
+  // The year to date rather than the whole history: a deposit ladder or a debt run going back
   // years compresses this year — the part you can still act on — into the right-hand inch.
   const initial = defaultWindow(minDate, maxDate);
   const [from, setFrom] = React.useState(initial.from);

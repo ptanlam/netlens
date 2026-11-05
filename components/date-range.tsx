@@ -18,26 +18,32 @@ export function shiftMonths(iso: string, delta: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
-/** How far back every panel opens on. A year is the shortest window that shows a full
- *  seasonal cycle — an annual subscription renewal, a maturing deposit, a January dip —
- *  while still being short enough that this month is legible inside it. */
+/** What the 1Y preset reaches back. */
 export const DEFAULT_RANGE_MONTHS = 12;
 
+/** 1 January of `iso`'s year — where the YTD preset starts. */
+export function yearStart(iso: string): string {
+  return `${iso.slice(0, 4)}-01-01`;
+}
+
 /**
- * The window a panel opens on: the last year, or all of it when there's less than a year of
- * data. Shared rather than seeded per panel — the three callers each had their own idea of
- * the default and had already drifted apart (two on YTD, one on All).
+ * The window a panel opens on: the year to date, or all of it when the data starts later
+ * than 1 January. Shared rather than seeded per panel — the three callers each had their own
+ * idea of the default and had already drifted apart (two on YTD, one on All).
  *
- * The clamp is what makes the pills honest: on a series younger than a year `from` lands on
- * `min`, so the pill that reads as active is "All", which is what you're actually looking
+ * YTD rather than the last twelve months because it's the window the year's own figures
+ * (this year's P&L, the streak, the goals) are already read against.
+ *
+ * The clamp is what makes the pills honest: on a series that starts this year `from` lands
+ * on `min`, so the pill that reads as active is "All", which is what you're actually looking
  * at. Empty in, empty out — the dashboard's series is fetched after mount, and there is no
  * window to compute before it arrives.
  */
 export function defaultWindow(min: string, max: string): { from: string; to: string } {
   const anchor = max || min;
   if (!anchor) return { from: min, to: max };
-  const year = shiftMonths(anchor, -DEFAULT_RANGE_MONTHS);
-  return { from: year > min ? year : min, to: max };
+  const ytd = yearStart(anchor);
+  return { from: ytd > min ? ytd : min, to: max };
 }
 
 /**
@@ -76,7 +82,7 @@ export function DateRange({
       { label: "3M", from: shiftMonths(anchor, -3) },
       // YTD sits before 1Y despite reaching back further in December: the row is ordered
       // the way every finance chart orders it, not by the span each happens to cover today.
-      { label: "YTD", from: `${anchor.slice(0, 4)}-01-01` },
+      { label: "YTD", from: yearStart(anchor) },
       { label: "1Y", from: shiftMonths(anchor, -DEFAULT_RANGE_MONTHS) },
       { label: "All", from: min },
     ],
