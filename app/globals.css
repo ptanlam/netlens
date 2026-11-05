@@ -740,6 +740,19 @@ html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-st
   }
 }
 
+/* The dot on an active recurring rule: the same ring as `tick-ping`, looped with a rest
+ * between rings, because a rule that is armed is a state, not an event. The rest keeps a
+ * list of several rules from reading as a row of strobes. */
+@keyframes live-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent-brand) 55%, transparent);
+  }
+  45%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
 /* The net-worth hero ticks green (up) / red (down) and nudges into place whenever a price
  * refresh moves the total — colour + motion make a refresh legible without reading digits. */
 /* A host can override the colours it flashes through and comes to rest on (`--nw-up`,
@@ -821,6 +834,9 @@ html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-st
   }
   .animate-tick-ping {
     animation: tick-ping 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-live-ring {
+    animation: live-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   }
   .animate-nw-flash-up {
     animation: nw-flash-up 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;

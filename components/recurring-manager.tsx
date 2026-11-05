@@ -301,6 +301,16 @@ function RuleRow({
     <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
       <div className="min-w-40 flex-1">
         <div className="flex items-center gap-2 font-semibold">
+          {/* Armed or not, at a glance: an active rule's dot rings, a paused one's is still
+              and grey. Keyed on the state so resuming starts the ring from its first beat. */}
+          <span
+            key={rule.active ? "on" : "off"}
+            aria-hidden
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              rule.active ? "animate-live-ring bg-accent-brand" : "bg-disabled-foreground",
+            )}
+          />
           {rule.instrument}
           {!rule.active && <Badge variant="secondary">paused</Badge>}
         </div>
