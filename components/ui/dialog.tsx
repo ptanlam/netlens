@@ -68,12 +68,16 @@ function DialogContent({
         initialFocus={initialFocus}
         data-slot="dialog-content"
         className={cn(
-          "panel-surface fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-3xl p-5 text-body-sm text-popover-foreground outline-none sm:max-w-md sm:p-6",
+          "panel-surface fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl text-body-sm text-popover-foreground outline-none sm:max-w-md",
           className
         )}
         {...props}
       >
-        {children}
+        {/* The body scrolls, not the popup, so the close button — placed on the popup — stays
+            put however long the form is, and the header can stick to the top of the body. */}
+        <div data-slot="dialog-body" className="grid min-h-0 gap-5 overflow-y-auto overscroll-contain p-5 sm:p-6">
+          {children}
+        </div>
         {showCloseButton && (
           <IconTooltip label="Close">
             <DialogPrimitive.Close
@@ -81,7 +85,7 @@ function DialogContent({
               render={
                 <Button
                   variant="secondary"
-                  className="absolute top-4 right-4 sm:top-5 sm:right-5"
+                  className="absolute top-4 right-4 z-20 sm:top-5 sm:right-5"
                   size="icon"
                 />
               }
@@ -97,11 +101,19 @@ function DialogContent({
   )
 }
 
+/** Pinned to the top of the dialog while a long form scrolls under it. It bleeds out over
+ *  the body's padding (negative margins, matching padding back) and carries the popup's own
+ *  background, so rows sliding up are hidden behind it rather than showing through. The
+ *  negative `top` is that padding too: a sticky box stops at the padding edge, which would
+ *  leave a strip above it for the rows to show through. */
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 pr-12", className)}
+      className={cn(
+        "sticky -top-5 z-10 -mx-5 -mt-5 -mb-3 flex flex-col gap-2 bg-popover px-5 pt-5 pr-17 pb-3 sm:-top-6 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 sm:pr-18",
+        className
+      )}
       {...props}
     />
   )
