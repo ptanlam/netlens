@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/chart";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { DateRange, defaultWindow } from "@/components/date-range";
+import { bucketOf, type Bucket } from "@/components/pnl-chart";
 import { cn } from "@/lib/utils";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -95,8 +96,8 @@ export function TransactionsView({
   const year = today.slice(0, 4);
   const minDate = txs.length ? txs.reduce((m, t) => (t.date < m ? t.date : m), txs[0].date) : `${year}-01-01`;
 
-  // Opens on the last year of activity — or on everything, when there's less than a year of
-  // it. Seeded once: `today` and `minDate` don't move within a mount.
+  // Opens on the year to date — or on everything, when activity only started this year.
+  // Seeded once: `today` and `minDate` don't move within a mount.
   //
   // Arriving pre-filtered to one holding is the exception, and it has to be: a position you
   // stopped adding to two years ago would open on a year that contains none of it, so the
@@ -380,9 +381,6 @@ export function TransactionsView({
           <SummaryTile label="Best month" value={best ? `${best.label} · ${fmtVND(best.amt)}` : "—"} />
         </div>
 
-        <div className="mt-6 mb-3 text-body-sm font-semibold text-muted-foreground">
-          Cumulative capital deployed
-        </div>
         <CumulativeChart txs={filtered} from={from} to={to} />
 
         {/* "in and out", not "deployed": the columns run both ways now, and a heading that
@@ -439,12 +437,34 @@ interface CumPoint {
   /** The instant this step lands on — the temporal x scale plots from this. */
   at: Date;
   v: number;
+  /** What the period ending here added (signed). Absent on the range-start bookend. */
+  delta?: number;
   date: string;
   label: string;
-  /** What this step *is*, across redraws: the transaction's row id, or a bookend's name.
-   *  Without it the library falls back to row position, which is not identity here — two
-   *  transactions can share a date, and inserting one renumbers every step after it. */
+  /** What this point *is*, across redraws: its period, or a bookend's name. Without it the
+   *  library falls back to row position, which is not identity here — a transaction dated
+   *  earlier in the window would renumber every point after it. */
   key: string;
+}
+
+/** The same four steps as Portfolio value over time, so the two charts bucket alike. */
+const CUM_TIMEFRAMES: Bucket[] = ["Daily", "Weekly", "Monthly", "Yearly"];
+
+const PERIOD_NOUN: Record<Bucket, string> = {
+  Daily: "This day", Weekly: "This week", Monthly: "This month", Yearly: "This year",
+};
+
+function periodLabel(date: string, b: Bucket): string {
+  if (b === "Yearly") return date.slice(0, 4);
+  if (b === "Monthly") return `${MONTHS[Number(date.slice(5, 7)) - 1]} ${date.slice(0, 4)}`;
+  return b === "Weekly" ? `Week of ${bucketOf(date, b)}` : date;
+}
+
+/** The ISO day after `iso`, in UTC so no clock change can skip or repeat one. */
+function nextDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 function CumulativeChart({
@@ -458,33 +478,45 @@ function CumulativeChart({
   from: string;
   to: string;
 }) {
+  const [timeframe, setTimeframe] = React.useState<Bucket>("Monthly");
 
-  // The running total across the window, bookended by its own edges so the line spans the
-  // full window even when the first buy is weeks into it.
+  // The running total across the window, one point at the close of each period — every
+  // period, including the ones with no transaction, so a quiet month reads as a flat run
+  // rather than as a line sloping across it toward the next buy. The last period closes on
+  // `to`, and the curve opens with a zero at `from`.
   //
   // It starts at zero rather than carrying in what was deployed before `from`, which is what
   // makes it the same claim as the "Invested" tile above and the table below: everything in
   // this panel reads the window, and a curve that opened partway up the axis would be the one
   // thing here quoting a figure from outside it.
   const pts = React.useMemo(() => {
-    const rows = txs.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    const byDay = new Map<string, number>();
+    for (const t of txs) byDay.set(t.date, (byDay.get(t.date) ?? 0) + t.amount); // signed
+    const out: CumPoint[] = [];
+    if (!from || !to || from > to) return out;
     let cum = 0;
-    const out: CumPoint[] = [
-      { at: new Date(from), v: 0, date: from, label: "Range start", key: "start" },
-    ];
-    for (const t of rows) {
-      cum += t.amount; // signed: buys add, sells subtract
-      out.push({
-        at: new Date(t.date),
-        v: cum,
-        date: t.date,
-        label: `${t.instrument} · ${TX_KIND_LABEL[txKind(t)]}`,
-        key: `tx:${t.id}`,
-      });
+    let opened = cum;
+    for (let d = from; d <= to; d = nextDay(d)) {
+      cum += byDay.get(d) ?? 0;
+      const next = nextDay(d);
+      if (d === to || bucketOf(next, timeframe) !== bucketOf(d, timeframe)) {
+        out.push({
+          at: new Date(`${d}T00:00:00Z`),
+          v: cum,
+          delta: cum - opened,
+          date: d,
+          label: periodLabel(d, timeframe),
+          key: `${timeframe}:${bucketOf(d, timeframe)}`,
+        });
+        opened = cum;
+      }
     }
-    out.push({ at: new Date(to), v: cum, date: to, label: "Range end", key: "end" });
+    // The zero bookend, unless the first period already closes on `from` (a daily view),
+    // where it would stack a second point on the same x.
+    if (out[0]?.date !== from)
+      out.unshift({ at: new Date(`${from}T00:00:00Z`), v: 0, date: from, label: "Range start", key: "start" });
     return out;
-  }, [txs, from, to]);
+  }, [txs, from, to, timeframe]);
 
   const definition = React.useMemo(
     () =>
@@ -501,7 +533,7 @@ function CumulativeChart({
         // Fixed to the window, not to the transactions: an empty stretch at either end is
         // information — it is when you weren't buying.
         x: {
-          scale: scaleUtc().domain([new Date(from), new Date(to)]),
+          scale: scaleUtc().domain([new Date(`${from}T00:00:00Z`), new Date(`${to}T00:00:00Z`)]),
           axis: bareAxis<Date>(),
         },
         // `milVND` renders zero as an em dash, which is right in a table cell reading "no
@@ -512,12 +544,12 @@ function CumulativeChart({
           axis: bareAxis<number>({ format: (v) => (v === 0 ? "₫0" : milVND(v)) }),
         },
         theme: CHART_THEME,
-        // For a staircase redrawn over the same days — a transaction added or edited. The
-        // window controls change how many samples there are, and that lands as a cut
-        // whatever is set here (see `CHART_MOTION`).
+        // For a curve redrawn over the same periods — a transaction added or edited. The
+        // window and timeframe controls change how many samples there are, and that lands
+        // as a cut whatever is set here (see `CHART_MOTION`).
         svgAnimation: CHART_MOTION,
-        // The date is what you point at, and the steps are irregular — an unbounded radius
-        // means a long flat run between two buys is still reachable anywhere along it.
+        // The date is what you point at, and an unbounded radius means anywhere along a
+        // long flat run still reaches the nearest point.
         focus: "nearest-x",
         maxFocusDistance: Number.POSITIVE_INFINITY,
         tooltip: {
@@ -526,17 +558,36 @@ function CumulativeChart({
             const p = points[0]?.datum;
             if (!p) return { rows: [] };
             return {
-              title: `${p.date} · ${p.label}`,
-              rows: [{ label: "Deployed", value: fmtVND(p.v), color: "var(--chart-gold)" }],
+              title: p.label,
+              rows: [
+                { label: "Deployed", value: fmtVND(p.v), color: "var(--chart-gold)" },
+                ...(p.delta != null ? [{ label: PERIOD_NOUN[timeframe], value: fmtVND(p.delta) }] : []),
+              ],
             };
           },
         },
       }),
-    [pts, from, to],
+    [pts, from, to, timeframe],
   );
+
+  const pill = (active: boolean) =>
+    cn(
+      "cursor-pointer rounded-full border-0 px-3.5 py-1.5 text-body-sm font-semibold transition-colors",
+      active ? "bg-card text-foreground shadow-[0_1px_3px_rgb(14_15_12/0.14)] dark:bg-pane-2" : "text-muted-foreground hover:text-foreground",
+    );
 
   return (
     <div>
+      <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-body-sm font-semibold text-muted-foreground">Cumulative capital deployed</div>
+        <div className="flex gap-0.5 rounded-full bg-pane p-1">
+          {CUM_TIMEFRAMES.map((t) => (
+            <button key={t} type="button" className={pill(timeframe === t)} onClick={() => setTimeframe(t)}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
       <Chart
         definition={definition}
         height={260}
