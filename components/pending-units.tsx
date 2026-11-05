@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
-import type { Tx } from "@/lib/types";
+import { TX_KIND_LABEL, txKind, type Tx } from "@/lib/types";
 import { setTxQty } from "@/app/actions";
 import { fmtVND } from "@/lib/format";
 import { Collapsible } from "@animate-ui/react/primitives/base-ui/collapsible";
@@ -16,15 +16,18 @@ import { Amt } from "@/components/amt";
 
 export interface PendingRow {
   tx: Tx;
-  window: [string, string];
+  /** The T+1 – T+2 confirmation window of a fund buy; null for any other row missing units. */
+  window: [string, string] | null;
   estUnits: number | null;
   hasHoldingQty: boolean;
+  /** Whether "add to holding" starts ticked — see `app/transactions/page.tsx`. */
+  addByDefault: boolean;
 }
 
 function PendingItem({ row }: { row: PendingRow }) {
   const [pending, startTransition] = React.useTransition();
   const [units, setUnits] = React.useState(row.estUnits?.toString() ?? "");
-  const [addToHoldings, setAddToHoldings] = React.useState(row.hasHoldingQty);
+  const [addToHoldings, setAddToHoldings] = React.useState(row.addByDefault);
   const id = `units-${row.tx.id}`;
 
   return (
@@ -33,14 +36,18 @@ function PendingItem({ row }: { row: PendingRow }) {
         <div className="text-body-sm font-semibold">{row.tx.instrument}</div>
         {/* Each piece stays whole, so a narrow row wraps between them, never inside a date. */}
         <div className="mt-[3px] flex flex-wrap gap-x-1.5 font-mono text-caption text-muted-foreground tabular-nums">
-          <span>{row.tx.date}</span>·<Amt>{fmtVND(row.tx.amount)}</Amt>·
-          <span className="whitespace-nowrap">expected {row.window[0]} – {row.window[1]}</span>
+          <span>{row.tx.date}</span>·<span>{TX_KIND_LABEL[txKind(row.tx)]}</span>·
+          <Amt>{fmtVND(Math.abs(row.tx.amount))}</Amt>
+          {row.window && (
+            <>·<span className="whitespace-nowrap">expected {row.window[0]} – {row.window[1]}</span></>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-full sm:w-auto">
           <label htmlFor={id} className="mb-1.5 block text-caption text-muted-foreground">
-            Confirmed units{row.estUnits ? ` (est. ${row.estUnits})` : ""}
+            {row.window ? "Confirmed units" : txKind(row.tx) === "sell" ? "Units sold" : "Units bought"}
+            {row.estUnits ? ` (est. ${row.estUnits})` : ""}
           </label>
           <Input
             id={id}
@@ -75,8 +82,27 @@ function PendingItem({ row }: { row: PendingRow }) {
   );
 }
 
-export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
+function Group({ intro, rows }: { intro: string; rows: PendingRow[] }) {
+  return (
+    <div className="mt-3 first:mt-1">
+      <div className="text-caption text-muted-foreground">{intro}</div>
+      <div className="mt-3 flex flex-col gap-3">
+        {rows.map((row) => (
+          <PendingItem key={row.tx.id} row={row} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Transactions whose unit count is missing: fund buys still inside their T+1/T+2 window
+ * (`pending`) and every other buy or sell of a priced holding saved without one
+ * (`missing`, `db.missingUnitsTxs`). One card, because the fix is the same Save.
+ */
+export function PendingUnitsCard({ pending, missing }: { pending: PendingRow[]; missing: PendingRow[] }) {
   const [open, setOpen] = React.useState(false);
+  const title = missing.length === 0 ? "Awaiting fund units" : pending.length === 0 ? "Missing units" : "Awaiting units";
 
   return (
     // The same amber alert the dashboard shows for this exact condition — it links here,
@@ -88,8 +114,8 @@ export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
     >
       <Collapsible.Trigger className="flex w-full items-center gap-2.5 text-left outline-none focus-visible:underline">
         <TriangleAlert className="size-4 shrink-0 text-warning" />
-        <span className="text-body-sm font-semibold">Awaiting fund units</span>
-        <Badge variant="warning">{pending.length}</Badge>
+        <span className="text-body-sm font-semibold">{title}</span>
+        <Badge variant="warning">{pending.length + missing.length}</Badge>
         <ChevronDown
           className={cn(
             "ml-auto size-4 text-muted-foreground transition-transform duration-200",
@@ -98,14 +124,18 @@ export function PendingUnitsCard({ pending }: { pending: PendingRow[] }) {
         />
       </Collapsible.Trigger>
       <Collapsible.Panel>
-        <div className="mt-1 text-caption text-muted-foreground">
-          Fund purchases confirm T+1 / T+2 business days. Enter the units from your confirmation email.
-        </div>
-        <div className="mt-4 flex flex-col gap-3">
-          {pending.map((row) => (
-            <PendingItem key={row.tx.id} row={row} />
-          ))}
-        </div>
+        {pending.length > 0 && (
+          <Group
+            intro="Fund purchases confirm T+1 / T+2 business days. Enter the units from your confirmation email."
+            rows={pending}
+          />
+        )}
+        {missing.length > 0 && (
+          <Group
+            intro="Recorded without a unit count, so they're priced at that day's close instead of your fill. Enter the units from your statement."
+            rows={missing}
+          />
+        )}
       </Collapsible.Panel>
     </Collapsible.Root>
   );

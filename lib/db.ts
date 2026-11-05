@@ -19,7 +19,7 @@
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, SavingMovement, StreakCommitment, Subscription, SymbolHit, Tx, ValuationSource } from "./types";
-import { COMMITMENT_MODES, DEFAULT_PRICE_SCHEDULE, DEFAULT_STREAK_COMMITMENT, goalIdOfProperty, goalPropertyKey, normalizePriceRefreshMs } from "./types";
+import { COMMITMENT_MODES, DEFAULT_PRICE_SCHEDULE, MANUAL_SOURCE, DEFAULT_STREAK_COMMITMENT, goalIdOfProperty, goalPropertyKey, normalizePriceRefreshMs } from "./types";
 import { FUND_PACE_WINDOW_MONTHS, fundCashAt, type ApartmentEstimate, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
 import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
@@ -892,11 +892,53 @@ export function awaitingUnits(tx: Pick<Tx, "asset_type" | "quantity" | "amount">
   return tx.asset_type === "Funds" && tx.quantity == null && tx.amount > 0;
 }
 
-export async function pendingFundUnits(days = 14): Promise<Tx[]> {
-  const cutoff = isoOf(new Date(Date.now() - days * 86400000));
+/** How long a fund buy reads as "awaiting" (a T+2 confirmation, with room for a holiday)
+ *  before it reads as plain missing units. */
+const AWAITING_DAYS = 14;
+
+function awaitingCutoff(days: number): string {
+  return isoOf(new Date(Date.now() - days * 86400000));
+}
+
+export async function pendingFundUnits(days = AWAITING_DAYS): Promise<Tx[]> {
   return q(
     `SELECT * FROM transactions WHERE ${AWAITING_UNITS} AND date >= ? ORDER BY date DESC, id DESC`,
-  ).all<Tx>(cutoff);
+  ).all<Tx>(awaitingCutoff(days));
+}
+
+/** A transaction with money and no unit count, carrying the close it is being priced at. */
+export type MissingUnitsTx = Tx & { px_at: number | null };
+
+/**
+ * Buys and sells of a **priced** holding that were recorded without a unit count, other
+ * than the fund buys still inside their confirmation window (`pendingFundUnits`).
+ *
+ * Nothing breaks on one — `buildDaily` divides the amount by that day's close and carries
+ * on — but the units it invents are the close's, not your fill's, so the history drifts by
+ * the spread and fees, and a metal's comes out at the buy-back price. A fund buy left
+ * unconfirmed past its window is worse: `AWAITING_UNITS` keeps it out of P&L altogether.
+ *
+ * Left out on purpose: a manually-valued holding (no units to have), a dividend or units
+ * adjustment (both carry a `quantity` by shape, see `txKind`), and a zero-amount row.
+ * `px_at` is that close — the figure the app is assuming now, offered as the estimate —
+ * falling back to the earliest close for a row older than the series, as `priceAt` does.
+ */
+export async function missingUnitsTxs(days = AWAITING_DAYS): Promise<MissingUnitsTx[]> {
+  return q(
+    `SELECT t.*,
+            COALESCE(
+              (SELECT p.price FROM price_history p
+                WHERE p.instrument = t.instrument AND p.date <= t.date
+                ORDER BY p.date DESC LIMIT 1),
+              (SELECT p.price FROM price_history p
+                WHERE p.instrument = t.instrument
+                ORDER BY p.date ASC LIMIT 1)) AS px_at
+       FROM transactions t
+       JOIN instruments i ON i.name = t.instrument
+      WHERE t.quantity IS NULL AND t.amount <> 0 AND i.price_source <> ?
+        AND NOT (t.asset_type='Funds' AND t.amount > 0 AND t.date >= ?)
+      ORDER BY t.date DESC, t.id DESC`,
+  ).all<MissingUnitsTx>(MANUAL_SOURCE, awaitingCutoff(days));
 }
 
 export function addBusinessDays(iso: string, n: number): Date {
@@ -919,6 +961,9 @@ export async function setTransactionQuantity(
 ): Promise<boolean> {
   const tx = await getTransaction(id);
   if (!tx) return false;
+  // Units are typed unsigned; a sale's leave the holding, so they're stored negative, the
+  // way `signedTx` stores them.
+  quantity = tx.amount < 0 ? -Math.abs(quantity) : Math.abs(quantity);
   // Only while still awaiting: a second confirmation of the same buy (a re-run of the Gmail
   // script, a double-clicked Save) must not add its units to the holding twice.
   const { changes } = await q("UPDATE transactions SET quantity=? WHERE id=? AND quantity IS NULL").run(quantity, id);

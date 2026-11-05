@@ -121,6 +121,7 @@ export async function deleteTx(id: number) {
 }
 
 export async function setTxQty(id: number, quantity: number, addToHoldings: boolean) {
+  if (!Number.isFinite(quantity) || quantity <= 0) return { ok: false, message: "Enter a positive number of units." };
   const ok = await db.setTransactionQuantity(id, quantity, addToHoldings);
   revalidateAll();
   return { ok, message: ok ? "Units saved." : "Not found, or already confirmed." };

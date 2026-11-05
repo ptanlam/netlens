@@ -53,8 +53,8 @@ export default async function Dashboard() {
       db.realEstatePredictions(),
     ]);
   // Not in the fan-out above only because its type list is already eleven long.
-  const [missed, jobs, commitmentSetting] = await Promise.all([
-    db.missedCorporateActions(), db.jobStatuses(), db.getStreakCommitment(),
+  const [missed, jobs, commitmentSetting, missingUnits] = await Promise.all([
+    db.missedCorporateActions(), db.jobStatuses(), db.getStreakCommitment(), db.missingUnitsTxs(),
   ]);
 
   // Live holdings only, as on /transactions: a new buy against an archived holding is
@@ -109,6 +109,12 @@ export default async function Dashboard() {
       href: "/transactions",
       title: `${pending.length} fund purchase${pending.length > 1 ? "s" : ""} awaiting unit confirmation`,
       detail: "Enter the confirmed units on the Transactions page so live valuation stays accurate.",
+    });
+  if (missingUnits.length)
+    alerts.push({
+      href: "/transactions",
+      title: `${missingUnits.length} transaction${missingUnits.length > 1 ? "s" : ""} missing units`,
+      detail: "Recorded without a unit count, so they're priced at that day's close. Enter the units on the Transactions page.",
     });
   if (missed.length)
     alerts.push({

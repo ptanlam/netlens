@@ -33,8 +33,9 @@ pnpm build && pnpm start
 - `/transactions` — what you did: every buy and sell in a date window you pick and can
   brush-zoom, filtered by holding and buy/sell, over summary tiles, cumulative-deployed
   and deployed-by-month charts and a sortable table. Add/edit/delete dialogs, CSV export,
-  and the "Awaiting fund units" (T+1/T+2) panel — a fund buy waiting on its unit count is
-  a transaction, and confirming one writes back to it. `?holding=<name>` opens the page
+  and the "Awaiting units" panel — fund buys waiting on their T+1/T+2 unit count, plus any
+  other buy or sell of a priced holding saved without units (`db.missingUnitsTxs`); each is
+  a transaction, and entering its units writes back to it. `?holding=<name>` opens the page
   filtered to one holding — how `/investments` links through
 - `/savings` — term deposits: principal, interest rate, term, estimated current &
   maturity value

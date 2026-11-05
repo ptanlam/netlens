@@ -1,11 +1,12 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
-import { PendingUnitsCard } from "@/components/pending-units";
+import { PendingUnitsCard, type PendingRow } from "@/components/pending-units";
 import { CorporateActionsCard } from "@/components/corporate-actions";
 import { TransactionsView } from "@/components/transactions-view";
 import type { InstrumentOption } from "@/components/tx-form";
 import { instrumentLogo } from "@/lib/logos";
 import { missedActions } from "@/lib/corporate-actions";
+import { METALS } from "@/lib/types";
 
 export default async function TransactionsPage({
   searchParams,
@@ -18,11 +19,12 @@ export default async function TransactionsPage({
   // Investments page makes; whichever page you open first is the one that materialises them.
   await db.materializeRecurring();
 
-  const [{ holding }, instruments, txs, pendingTxs, corp] = await Promise.all([
+  const [{ holding }, instruments, txs, pendingTxs, missingTxs, corp] = await Promise.all([
     searchParams,
     db.listInstruments(),
     db.allTransactions(),
     db.pendingFundUnits(),
+    db.missingUnitsTxs(),
     db.corporateState(),
   ]);
   // `db.missedCorporateActions` would read the holdings and transactions again.
@@ -53,13 +55,38 @@ export default async function TransactionsPage({
   // exist. Looked up from the instrument list already in hand rather than a query per row,
   // which on D1 would be a round trip each.
   const instrumentByName = new Map(instruments.map((i) => [i.name, i]));
-  const pending = pendingTxs.map((tx) => {
+  const pending: PendingRow[] = pendingTxs.map((tx) => {
     const inst = instrumentByName.get(tx.instrument);
     return {
       tx,
       window: db.expectedUnitsWindow(tx.date),
       estUnits: inst?.last_price ? Number((tx.amount / inst.last_price).toFixed(2)) : null,
       hasHoldingQty: inst?.quantity != null,
+      addByDefault: inst?.quantity != null,
+    };
+  });
+
+  // Any other buy or sell of a priced holding saved without units (an old fund buy that
+  // was never confirmed, a stock or coin typed as an amount only). Same panel, same Save.
+  // Whether its units are already in the holding's quantity can't be known for sure: they
+  // are not if that quantity is exactly the sum of the units the transactions do carry,
+  // which is what "only a transaction moves it" leaves behind. Otherwise it was set by
+  // hand at some point, likely with these units in it, so adding them is left unticked.
+  const knownUnits = new Map<string, number>();
+  for (const t of txs)
+    if (t.quantity != null) knownUnits.set(t.instrument, (knownUnits.get(t.instrument) ?? 0) + t.quantity);
+  const missing: PendingRow[] = missingTxs.map((tx) => {
+    const inst = instrumentByName.get(tx.instrument);
+    // The close it's being priced at now, so "est." is what the app already assumes. Not
+    // for a metal: that close is the buy-back price, which would invent metal.
+    const est = tx.asset_type !== METALS && tx.px_at ? Math.abs(tx.amount) / tx.px_at : null;
+    return {
+      tx,
+      window: null,
+      estUnits: est == null ? null : Number(est.toPrecision(6)),
+      hasHoldingQty: inst?.quantity != null,
+      addByDefault:
+        inst?.quantity != null && Math.abs(inst.quantity - (knownUnits.get(tx.instrument) ?? 0)) < 1e-6,
     };
   });
 
@@ -69,9 +96,9 @@ export default async function TransactionsPage({
       options={options}
       logos={logos}
       initialHolding={initialHolding}
-      banner={pending.length > 0 || missed.length > 0 ? (
+      banner={pending.length > 0 || missing.length > 0 || missed.length > 0 ? (
         <div className="flex flex-col gap-3">
-          {pending.length > 0 && <PendingUnitsCard pending={pending} />}
+          {(pending.length > 0 || missing.length > 0) && <PendingUnitsCard pending={pending} missing={missing} />}
           {missed.length > 0 && <CorporateActionsCard actions={missed} />}
         </div>
       ) : null}
