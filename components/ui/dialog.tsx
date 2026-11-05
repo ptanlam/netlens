@@ -67,8 +67,14 @@ function DialogContent({
         ref={popupRef}
         initialFocus={initialFocus}
         data-slot="dialog-content"
+        // Kept inside the safe area. The app is laid out under the status bar and home
+        // indicator (`viewportFit: 'cover'`, standalone on iOS), so a tall form sized to
+        // `100dvh - 2rem` and centred on the screen put its top — the close button — under
+        // the clock and the Dynamic Island. Short dialogs never reached that far, which is
+        // why only some did it. The height takes both insets off, and the centre moves down
+        // by half their difference so the dialog centres in the space that is left.
         className={cn(
-          "panel-surface fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl text-body-sm text-popover-foreground outline-none sm:max-w-md",
+          "panel-surface fixed top-[calc(50%_+_(env(safe-area-inset-top)_-_env(safe-area-inset-bottom))_/_2)] left-1/2 z-50 flex max-h-[calc(100dvh_-_2rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl text-body-sm text-popover-foreground outline-none sm:max-w-md",
           className
         )}
         {...props}
