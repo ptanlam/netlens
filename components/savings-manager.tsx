@@ -4,7 +4,7 @@ import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Archive, ArchiveRestore, ArrowDownUp, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { INTEREST_TYPES, TERM_UNITS, type Saving, type TermUnit, type SavingMovement } from "@/lib/types";
+import { INTEREST_TYPES, TERM_UNITS, type Saving, type TermUnit, type SavingMovement, type FundOption } from "@/lib/types";
 import {
   addSaving, addSavingMovement, archiveSaving, deleteSaving, deleteSavingMovement, updateSaving,
 } from "@/app/actions";
@@ -33,8 +33,7 @@ import { DataTable } from "@/components/data-table";
 
 type ActionResult = { ok: boolean; message: string };
 
-/** A sinking-fund goal a deposit can be earmarked for. */
-export type FundOption = { id: number; name: string };
+export type { FundOption } from "@/lib/types";
 
 /** The "no goal" option. Base UI's Select needs a real value, and "" round-trips through
  *  FormData as null (`num("")` → null), which is exactly what an un-earmarked deposit is. */

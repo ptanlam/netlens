@@ -140,7 +140,30 @@ export interface Instrument {
   archived: number;
   /** When a logo was uploaded for it (the image is in `instrument_logos`); null = none. */
   logo_at: string | null;
+  /** The sinking fund the whole holding is earmarked for (migration 0023), or null. Like an
+   *  earmarked deposit it stays in Investments, fills the fund at today's value, and is
+   *  left out of net-worth goals. Never set from the bulk holdings table. */
+  goal_id: number | null;
 }
+
+/**
+ * Where the saving streak's monthly bar comes from (`meta.streak_commitment`, set in
+ * Settings → Saving streak). `auto` is the original rule: your recurring rules, else your
+ * goals' monthly plans. The rest pin one of those, or a figure you type (`custom`).
+ * Configuration, not a derived figure — the streak itself is still never stored.
+ */
+export const COMMITMENT_MODES = ["auto", "recurring", "goals", "custom"] as const;
+export type CommitmentMode = (typeof COMMITMENT_MODES)[number];
+export interface StreakCommitment {
+  mode: CommitmentMode;
+  /** ₫/month, read only in `custom` mode. Kept while another mode is picked, so switching
+   *  back restores what you typed. */
+  amount: number | null;
+}
+export const DEFAULT_STREAK_COMMITMENT: StreakCommitment = { mode: "auto", amount: null };
+
+/** A sinking-fund goal a deposit or a holding can be earmarked for. */
+export type FundOption = { id: number; name: string };
 
 /** How often a recurring rule buys. Stored as text in `recurring_rules.freq`; the schedule
  *  maths is `lib/recurring.ts`. */
@@ -467,7 +490,8 @@ export interface Goal {
  * This is *cash* — money set aside but not yet deposited anywhere, so it earns nothing.
  * A fund grows interest by earmarking savings deposits to it instead (`Saving.goal_id`):
  * each deposit keeps its own rate and term, which is how it actually works — you take
- * whatever rate was on offer the month you had the money.
+ * whatever rate was on offer the month you had the money. A holding can be earmarked too
+ * (`Instrument.goal_id`), and counts at today's value with no growth assumed.
  */
 export interface GoalContribution {
   id: number;

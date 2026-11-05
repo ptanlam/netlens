@@ -8,7 +8,7 @@ registerHooks({
     try { return next(spec, ctx); } catch (e) { if (spec.startsWith(".")) return next(`${spec}.ts`, ctx); throw e; }
   },
 });
-const { streak } = await import("../lib/score.ts");
+const { commitment, streak } = await import("../lib/score.ts");
 
 const world = (over) => ({
   today: "2026-10-15", investedByMonth: {}, savings: [], released: [], bar: 10_000_000, barSource: "recurring", ...over,
@@ -54,3 +54,12 @@ const v = streak(world({
 assert.equal(month(v, "2026-09").total, 10_000_000);
 assert.equal(month(v, "2026-09").reused, 70_000_000);
 console.log("streak ok");
+
+// The commitment: automatic falls back from rules to goal plans; a pinned source never falls back.
+const plans = [{ monthly_plan: 4_000_000, archived: 0 }, { monthly_plan: 9_000_000, archived: 1 }];
+assert.deepEqual(commitment(6_000_000, plans), { bar: 6_000_000, barSource: "recurring" });
+assert.deepEqual(commitment(0, plans), { bar: 4_000_000, barSource: "goals" });
+assert.deepEqual(commitment(6_000_000, plans, { mode: "goals", amount: null }), { bar: 4_000_000, barSource: "goals" });
+assert.deepEqual(commitment(0, plans, { mode: "recurring", amount: null }), { bar: 0, barSource: "none" });
+assert.deepEqual(commitment(6_000_000, plans, { mode: "custom", amount: 15_000_000 }), { bar: 15_000_000, barSource: "custom" });
+assert.deepEqual(commitment(6_000_000, plans, { mode: "custom", amount: null }), { bar: 0, barSource: "none" });

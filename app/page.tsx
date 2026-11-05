@@ -53,7 +53,9 @@ export default async function Dashboard() {
       db.realEstatePredictions(),
     ]);
   // Not in the fan-out above only because its type list is already eleven long.
-  const [missed, jobs] = await Promise.all([db.missedCorporateActions(), db.jobStatuses()]);
+  const [missed, jobs, commitmentSetting] = await Promise.all([
+    db.missedCorporateActions(), db.jobStatuses(), db.getStreakCommitment(),
+  ]);
 
   // Live holdings only, as on /transactions: a new buy against an archived holding is
   // almost always a mistake.
@@ -98,7 +100,7 @@ export default async function Dashboard() {
       ...savings.flatMap((s) => releasedFrom(s, savings.find((r) => r.rolled_from === s.id))),
       ...Object.entries(trades.sold).map(([month, amount]) => ({ date: `${month}-01`, amount })),
     ],
-    ...commitment(world.plannedMonthly, goalRows),
+    ...commitment(world.plannedMonthly, goalRows, commitmentSetting),
   });
 
   const alerts: DashboardAlert[] = [];

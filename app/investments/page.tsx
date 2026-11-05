@@ -7,13 +7,19 @@ export default async function InvestmentsPage() {
   // Must land before anything reads transactions — it inserts the due ones.
   await db.materializeRecurring();
 
-  const [instruments, txs, sources, historyStamp, predictions] = await Promise.all([
+  const [instruments, txs, sources, historyStamp, predictions, goals] = await Promise.all([
     db.listInstruments(),
     db.allTransactions(),
     db.listPriceSources(),
     db.historyStamp(),
     db.realEstatePredictions(),
+    db.listGoals(true),
   ]);
+  // Sinking funds a holding can be earmarked for: the active ones, plus any archived fund a
+  // holding still points at, so its row can name it and its form doesn't silently drop it.
+  const funds = goals
+    .filter((g) => g.metric === "fund" && (g.archived === 0 || instruments.some((i) => i.goal_id === g.id)))
+    .map((g) => ({ id: g.id, name: g.name }));
   const sourceKeys = [db.MANUAL_SOURCE, ...sources.map((s) => s.key)];
 
   // Cost basis per holding, and how many transactions built it. The rows themselves live on
@@ -46,6 +52,7 @@ export default async function InvestmentsPage() {
       txCountBy={txCountBy}
       sourceKeys={sourceKeys}
       predictions={predictions}
+      funds={funds}
     />
   );
 }

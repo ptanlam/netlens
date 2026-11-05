@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Archive, ArchiveRestore, ArrowRight, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Collapsible } from "@animate-ui/react/primitives/base-ui/collapsible";
-import type { Instrument, LivePayload } from "@/lib/types";
+import type { FundOption, Instrument, LivePayload } from "@/lib/types";
 import { deleteHolding, setHoldingArchived } from "@/app/actions";
 import { fmtUnits, fmtVND } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -105,9 +105,12 @@ function SoldOutPrompt({ name }: { name: string }) {
   );
 }
 
-function HoldingRow({ holding, txCount, sourceKeys }: { holding: HoldingView; txCount: number; sourceKeys: string[] }) {
+function HoldingRow({
+  holding, txCount, sourceKeys, funds,
+}: { holding: HoldingView; txCount: number; sourceKeys: string[]; funds: FundOption[] }) {
   const [open, setOpen] = React.useState(false);
   const { inst, value, pnl, cost, live } = holding;
+  const earmarked = inst.goal_id != null ? funds.find((f) => f.id === inst.goal_id) : undefined;
   // A percentage only means something against real money put in. Once a holding is sold
   // out its net cost goes negative (you took out more than you put in), so the ratio is
   // nonsense — show just the absolute realised P&L there.
@@ -151,6 +154,7 @@ function HoldingRow({ holding, txCount, sourceKeys }: { holding: HoldingView; tx
                   <ArrowRight className="size-3" />
                 </Link>
               )}
+              {earmarked && <Badge variant="tag">For {earmarked.name}</Badge>}
               {live && !soldOut && <Badge variant="accent">live</Badge>}
               {soldOut && <Badge variant="secondary">sold out</Badge>}
               {usesFallback && (
@@ -184,7 +188,7 @@ function HoldingRow({ holding, txCount, sourceKeys }: { holding: HoldingView; tx
             <span>Cost: <Amt>{fmtVND(cost)}</Amt></span>
             <div className="ml-auto flex items-center gap-1">
               <AdjustQuantityDialog holding={inst} />
-              <EditHoldingDialog holding={inst} sources={sourceKeys} />
+              <EditHoldingDialog holding={inst} sources={sourceKeys} funds={funds} />
               <ArchiveHoldingButton name={inst.name} archived={inst.archived === 1} />
               <DeleteHoldingButton name={inst.name} />
             </div>
@@ -245,6 +249,7 @@ export function InvestmentManager({
   txCountBy,
   sourceKeys,
   predictions,
+  funds,
 }: {
   holdings: HoldingView[];
   /** Drives the two overview panels. Server-rendered, then replaced by each price tick's
@@ -260,6 +265,8 @@ export function InvestmentManager({
   /** Real Estate holdings with a predicted value. Shown as their own tile beside the actual
    *  portfolio value, which keeps counting only what you booked. */
   predictions: PredictedHolding[];
+  /** Sinking funds a holding can be earmarked for. */
+  funds: FundOption[];
 }) {
   // Shared with the dashboard, so arriving here from it costs nothing: the series is
   // already in the module cache. Only the per-holding breakdown is used — the row sparks.
@@ -319,7 +326,7 @@ export function InvestmentManager({
         actions={
           <>
             <AddTxDialog instruments={options} />
-            <AddHoldingDialog sources={sourceKeys} />
+            <AddHoldingDialog sources={sourceKeys} funds={funds} />
           </>
         }
       >
@@ -383,6 +390,7 @@ export function InvestmentManager({
                     holding={h}
                     txCount={txCountBy[h.inst.name] ?? 0}
                     sourceKeys={sourceKeys}
+                    funds={funds}
                   />
                 ))}
               </div>
@@ -396,6 +404,7 @@ export function InvestmentManager({
           holdings={archived}
           txCountBy={txCountBy}
           sourceKeys={sourceKeys}
+          funds={funds}
         />
       )}
     </div>
@@ -411,10 +420,12 @@ function ArchivedHoldings({
   holdings,
   txCountBy,
   sourceKeys,
+  funds,
 }: {
   holdings: HoldingView[];
   txCountBy: Record<string, number>;
   sourceKeys: string[];
+  funds: FundOption[];
 }) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -435,6 +446,7 @@ function ArchivedHoldings({
               holding={h}
               txCount={txCountBy[h.inst.name] ?? 0}
               sourceKeys={sourceKeys}
+              funds={funds}
             />
           ))}
         </div>

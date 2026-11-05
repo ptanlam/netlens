@@ -1,18 +1,19 @@
 import { connection } from "next/server";
 import * as db from "@/lib/db";
-import { GoalsManager } from "@/components/goals-manager";
+import { GoalsManager, type FundHolding } from "@/components/goals-manager";
 import { project, valueAt, type GoalView } from "@/lib/goals";
 import type { GoalContribution, GoalMetric } from "@/lib/types";
 
 export default async function GoalsPage() {
   await connection();
-  const [payload, goals, allContributions, deposits] = await Promise.all([
+  const [payload, goals, allContributions, deposits, heldBy] = await Promise.all([
     db.buildPayload(),
     db.listGoals(true),
     // The whole ledger in one read, then grouped below — the per-goal loop this replaces
     // was a query per fund.
     db.listGoalContributions(),
     db.savingsByGoal(),
+    db.holdingsByGoal(),
   ]);
   const world = await db.buildGoalWorld(payload.portfolioTotal);
 
@@ -24,6 +25,13 @@ export default async function GoalsPage() {
   const contributions: Record<number, GoalContribution[]> = {};
   for (const g of goals) if (g.metric === "fund") contributions[g.id] = [];
   for (const c of allContributions) contributions[c.goal_id]?.push(c);
+
+  // Each fund's earmarked holdings at the value the projection used, so the card adds up.
+  const holdings: Record<number, FundHolding[]> = {};
+  for (const [id, list] of Object.entries(heldBy))
+    holdings[Number(id)] = list.map((i) => ({
+      name: i.name, asset_type: i.asset_type, quantity: i.quantity, value: world.holdingValues[i.name] ?? 0,
+    }));
 
   // Today's value of every metric, so the form can prefill a debt goal's starting balance.
   // `fund` has no world-level figure — each one is its own pot — so it reads as zero.
@@ -38,6 +46,8 @@ export default async function GoalsPage() {
   // The heading lives in <GoalsManager>: the design seats a page's primary action beside
   // its title, and "New goal" is a client dialog, so the two have to share a component.
   return (
-    <GoalsManager goals={views} current={current} contributions={contributions} deposits={deposits} />
+    <GoalsManager
+      goals={views} current={current} contributions={contributions} deposits={deposits} holdings={holdings}
+    />
   );
 }

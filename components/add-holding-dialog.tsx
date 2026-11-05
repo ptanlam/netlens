@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ImageIcon, Pencil, Plus, Scale, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { ASSET_TYPES, MANUAL_SOURCE, METAL_UNIT, METAL_UNIT_HINT, METALS, type Instrument } from "@/lib/types";
+import { ASSET_TYPES, MANUAL_SOURCE, METAL_UNIT, METAL_UNIT_HINT, METALS, type FundOption, type Instrument } from "@/lib/types";
 import { addHolding, adjustQuantity, updateHolding } from "@/app/actions";
 import { fmtUnits, fmtVND } from "@/lib/format";
 import { instrumentLogo } from "@/lib/logos";
@@ -21,6 +21,10 @@ import {
 } from "@/components/ui/select";
 
 type ActionResult = { ok: boolean; message: string };
+
+/** "Not earmarked". "" round-trips through FormData as null (`num("")`), which is what the
+ *  server stores for it — the same trick the deposit form uses. */
+const NO_GOAL = "";
 
 /** The bundled marks' size (`lib/logos.ts`): 3× the largest avatar. */
 const LOGO_PX = 96;
@@ -132,14 +136,19 @@ function HoldingForm({
   submitLabel,
   onDone,
   sources,
+  funds,
 }: {
   holding?: Instrument;
   action: (fd: FormData) => Promise<ActionResult>;
   submitLabel: string;
   onDone?: () => void;
   sources: string[];
+  /** Sinking funds the holding can be earmarked for; the field is hidden when there are none. */
+  funds: FundOption[];
 }) {
   const [pending, startTransition] = React.useTransition();
+  const [goalId, setGoalId] = React.useState(String(holding?.goal_id ?? NO_GOAL));
+  const goalLabel = funds.find((f) => String(f.id) === goalId)?.name ?? "Not earmarked";
   const [source, setSource] = React.useState(holding?.price_source ?? MANUAL_SOURCE);
   const [assetType, setAssetType] = React.useState(holding?.asset_type ?? "Funds");
   // Bumped on a successful add, to start the symbol search over with the emptied form.
@@ -171,6 +180,7 @@ function HoldingForm({
               autoName.current = "";
               setSource(MANUAL_SOURCE);
               setAssetType("Funds");
+              setGoalId(NO_GOAL);
               setResets((n) => n + 1);
             }
             setLogo("");
@@ -272,6 +282,29 @@ function HoldingForm({
           )}
         </p>
       </div>
+      {funds.length > 0 && (
+        <div className="grid gap-2 sm:col-span-2">
+          <Label htmlFor="h-goal">Earmark for (optional)</Label>
+          <Select name="goal_id" value={goalId} onValueChange={(v) => setGoalId(v ?? NO_GOAL)}>
+            <SelectTrigger id="h-goal" className="w-full">
+              <SelectValue>{goalLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_GOAL}>Not earmarked</SelectItem>
+              {funds.map((f) => (
+                <SelectItem key={f.id} value={String(f.id)}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-caption text-muted-foreground">
+            The whole holding fills that fund at today&apos;s value, with no market growth
+            assumed. It still counts once, here under Investments, and is left out of net-worth
+            goals because it&apos;s already spoken for.
+          </p>
+        </div>
+      )}
       <div className="sm:col-span-2">
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : submitLabel}
@@ -281,7 +314,7 @@ function HoldingForm({
   );
 }
 
-export function AddHoldingDialog({ sources }: { sources: string[] }) {
+export function AddHoldingDialog({ sources, funds }: { sources: string[]; funds: FundOption[] }) {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -297,7 +330,7 @@ export function AddHoldingDialog({ sources }: { sources: string[] }) {
             manual and enter a value. Its quantity comes from the transactions you add.
           </DialogDescription>
         </DialogHeader>
-        <HoldingForm action={addHolding} submitLabel="Add holding" onDone={() => setOpen(false)} sources={sources} />
+        <HoldingForm action={addHolding} submitLabel="Add holding" onDone={() => setOpen(false)} sources={sources} funds={funds} />
       </DialogContent>
     </Dialog>
   );
@@ -390,7 +423,9 @@ export function AdjustQuantityDialog({ holding }: { holding: Instrument }) {
   );
 }
 
-export function EditHoldingDialog({ holding, sources }: { holding: Instrument; sources: string[] }) {
+export function EditHoldingDialog({
+  holding, sources, funds,
+}: { holding: Instrument; sources: string[]; funds: FundOption[] }) {
   const [open, setOpen] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -414,6 +449,7 @@ export function EditHoldingDialog({ holding, sources }: { holding: Instrument; s
           submitLabel="Update holding"
           onDone={() => setOpen(false)}
           sources={sources}
+          funds={funds}
         />
       </DialogContent>
     </Dialog>

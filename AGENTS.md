@@ -124,7 +124,8 @@ A goal is a target on a metric (`lib/goals.ts`, `GOAL_METRICS`). Four metrics ar
 - **Interest** comes from earmarking real deposits: `savings.goal_id` ties a deposit to a fund, and each keeps its own rate and term. There's deliberately no fund-wide rate — you take whatever rate was on offer the month you had the money.
 - **Counted once.** An earmarked deposit stays in the Savings line of net worth; only the un-deposited cash is the extra "Set aside" line. `db.fundsCashTotal()` is cash-only for exactly this reason.
 - **A net-worth goal excludes everything earmarked** (`earmarkedAt` in `lib/goals.ts`): the money is yours, but it's spoken for, so it can't count toward a number you mean to keep.
-- **"Mark as bought"** drains the cash and *un-earmarks* the deposits — it never deletes them. The bank still holds a deposit until you break it; delete it on the Savings page then.
+- **Holdings can be earmarked too** (`instruments.goal_id`, migration `0023`, set in the holding form on Investments). The whole holding fills the fund at **today's value, held flat** (0% return, like every projection), stays in Investments for net worth, and is left out of net-worth goals like the rest. Buys of it in the last 6 months feed the fund's pace (`GoalWorld.holdingBuys`). A price tick re-prices it with the total: re-project through `withLivePrices`, never by swapping `investments` alone.
+- **"Mark as bought"** drains the cash and *un-earmarks* the deposits and holdings — it never deletes or sells them. The bank still holds a deposit until you break it; delete it on the Savings page then. A holding you sell is a transaction you record.
 
 ### An apartment you haven't priced yet
 
@@ -229,8 +230,11 @@ Both of those are deliberate narrowings, and both cost something:
   pockets. What is left is the two acts that put money to work — which is also what the recurring
   rules setting the bar are made of, so the bar and the levers now measure the same thing.
 
-The bar is `commitment()`: your recurring rules, else your goals' `monthly_plan`, else none — only
-things you declared on purpose. A trailing average of your own past would be a treadmill. **No
+The bar is `commitment()`: by default your recurring rules, else your goals' `monthly_plan`, else none —
+only things you declared on purpose. **Settings → Saving streak** (`meta.streak_commitment`,
+`StreakCommitment`) can pin one of those sources or set a fixed ₫/month amount instead. That is configuration, so
+"nothing is stored" still holds for the streak itself. A pinned source never falls back to another one, and the
+Forecast's fallback pace reads the same setting. A trailing average of your own past would be a treadmill. **No
 commitment, no streak**: the card renders an empty state, mirroring a goal's `stalled`.
 
 A month short of the bar still counts if the trailing 3-month average clears it (`carried`) —

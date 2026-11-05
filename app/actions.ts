@@ -13,7 +13,7 @@ import { occurrences } from "@/lib/recurring";
 import { checkListings, listingComp, nearbyListings, type Listing } from "@/lib/listings";
 import { distanceKm, estimate, listingId, parseLatLng, type LatLng } from "@/lib/realestate";
 import {
-  BILLING_CYCLES, COMP_KINDS, CRON_FREQ, GOAL_METRICS, LAND_USES, METAL_UNIT, METALS, PRICE_REFRESH_INTERVALS, RECURRING_FREQS, ROAD_ACCESS,
+  BILLING_CYCLES, COMMITMENT_MODES, COMP_KINDS, CRON_FREQ, GOAL_METRICS, LAND_USES, METAL_UNIT, METALS, PRICE_REFRESH_INTERVALS, RECURRING_FREQS, ROAD_ACCESS,
   SUBSCRIPTION_CATEGORIES, TARGET_CURRENCIES, TERM_UNITS, goalIdOfProperty, normalizePriceRefreshMs,
   type BillingCycle, type CompInput, type CompKind, type GoalMetric, type Instrument, type LandUse,
   type PriceRefreshSchedule, type RecurringFreq, type RoadAccess, type SymbolPage, type SubscriptionCategory, type TargetCurrency, type TermUnit,
@@ -581,6 +581,9 @@ export async function deleteGoalContribution(id: number) {
  * real bank until you actually withdraw it — Netlens can't cash it out for you, and
  * deleting the row here would erase it from net worth while the bank still holds it. Once
  * you've broken the deposit for real, delete it on the Savings page.
+ *
+ * Earmarked holdings are released the same way: selling one is a transaction, at a price
+ * only you know, so it's recorded on Investments when it happens.
  */
 export async function spendGoalFund(goalId: number) {
   const goal = await db.getGoal(goalId);
@@ -588,17 +591,23 @@ export async function spendGoalFund(goalId: number) {
   if (goal.metric !== "fund") return { ok: false, message: "Only a sinking fund holds money." };
 
   const cash = await db.fundCash(goalId);
-  const deposits = (await db.savingsByGoal())[goalId] ?? [];
-  if (cash <= 0 && deposits.length === 0) return { ok: false, message: "This fund is empty." };
+  const [savingsBy, holdingsBy] = await Promise.all([db.savingsByGoal(), db.holdingsByGoal()]);
+  const deposits = savingsBy[goalId] ?? [];
+  const holdings = holdingsBy[goalId] ?? [];
+  if (cash <= 0 && deposits.length === 0 && holdings.length === 0) return { ok: false, message: "This fund is empty." };
 
   if (cash > 0) await db.addGoalContribution(goalId, db.todayIso(), -Math.round(cash), `Bought: ${goal.name}`);
   await db.unlinkGoalSavings(goalId);
+  await db.unlinkGoalHoldings(goalId);
   await db.setGoalArchived(goalId, true);
   revalidateAll();
 
   const parts = [cash > 0 ? `${fmtVND(cash)} in cash spent` : null,
     deposits.length > 0
       ? `${deposits.length} deposit${deposits.length === 1 ? "" : "s"} released — delete ${deposits.length === 1 ? "it" : "them"} on Savings once withdrawn`
+      : null,
+    holdings.length > 0
+      ? `${holdings.length} holding${holdings.length === 1 ? "" : "s"} released — record the sale on Investments`
       : null].filter(Boolean);
   return { ok: true, message: `${parts.join(" · ")} — goal archived.` };
 }
@@ -920,10 +929,26 @@ async function applyLogo(name: string, fd: FormData): Promise<string | null> {
   return null;
 }
 
+/**
+ * The fund a holding form earmarks it for: `undefined` when the form has no such field (no
+ * fund to pick, so leave the holding as it is), null for "Not earmarked", else a fund's id.
+ * Only a sinking fund holds money, so any other goal is refused.
+ */
+async function parseHoldingGoal(fd: FormData): Promise<{ ok: true; goalId: number | null | undefined } | { ok: false; message: string }> {
+  if (!fd.has("goal_id")) return { ok: true, goalId: undefined };
+  const id = num(fd.get("goal_id"));
+  if (id == null) return { ok: true, goalId: null };
+  const goal = await db.getGoal(id);
+  if (!goal || goal.metric !== "fund") return { ok: false, message: "A holding can only be earmarked for a sinking fund." };
+  return { ok: true, goalId: id };
+}
+
 export async function addHolding(fd: FormData) {
   const name = str(fd.get("name"));
   if (!name) return { ok: false, message: "A holding name is required." };
   if (await db.getInstrument(name)) return { ok: false, message: `"${name}" already exists.` };
+  const goal = await parseHoldingGoal(fd);
+  if (!goal.ok) return goal;
   await db.addInstrument(
     name,
     str(fd.get("asset_type")) || "Funds",
@@ -934,6 +959,7 @@ export async function addHolding(fd: FormData) {
     null,
     num(fd.get("manual_value")),
   );
+  if (goal.goalId != null) await db.setInstrumentGoal(name, goal.goalId);
   const logoError = await applyLogo(name, fd);
   revalidateAll();
   if (logoError) return { ok: true, message: `Holding added, but not its logo. ${logoError}` };
@@ -946,6 +972,8 @@ export async function updateHolding(name: string, fd: FormData) {
   const to = str(fd.get("name")) || name;
   if (to !== name && (await db.getInstrument(to)))
     return { ok: false, message: `"${to}" already exists.` };
+  const goal = await parseHoldingGoal(fd);
+  if (!goal.ok) return goal;
   const assetType = str(fd.get("asset_type")) || "Funds";
   const manual = num(fd.get("manual_value"));
   await db.updateInstrumentFields(
@@ -957,6 +985,7 @@ export async function updateHolding(name: string, fd: FormData) {
     manual,
   );
   await recordManualEdit(before, assetType, manual);
+  if (goal.goalId !== undefined && goal.goalId !== before.goal_id) await db.setInstrumentGoal(name, goal.goalId);
   const logoError = await applyLogo(name, fd);
   // Last, so everything above wrote under the old name and moves with the rest.
   if (to !== name) await db.renameInstrument(name, to);
@@ -1091,6 +1120,19 @@ export async function savePriceSchedule(input: PriceRefreshSchedule) {
   const enabled = input.enabled === true;
   await db.setPriceSchedule({ enabled, cron });
   return { ok: true, message: enabled ? "Prices now refresh on your cron schedule." : "Schedule saved, off." };
+}
+
+/** Settings → Saving streak: where the streak's monthly bar comes from. A typed amount is
+ *  kept whichever mode is picked, so switching back to it restores the figure. */
+export async function saveStreakCommitment(input: { mode: string; amount: number | null }) {
+  const mode = COMMITMENT_MODES.find((m) => m === input.mode);
+  if (!mode) return { ok: false, message: "Pick where the commitment comes from." };
+  const amount = input.amount != null && Number.isFinite(input.amount) && input.amount > 0 ? Math.round(input.amount) : null;
+  if (mode === "custom" && amount == null) return { ok: false, message: "Enter a monthly amount above zero." };
+  await db.setStreakCommitment({ mode, amount });
+  revalidateAll();
+  revalidatePath("/settings/streak");
+  return { ok: true, message: "Streak commitment saved." };
 }
 
 /** Turn the saved schedule on or off — the header pill's "On schedule" item. */

@@ -40,6 +40,7 @@ const PACE_LABEL: Record<ForecastPaceSource, string> = {
   average: "Your 6-month average",
   recurring: "From your recurring rules",
   goals: "From your goals' monthly plans",
+  custom: "Your monthly commitment",
   none: "No commitment set",
 };
 

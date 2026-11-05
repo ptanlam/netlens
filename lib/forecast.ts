@@ -32,7 +32,7 @@ import { currentValue, isRevolving, maturityDate, maturityValue, addMonths } fro
 import { fundCashAt, projectedOwed, targetVnd, type GoalWorld } from "./goals";
 import { chargesBetween } from "./subscriptions";
 import { commitment, type BarSource } from "./score";
-import type { Debt, Goal, Saving, Subscription } from "./types";
+import type { Debt, Goal, Saving, StreakCommitment, Subscription } from "./types";
 
 /** The furthest out the page will project. Past about five years the contracted half has run
  *  out (every deposit matured, every loan cleared) and the line is mostly the pace
@@ -87,11 +87,14 @@ export type ForecastPaceSource = "average" | BarSource;
 export function forecastPace(
   w: GoalWorld,
   goals: Goal[],
+  setting?: StreakCommitment,
 ): { pace: number; source: ForecastPaceSource } {
   if (w.actualMonthly > 0) return { pace: w.actualMonthly, source: "average" };
+  // The same commitment the streak is measured against, so the two never disagree about it.
   const { bar, barSource } = commitment(
     w.plannedMonthly,
     goals.filter((g) => g.metric !== "debts"),
+    setting,
   );
   return { pace: bar, source: barSource };
 }

@@ -24,7 +24,7 @@
  */
 
 import { MONTHS } from "./format";
-import type { Goal, Saving } from "./types";
+import { DEFAULT_STREAK_COMMITMENT, type Goal, type Saving, type StreakCommitment } from "./types";
 
 /** How many months back the trailing average may reach to rescue a short month. */
 const GRACE_WINDOW = 3;
@@ -55,7 +55,7 @@ export const LEVER_LABELS: Record<Lever, string> = {
 
 /** Where the monthly bar came from. Named rather than inferred, so the card can say it —
  *  the same standard `PaceSource` holds itself to in `lib/goals.ts`. */
-export type BarSource = "recurring" | "goals" | "none";
+export type BarSource = "recurring" | "goals" | "custom" | "none";
 
 export type MonthStatus =
   /** Cleared the bar on its own. */
@@ -163,20 +163,42 @@ export function monthLong(key: MonthKey): string {
 /**
  * What you have to clear in a month, and where that number came from.
  *
- * Deliberately *only* things you declared on purpose — a recurring rule, or a goal's
- * monthly plan. A trailing average of your own past would be a treadmill: it rises the
- * month after a good one, so you could never get ahead and never quite fall behind.
+ * Deliberately *only* things you declared on purpose — a recurring rule, a goal's monthly
+ * plan, or a figure you typed in Settings. A trailing average of your own past would be a
+ * treadmill: it rises the month after a good one, so you could never get ahead and never
+ * quite fall behind.
+ *
+ * `setting` picks the source (`StreakCommitment`). `auto` takes your recurring rules, else
+ * your goal plans; any other mode uses that one source only, so a pinned source that comes
+ * to nothing means no bar rather than a quiet fallback to another.
+ *
+ * Like any change to the bar, a new setting re-judges every past month too: the bar is one
+ * figure, not a history of figures — the same as editing a recurring rule always did.
  *
  * No commitment, no streak. That mirrors a goal's `stalled` status, and it means the
  * feature's empty state is a real instruction rather than a zero.
  */
-export function commitment(plannedMonthly: number, goals: Goal[]): { bar: number; barSource: BarSource } {
-  if (plannedMonthly > 0) return { bar: plannedMonthly, barSource: "recurring" };
+export function commitment(
+  plannedMonthly: number,
+  goals: Pick<Goal, "monthly_plan" | "archived">[],
+  setting: StreakCommitment = DEFAULT_STREAK_COMMITMENT,
+): { bar: number; barSource: BarSource } {
+  const none = { bar: 0, barSource: "none" } as const;
+  const fromRules = plannedMonthly > 0 ? { bar: plannedMonthly, barSource: "recurring" as const } : null;
   const planned = goals
     .filter((g) => !g.archived)
     .reduce((a, g) => a + (g.monthly_plan ?? 0), 0);
-  if (planned > 0) return { bar: planned, barSource: "goals" };
-  return { bar: 0, barSource: "none" };
+  const fromGoals = planned > 0 ? { bar: planned, barSource: "goals" as const } : null;
+  switch (setting.mode) {
+    case "custom":
+      return setting.amount != null && setting.amount > 0 ? { bar: setting.amount, barSource: "custom" } : none;
+    case "recurring":
+      return fromRules ?? none;
+    case "goals":
+      return fromGoals ?? none;
+    case "auto":
+      return fromRules ?? fromGoals ?? none;
+  }
 }
 
 // ---------- the walk ----------

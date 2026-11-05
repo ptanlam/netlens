@@ -16,7 +16,7 @@ import { SummaryCards, type Stat } from "@/components/stat-card";
 import { PageHeader } from "@/components/page-header";
 import { QuickActions } from "@/components/quick-actions";
 import { Button } from "@/components/ui/button";
-import { project, type GoalView, type GoalWorld } from "@/lib/goals";
+import { project, withLivePrices, type GoalView, type GoalWorld } from "@/lib/goals";
 import { PortfolioChart } from "@/components/portfolio-chart";
 import { PnlCalendar } from "@/components/pnl-calendar";
 import { usePnlHistory } from "@/components/use-pnl-history";
@@ -69,12 +69,13 @@ export function DashboardCharts({
 
   // Goals track the investments total, so they'd contradict the net-worth panel above them
   // within one tick if they didn't move with it. Re-projected from the same world the
-  // server built, with only `investments` swapped — the rest is price-independent.
+  // server built, with only the prices swapped — `investments`, and the value of any
+  // holding earmarked for a fund. The rest is price-independent.
   const goals: GoalView[] = React.useMemo(
     () =>
       goalRows.map((goal) => ({
         goal,
-        proj: project(goal, live ? { ...world, investments: live.portfolioTotal } : world),
+        proj: project(goal, live ? withLivePrices(world, live) : world),
       })),
     [goalRows, world, live],
   );

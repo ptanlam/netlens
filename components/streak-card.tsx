@@ -12,6 +12,7 @@ import {
   type Lever,
   type MonthKey,
   type MonthStatus,
+  type BarSource,
   type Streak,
   type StreakMonth,
 } from "@/lib/score";
@@ -159,6 +160,14 @@ function MonthColumn({
   );
 }
 
+/** Where the bar came from, as the card's footnote says it. */
+const BAR_SOURCE_LABEL: Record<BarSource, string> = {
+  recurring: "your recurring rules",
+  goals: "your goal plans",
+  custom: "your set amount",
+  none: "no commitment",
+};
+
 /**
  * The saving streak: how many consecutive months you cleared your own monthly commitment,
  * a year of them as stacked columns, and what this month still needs.
@@ -180,13 +189,16 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
       <div className="card-surface panel-body">
         <PanelHead
           title="Streak"
-          info="Counts the months you cleared your own monthly commitment. It needs one first — a recurring rule, or a monthly plan on a goal."
+          info="Counts the months you cleared your own monthly commitment. It needs one first — a recurring rule, a monthly plan on a goal, or an amount you set in Settings."
         />
         <div className="mt-3 text-body-sm text-muted-foreground">
           Set a monthly commitment and this starts counting the months you clear it.
         </div>
         <div className="mt-2.5 flex gap-3 text-caption">
-          <Link href="/recurring" className="text-accent-brand hover:underline">
+          <Link href="/settings/streak" className="text-accent-brand hover:underline">
+            Set a commitment →
+          </Link>
+          <Link href="/recurring" className="text-muted-foreground hover:text-foreground">
             Recurring →
           </Link>
           <Link href="/goals" className="text-muted-foreground hover:text-foreground">
@@ -283,8 +295,10 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
           </div>
 
           <div className="mt-3.5 border-t border-divider pt-3 font-mono text-caption text-faint">
-            <Amt>{fmtVND(bar)}</Amt>/month ·{" "}
-            {streak.barSource === "recurring" ? "your recurring rules" : "your goal plans"}
+            <Amt>{fmtVND(bar)}</Amt>/month · {BAR_SOURCE_LABEL[streak.barSource]} ·{" "}
+            <Link href="/settings/streak" className="font-sans text-accent-brand hover:underline">
+              Change
+            </Link>
           </div>
 
           {avg !== null && (

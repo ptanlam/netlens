@@ -16,12 +16,13 @@ export default async function ForecastPage() {
   // everything else is independent. The deposits and debts are the same rows the world
   // carries, fetched alongside it rather than out of it — the world narrows them to the
   // accruing shape, and an event needs the bank's and the lender's names.
-  const [payload, goals, subscriptions, deposits, debts] = await Promise.all([
+  const [payload, goals, subscriptions, deposits, debts, commitmentSetting] = await Promise.all([
     db.buildPayload(),
     db.listGoals(),
     db.listSubscriptions(),
     db.listSavings(),
     db.listDebts(),
+    db.getStreakCommitment(),
   ]);
   // The current month is left out: its "close" is mid-month and would read as a short month.
   const monthStart = `${db.todayIso().slice(0, 7)}-01`;
@@ -36,7 +37,7 @@ export default async function ForecastPage() {
   // Only the derived monthly returns cross to the client, never the closes themselves.
   const portfolioReturns = buildPortfolioReturns(payload.portfolio, closes);
 
-  const { pace, source } = forecastPace(world, goals);
+  const { pace, source } = forecastPace(world, goals, commitmentSetting);
 
   // The whole twenty years, computed once and sliced by the picker on the client. The walk is
   // pure and the payload is sixty rows either way, so a horizon change costs no round trip.

@@ -15,7 +15,7 @@ import {
   addGoal, addGoalContribution, archiveGoal, deleteGoal, deleteGoalContribution,
   moveGoal, spendGoalFund, updateGoal,
 } from "@/app/actions";
-import { fmtTerm, fmtVND } from "@/lib/format";
+import { fmtTerm, fmtUnits, fmtVND } from "@/lib/format";
 import { shortfall, verdict, type GoalView } from "@/lib/goals";
 import { FxNote, GoalBar, GoalMetricTag, GoalStatusChip } from "@/components/goal-strip";
 import { PageHeader } from "@/components/page-header";
@@ -200,7 +200,7 @@ function GoalForm({
       </div>
       <p className="text-caption text-muted-foreground sm:col-span-2">
         {isFund
-          ? "A sinking fund holds cash you set aside plus any savings deposits you earmark for it (each keeping its own rate and term). The money counts in your net worth until you spend it, but is left out of net-worth goals — it's already spoken for. Without a monthly plan, the pace comes from what you've been putting in."
+          ? "A sinking fund holds cash you set aside plus any savings deposits (each keeping its own rate and term) or holdings (at today's value) you earmark for it. The money counts in your net worth until you spend it, but is left out of net-worth goals — it's already spoken for. Without a monthly plan, the pace comes from what you've been putting in."
           : isDebt
             ? "Without a monthly plan, the projection follows each debt's own repayment schedule."
             : "Without a monthly plan, the projection uses your active recurring rules — and market growth is counted as zero."}
@@ -300,6 +300,52 @@ function LinkedDeposits({ deposits }: { deposits: Saving[] }) {
   );
 }
 
+/** A holding earmarked for a fund, as the card shows it. */
+export interface FundHolding {
+  name: string;
+  asset_type: string;
+  quantity: number | null;
+  value: number;
+}
+
+/** The holdings earmarked for this fund, managed on Investments like the deposits are on
+ *  Savings. Valued at today's price and held flat — the projection assumes no growth. */
+function LinkedHoldings({ holdings }: { holdings: FundHolding[] }) {
+  if (holdings.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <div className="text-body-sm font-semibold text-muted-foreground">
+        Holdings ({holdings.length})
+      </div>
+      {holdings.map((h) => (
+        <div
+          key={h.name}
+          className="flex items-center justify-between gap-3 border-b border-divider py-1.5 last:border-b-0"
+        >
+          <span className="min-w-0 truncate font-mono text-caption text-muted-foreground">
+            {h.name}
+            <span className="text-faint">
+              {" · "}
+              {h.asset_type}
+              {h.quantity != null && <> · <Amt>{fmtUnits(h.quantity)}</Amt> units</>}
+            </span>
+          </span>
+          <span data-amount className="shrink-0 font-mono text-caption text-accent-brand tabular-nums">
+            {fmtVND(h.value)}
+          </span>
+        </div>
+      ))}
+      <p className="pt-1.5 text-caption text-faint">
+        At today&apos;s price, with no market growth assumed. Earmark a holding from the{" "}
+        <Link href="/investments" className="underline hover:text-foreground">
+          Investments page
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}
+
 /** The ledger behind a fund's balance, plus the two things you do to a pot: feed it, and
  *  eventually spend it. */
 function FundPanel({
@@ -307,11 +353,13 @@ function FundPanel({
   balance,
   contributions,
   deposits,
+  holdings,
 }: {
   goal: Goal;
   balance: number;
   contributions: GoalContribution[];
   deposits: Saving[];
+  holdings: FundHolding[];
 }) {
   const [open, setOpen] = React.useState<"add" | "withdraw" | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -381,6 +429,9 @@ function FundPanel({
                     deposits.length > 0
                       ? `release ${deposits.length} linked deposit${deposits.length === 1 ? "" : "s"} (delete ${deposits.length === 1 ? "it" : "them"} on Savings once you've withdrawn ${deposits.length === 1 ? "it" : "them"})`
                       : null,
+                    holdings.length > 0
+                      ? `release ${holdings.length} linked holding${holdings.length === 1 ? "" : "s"} (record the sale on Investments when you sell)`
+                      : null,
                   ].filter(Boolean);
                   if (!confirm(`Bought "${goal.name}"? This will ${bits.join(" and ")}, then archive the goal.`))
                     return;
@@ -398,7 +449,7 @@ function FundPanel({
       {contributions.length === 0 ? (
         <p className="mt-2 text-caption text-muted-foreground">
           No cash in the pot. Add money as you set it aside, or earmark a savings deposit
-          for this fund.
+          or a holding for this fund.
         </p>
       ) : (
         <div className="mt-2">
@@ -445,6 +496,7 @@ function FundPanel({
       )}
 
       <LinkedDeposits deposits={deposits} />
+      <LinkedHoldings holdings={holdings} />
     </div>
   );
 }
@@ -507,6 +559,7 @@ function GoalCard({
   current,
   contributions,
   deposits,
+  holdings,
   rank,
   isFirst,
   isLast,
@@ -515,6 +568,7 @@ function GoalCard({
   current: Record<GoalMetric, number>;
   contributions: GoalContribution[];
   deposits: Saving[];
+  holdings: FundHolding[];
   /** 1-based place in your ranking. Null for archived goals, which aren't ranked. */
   rank: number | null;
   isFirst: boolean;
@@ -674,6 +728,7 @@ function GoalCard({
           balance={proj.current}
           contributions={contributions}
           deposits={deposits}
+          holdings={holdings}
         />
       )}
     </div>
@@ -685,6 +740,7 @@ export function GoalsManager({
   current,
   contributions,
   deposits,
+  holdings,
 }: {
   goals: GoalView[];
   current: Record<GoalMetric, number>;
@@ -692,6 +748,8 @@ export function GoalsManager({
   contributions: Record<number, GoalContribution[]>;
   /** Deposits earmarked to each fund, keyed by goal id. */
   deposits: Record<number, Saving[]>;
+  /** Holdings earmarked to each fund, keyed by goal id. */
+  holdings: Record<number, FundHolding[]>;
 }) {
   const active = goals.filter((g) => g.goal.archived === 0);
   const archived = goals.filter((g) => g.goal.archived === 1);
@@ -740,6 +798,7 @@ export function GoalsManager({
           current={current}
           contributions={contributions[view.goal.id] ?? []}
           deposits={deposits[view.goal.id] ?? []}
+          holdings={holdings[view.goal.id] ?? []}
           rank={i + 1}
           isFirst={i === 0}
           isLast={i === active.length - 1}
@@ -758,6 +817,7 @@ export function GoalsManager({
               current={current}
               contributions={contributions[view.goal.id] ?? []}
               deposits={deposits[view.goal.id] ?? []}
+          holdings={holdings[view.goal.id] ?? []}
               rank={null}
               isFirst={false}
               isLast={false}

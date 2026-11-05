@@ -23,7 +23,7 @@ import {
   type Payment,
 } from "./savings";
 import { MONTHS } from "./format";
-import type { Goal, GoalContribution, GoalMetric } from "./types";
+import type { Goal, GoalContribution, GoalMetric, LivePayload } from "./types";
 
 /** Past this we call a goal unreachable rather than print a date in the next century. */
 const MAX_HORIZON_MONTHS = 600;
@@ -31,7 +31,7 @@ const DAY_MS = 86_400_000;
 const AVG_MONTH_MS = 30.44 * DAY_MS;
 
 /** How far back a fund's own contribution history is averaged for its fallback pace. */
-const FUND_PACE_WINDOW_MONTHS = 6;
+export const FUND_PACE_WINDOW_MONTHS = 6;
 
 /** The forward walk samples whole months, so sub-month precision is an illusion. Landing
  *  within half a month of the deadline is "on time" — without this, a goal arriving 13
@@ -69,6 +69,15 @@ export interface GoalWorld {
   /** Deposits earmarked for a fund, keyed by goal id. They keep their own rate and term,
    *  and stay part of `savings` — a deposit belongs to a goal, it doesn't leave savings. */
   savingsByGoal: Record<number, Accruing[]>;
+  /** Holdings earmarked for a fund, by name, keyed by goal id. Like an earmarked deposit,
+   *  a holding stays part of `investments`; the fund only says what it's for. */
+  holdingsByGoal: Record<number, string[]>;
+  /** Today's value of each earmarked holding, by name. Held flat into the future — market
+   *  return is 0%, as everywhere else here — and swapped on a price tick (`withLivePrices`). */
+  holdingValues: Record<string, number>;
+  /** ₫ bought into each earmarked holding over the fund-pace window, by name: buying more of
+   *  a holding you've set aside for a car is feeding the car fund. */
+  holdingBuys: Record<string, number>;
   /** ₫/month you've committed to, from active recurring rules. */
   plannedMonthly: number;
   /** ₫/month you've actually bought into investments over the trailing window. */
@@ -287,25 +296,48 @@ export function fundCashAt(rows: GoalContribution[], at: Date): number {
   );
 }
 
+/** Today's value of the holdings earmarked for one fund — or, with no id, for every fund.
+ *  Not a function of time: a holding grows only by money put into it, never by the market. */
+function heldFor(w: GoalWorld, goalId?: number): number {
+  const names = goalId == null ? Object.values(w.holdingsByGoal).flat() : (w.holdingsByGoal[goalId] ?? []);
+  return names.reduce((a, n) => a + (w.holdingValues[n] ?? 0), 0);
+}
+
 /** What one sinking fund is worth `months` from now: cash set aside, plus the deposits
- *  earmarked to it, each accruing on its own terms. No new money is assumed. */
+ *  earmarked to it, each accruing on its own terms, plus its holdings at today's value.
+ *  No new money is assumed. */
 function fundAt(w: GoalWorld, g: GoalLike, months: number): number {
   if (g.id == null) return 0; // an unsaved fund has no ledger yet
   const at = dateAfter(w, months);
   const cash = fundCashAt(w.contributions[g.id] ?? [], at);
   const deposits = (w.savingsByGoal[g.id] ?? []).reduce((a, s) => a + currentValue(s, at), 0);
-  return cash + deposits;
+  return cash + deposits + heldFor(w, g.id);
 }
 
 /** Everything earmarked for a sinking fund, `months` from now: cash pots plus the deposits
- *  linked to them. This money is spoken for, which is why a net-worth goal leaves it out. */
+ *  and holdings linked to them. This money is spoken for, which is why a net-worth goal
+ *  leaves it out. */
 function earmarkedAt(w: GoalWorld, months: number): number {
   const at = dateAfter(w, months);
   const cash = w.funds.reduce((a, f) => a + fundCashAt(w.contributions[f.id] ?? [], at), 0);
   const deposits = Object.values(w.savingsByGoal)
     .flat()
     .reduce((a, s) => a + currentValue(s, at), 0);
-  return cash + deposits;
+  return cash + deposits + heldFor(w);
+}
+
+/**
+ * The world re-priced by a live tick: the portfolio total, and each earmarked holding's value
+ * from the tick's own rows. Both have to move together — a fund holding shares would
+ * otherwise sit at the render-time price while net worth above it moved on.
+ */
+export function withLivePrices(w: GoalWorld, live: Pick<LivePayload, "portfolio" | "portfolioTotal">): GoalWorld {
+  const byName = new Map(live.portfolio.map((p) => [p.name, p.value]));
+  // A holding missing from the tick is worth nothing right now (`livePayload` drops zeros).
+  const holdingValues = Object.fromEntries(
+    Object.keys(w.holdingValues).map((n) => [n, byName.get(n) ?? 0]),
+  );
+  return { ...w, investments: live.portfolioTotal, holdingValues };
 }
 
 /** What one fund is worth today. */
@@ -346,7 +378,7 @@ export function valueAt(
       // Contributions land in investments; debts follow their own schedule.
       //
       // Money earmarked for a sinking fund is deliberately NOT here — neither the cash pot
-      // nor the deposits linked to it. It counts in your net worth on the dashboard (you
+      // nor the deposits and holdings linked to it. It counts in your net worth on the dashboard (you
       // do hold it), but a net-worth *goal* asks a different question: how far you've got
       // toward a number that's yours to keep. Money already promised to a car isn't, and
       // counting it would let a goal look reached on the strength of savings that are about
@@ -391,8 +423,9 @@ export function resolvePace(g: Goal, w: GoalWorld): { pace: number; paceSource: 
   return { pace: 0, paceSource: "none" };
 }
 
-/** ₫/month put into this fund over the trailing window — cash you set aside plus deposits
- *  you opened for it. Both are you feeding the fund; only the vehicle differs. */
+/** ₫/month put into this fund over the trailing window — cash you set aside, deposits you
+ *  opened for it, and what you bought of its holdings. All of it is you feeding the fund;
+ *  only the vehicle differs. */
 function fundContributionRate(w: GoalWorld, g: Goal): number {
   const recent = (date: string) => monthsBetween(date, w.today) <= FUND_PACE_WINDOW_MONTHS;
   const cash = (w.contributions[g.id] ?? [])
@@ -405,7 +438,8 @@ function fundContributionRate(w: GoalWorld, g: Goal): number {
       (s.movements ?? []).filter((m) => m.amount > 0 && recent(m.date)).reduce((b, m) => b + m.amount, 0),
     0,
   );
-  return (cash + deposited) / FUND_PACE_WINDOW_MONTHS;
+  const bought = (w.holdingsByGoal[g.id] ?? []).reduce((a, n) => a + (w.holdingBuys[n] ?? 0), 0);
+  return (cash + deposited + bought) / FUND_PACE_WINDOW_MONTHS;
 }
 
 function hasReached(g: Goal, value: number): boolean {

@@ -18,9 +18,9 @@
  * The schema lives in `migrations/`, not in a string here — see `migrations/0001_init.sql`.
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, SavingMovement, Subscription, SymbolHit, Tx, ValuationSource } from "./types";
-import { DEFAULT_PRICE_SCHEDULE, goalIdOfProperty, goalPropertyKey, normalizePriceRefreshMs } from "./types";
-import { fundCashAt, type ApartmentEstimate, type GoalWorld } from "./goals";
+import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, SavingMovement, StreakCommitment, Subscription, SymbolHit, Tx, ValuationSource } from "./types";
+import { COMMITMENT_MODES, DEFAULT_PRICE_SCHEDULE, DEFAULT_STREAK_COMMITMENT, goalIdOfProperty, goalPropertyKey, normalizePriceRefreshMs } from "./types";
+import { FUND_PACE_WINDOW_MONTHS, fundCashAt, type ApartmentEstimate, type GoalWorld } from "./goals";
 import { currentValue, type Payment } from "./savings";
 import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
 import { instrumentLogo } from "./logos";
@@ -703,6 +703,12 @@ export async function renameInstrument(from: string, to: string) {
     q("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)").bound("corp_dismissed", JSON.stringify(keys)),
   ]);
   await bumpHistory();
+}
+
+/** Earmark a whole holding for a sinking fund, or release it (null). Nothing else about
+ *  the holding changes: it stays in Investments, and only fills the fund. */
+export async function setInstrumentGoal(name: string, goalId: number | null) {
+  await q("UPDATE instruments SET goal_id=? WHERE name=?").run(goalId, name);
 }
 
 /** Hide a fully-sold holding from the active list without losing its transaction or
@@ -1424,6 +1430,28 @@ export async function setPriceSchedule(s: PriceRefreshSchedule) {
   await metaSet(PRICE_SCHEDULE_KEY, JSON.stringify(s));
 }
 
+// ---------- the streak's commitment ----------
+
+/** Where the streak's monthly bar comes from (JSON, `StreakCommitment`). One row of
+ *  configuration, like the price schedule. */
+const STREAK_COMMITMENT_KEY = "streak_commitment";
+
+export async function getStreakCommitment(): Promise<StreakCommitment> {
+  try {
+    const v = JSON.parse((await metaGet(STREAK_COMMITMENT_KEY)) ?? "null") as Partial<StreakCommitment> | null;
+    const mode = COMMITMENT_MODES.find((m) => m === v?.mode);
+    if (!mode) return DEFAULT_STREAK_COMMITMENT;
+    const amount = typeof v?.amount === "number" && v.amount > 0 ? Math.round(v.amount) : null;
+    return { mode, amount };
+  } catch {
+    return DEFAULT_STREAK_COMMITMENT;
+  }
+}
+
+export async function setStreakCommitment(c: StreakCommitment) {
+  await metaSet(STREAK_COMMITMENT_KEY, JSON.stringify(c));
+}
+
 export async function markPricesRefreshed() {
   await metaSet(PRICES_REFRESHED_AT_KEY, nowIso());
 }
@@ -1621,8 +1649,9 @@ export async function setGoalArchived(id: number, archived: boolean) {
 export async function deleteGoal(id: number) {
   await db().batch([
     q("DELETE FROM goal_contributions WHERE goal_id=?").bound(id),
-    // Un-earmark, don't delete: the deposits are real money and outlive the goal.
+    // Un-earmark, don't delete: the deposits and holdings are real money and outlive the goal.
     q("UPDATE savings SET goal_id=NULL WHERE goal_id=?").bound(id),
+    q("UPDATE instruments SET goal_id=NULL WHERE goal_id=?").bound(id),
     q("DELETE FROM goals WHERE id=?").bound(id),
     // An apartment goal's location and evidence are its own, so they go with it.
     q("DELETE FROM properties WHERE instrument=?").bound(goalPropertyKey(id)),
@@ -1634,6 +1663,20 @@ export async function deleteGoal(id: number) {
 /** Release every deposit earmarked for a goal, leaving the deposits themselves untouched. */
 export async function unlinkGoalSavings(goalId: number) {
   await q("UPDATE savings SET goal_id=NULL WHERE goal_id=?").run(goalId);
+}
+
+/** Release every holding earmarked for a goal. The holdings themselves are untouched — selling
+ *  one is a transaction you record, not something a goal can do for you. */
+export async function unlinkGoalHoldings(goalId: number) {
+  await q("UPDATE instruments SET goal_id=NULL WHERE goal_id=?").run(goalId);
+}
+
+/** Holdings earmarked for a sinking fund, keyed by goal id. */
+export async function holdingsByGoal(): Promise<Record<number, Instrument[]>> {
+  const rows = await q("SELECT * FROM instruments WHERE goal_id IS NOT NULL ORDER BY name").all<Instrument>();
+  const byGoal: Record<number, Instrument[]> = {};
+  for (const r of rows) (byGoal[r.goal_id!] ??= []).push(r);
+  return byGoal;
 }
 
 /** Deposits earmarked for a sinking fund, keyed by goal id. */
@@ -1672,12 +1715,14 @@ export async function fundCash(goalId: number, today = new Date()): Promise<numb
 
 /**
  * Everything a fund is worth: cash set aside, plus the live value of the deposits
- * earmarked for it (each with its own rate and term — see `Saving.goal_id`).
+ * earmarked for it (each with its own rate and term — see `Saving.goal_id`) and of its
+ * earmarked holdings (`Instrument.goal_id`).
  */
 export async function fundValue(goalId: number, today = new Date()): Promise<number> {
-  const byGoal = await savingsByGoal();
+  const [byGoal, held] = await Promise.all([savingsByGoal(), holdingsByGoal()]);
   const deposits = (byGoal[goalId] ?? []).reduce((a, s) => a + currentValue(s, today), 0);
-  return (await fundCash(goalId, today)) + deposits;
+  const holdings = (held[goalId] ?? []).reduce((a, i) => a + holdingValue(i), 0);
+  return (await fundCash(goalId, today)) + deposits + holdings;
 }
 
 /**
@@ -1711,16 +1756,25 @@ export async function plannedMonthly(): Promise<number> {
   return rules.reduce((a, r) => a + ruleMonthly(r), 0);
 }
 
-/** ₫/month **bought** into investments over the trailing window — what a goal compares
- *  against your recurring rules (see `resolvePace`). Purchases only, the same reading as
- *  the Transactions page's "Monthly average" and `tradesByMonth`: netting a sell in would
- *  read a month you took profit in as a quiet one. */
-export async function actualMonthly(months = 6): Promise<number> {
+/** ₫ **bought** into each holding over the trailing `months`, by name. Purchases only, the
+ *  same reading as the Transactions page's "Monthly average" and `tradesByMonth`: netting a
+ *  sell in would read a month you took profit in as a quiet one. */
+export async function recentBuys(months = FUND_PACE_WINDOW_MONTHS): Promise<Record<string, number>> {
   const since = addMonthsIso(todayIso(), -months);
-  const row = await q(
-    "SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END),0) s FROM transactions WHERE date >= ?",
-  ).get<{ s: number }>(since);
-  return (row?.s ?? 0) / months;
+  const rows = await q(
+    "SELECT instrument, SUM(amount) s FROM transactions WHERE date >= ? AND amount > 0 GROUP BY instrument",
+  ).all<{ instrument: string; s: number }>(since);
+  return Object.fromEntries(rows.map((r) => [r.instrument, r.s]));
+}
+
+/** ₫/month **bought** into investments over the trailing window — what a goal compares
+ *  against your recurring rules (see `resolvePace`). */
+export async function actualMonthly(months = FUND_PACE_WINDOW_MONTHS): Promise<number> {
+  return monthlyOf(await recentBuys(months), months);
+}
+
+function monthlyOf(buys: Record<string, number>, months: number): number {
+  return Object.values(buys).reduce((a, b) => a + b, 0) / months;
 }
 
 /**
@@ -1767,18 +1821,32 @@ function addMonthsIso(iso: string, months: number): string {
 export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
   // Independent reads, so they go out together — eight sequential round trips to D1 would
   // otherwise be the slowest thing on the dashboard.
-  const [payments, contribs, funds, savings, debts, byGoal, planned, actual, fx, apartments] = await Promise.all([
+  const [payments, contribs, funds, savings, debts, byGoal, held, planned, buys, fx, apartments] = await Promise.all([
     listDebtPayments(),
     listGoalContributions(),
     q("SELECT id FROM goals WHERE metric='fund'").all<{ id: number }>(),
     listSavings(),
     listDebts(),
     savingsByGoal(),
+    holdingsByGoal(),
     plannedMonthly(),
-    actualMonthly(),
+    // One read serves both your overall buying pace and each earmarked holding's share of it.
+    recentBuys(),
     fxRates(),
     apartmentEstimates(),
   ]);
+
+  // Only the earmarked holdings travel with the world — it's shipped to the dashboard.
+  const holdingsByGoalNames: Record<number, string[]> = {};
+  const holdingValues: Record<string, number> = {};
+  const holdingBuys: Record<string, number> = {};
+  for (const [id, list] of Object.entries(held)) {
+    holdingsByGoalNames[Number(id)] = list.map((i) => i.name);
+    for (const i of list) {
+      holdingValues[i.name] = holdingValue(i);
+      if (buys[i.name]) holdingBuys[i.name] = buys[i.name];
+    }
+  }
 
   const paymentsByDebt: Record<number, Payment[]> = {};
   for (const p of payments) (paymentsByDebt[p.debt_id] ??= []).push(p);
@@ -1798,8 +1866,11 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
     funds,
     contributions,
     savingsByGoal: byGoal,
+    holdingsByGoal: holdingsByGoalNames,
+    holdingValues,
+    holdingBuys,
     plannedMonthly: planned,
-    actualMonthly: actual,
+    actualMonthly: monthlyOf(buys, FUND_PACE_WINDOW_MONTHS),
     rates: fx.rate,
     ratesAsOf: fx.asOf,
     ratesSource: fx.source,

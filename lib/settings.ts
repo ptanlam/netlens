@@ -10,6 +10,11 @@ export const SETTINGS_SECTIONS = [
     hint: "How the sidebar looks, on this device",
   },
   {
+    href: "/settings/streak",
+    label: "Saving streak",
+    hint: "The monthly commitment your streak counts against",
+  },
+  {
     href: "/settings/price-refresh",
     label: "Price refresh",
     hint: "When the server re-quotes prices",
