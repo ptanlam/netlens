@@ -16,7 +16,7 @@ const world = (over) => ({
   investments: 500_000_000, savings: [], debts: [], paymentsByDebt: {},
   funds: [{ id: 1 }], contributions: { 1: [{ goal_id: 1, date: "2026-10-01", amount: 20_000_000 }] },
   savingsByGoal: {}, holdingsByGoal: { 1: ["VNM"] }, holdingValues: { VNM: 80_000_000 },
-  holdingBuys: { VNM: 30_000_000 }, plannedMonthly: 0, actualMonthly: 10_000_000,
+  holdingBuys: { VNM: 30_000_000 }, plannedMonthly: 0, actualMonthly: 10_000_000, netWorthMonthly: 0,
   rates: {}, ratesAsOf: null, ratesSource: null, apartments: {}, ...over,
 });
 const fund = {
@@ -46,5 +46,17 @@ assert.equal(fundValue(withLivePrices(w, { portfolioTotal: 0, portfolio: [] }), 
 
 // Nothing earmarked: the fund is its cash alone.
 assert.equal(fundValue(world({ holdingsByGoal: {}, holdingValues: {} }), fund), 20_000_000);
+
+// A net-worth goal paces on your history, never on your recurring rules.
+const nw = { ...fund, id: 2, name: "1B", metric: "net_worth", target: 1_000_000_000 };
+const rulesOnly = project(nw, world({ plannedMonthly: 50_000_000, actualMonthly: 0, netWorthMonthly: 0 }));
+assert.equal(rulesOnly.paceSource, "none");
+const lived = project(nw, world({ plannedMonthly: 50_000_000, actualMonthly: 5_000_000, netWorthMonthly: 12_000_000 }));
+assert.equal(lived.paceSource, "actual");
+assert.equal(lived.pace, 12_000_000);
+// A monthly plan still wins over both.
+assert.equal(project({ ...nw, monthly_plan: 3_000_000 }, world({ netWorthMonthly: 12_000_000 })).pace, 3_000_000);
+// An investments goal keeps the higher of rules and buys.
+assert.equal(project({ ...nw, metric: "investments" }, world({ plannedMonthly: 50_000_000 })).paceSource, "planned");
 
 console.log("goals: ok");

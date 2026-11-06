@@ -69,8 +69,8 @@ export type ForecastPaceSource = "average" | BarSource;
 /**
  * The pace to project at, and where it came from.
  *
- * What you've actually been buying: the trailing monthly average (`actualMonthly`), the
- * figure a net-worth goal also projects on. Recurring rules materialize into those same
+ * What you've actually been buying: the trailing monthly average (`actualMonthly`). A
+ * net-worth goal reads a wider history (`netWorthMonthly`, which adds new deposits). Recurring rules materialize into those same
  * transactions, so the average already carries every rule that has run — plus whatever you
  * bought on top, which a forecast built on the rules alone never saw.
  *

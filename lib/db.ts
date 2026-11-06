@@ -21,7 +21,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { CompInput, Debt, DebtPayment, Goal, GoalContribution, Instrument, LivePayload, Payload, PriceRefreshSchedule, PriceSource, PriceStatus, Property, PropertyComp, PropertyIndexPoint, PropertyValuation, RecurringRule, Saving, SavingMovement, StreakCommitment, Subscription, SymbolHit, Tx, ValuationSource } from "./types";
 import { COMMITMENT_MODES, DEFAULT_PRICE_SCHEDULE, MANUAL_SOURCE, DEFAULT_STREAK_COMMITMENT, goalIdOfProperty, goalPropertyKey, normalizePriceRefreshMs } from "./types";
 import { FUND_PACE_WINDOW_MONTHS, fundCashAt, type ApartmentEstimate, type GoalWorld } from "./goals";
-import { currentValue, type Payment } from "./savings";
+import { currentValue, freshPrincipal, type Payment } from "./savings";
 import { estimate, hasPrediction, type PredictedHolding } from "./realestate";
 import { instrumentLogo } from "./logos";
 import { missedActions, type CorpEvents, type MissedAction } from "./corporate-actions";
@@ -1825,6 +1825,36 @@ function monthlyOf(buys: Record<string, number>, months: number): number {
 }
 
 /**
+ * ₫/month of new money put to work over the trailing `months`, the way a net-worth goal
+ * counts it (`GoalWorld.netWorthMonthly`): what you bought, plus new deposit principal and
+ * top-ups. Anything earmarked for a fund is left out, since the goal's value leaves it out.
+ * A rollover counts only the principal above the old deposit's payout (`freshPrincipal`).
+ * Sells and withdrawals aren't netted: with no cash account, the app can't tell money spent
+ * from money held, the same reading the streak takes.
+ */
+function netWorthMonthly(
+  buys: Record<string, number>,
+  earmarkedBuys: Record<string, number>,
+  savings: Saving[],
+  months: number,
+): number {
+  const since = addMonthsIso(todayIso(), -months);
+  const bought = monthlyOf(buys, 1) - monthlyOf(earmarkedBuys, 1);
+  const deposited = savings
+    .filter((s) => s.goal_id == null)
+    .reduce((a, s) => {
+      const opened = s.start_date >= since
+        ? freshPrincipal(s, savings.find((f) => f.id === s.rolled_from))
+        : 0;
+      const topUps = s.movements
+        .filter((m) => m.amount > 0 && m.date >= since)
+        .reduce((b, m) => b + m.amount, 0);
+      return a + opened + topUps;
+    }, 0);
+  return (bought + deposited) / months;
+}
+
+/**
  * ₫ **bought** into investments per calendar month, keyed `YYYY-MM`, and beside it what
  * sales brought back out. Purchases are never netted against sales here; the streak decides
  * what a sale cancels (`StreakWorld.released`: only what went back to work the same month).
@@ -1868,11 +1898,13 @@ function addMonthsIso(iso: string, months: number): string {
 export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
   // Independent reads, so they go out together — eight sequential round trips to D1 would
   // otherwise be the slowest thing on the dashboard.
-  const [payments, contribs, funds, savings, debts, byGoal, held, planned, buys, fx, apartments] = await Promise.all([
+  const [payments, contribs, funds, allSavings, debts, byGoal, held, planned, buys, fx, apartments] = await Promise.all([
     listDebtPayments(),
     listGoalContributions(),
     q("SELECT id FROM goals WHERE metric='fund'").all<{ id: number }>(),
-    listSavings(),
+    // Archived too, for the net-worth pace: a deposit opened and withdrawn inside the window
+    // still happened, and a rollover needs the deposit it rolled from.
+    listSavings(true),
     listDebts(),
     savingsByGoal(),
     holdingsByGoal(),
@@ -1894,6 +1926,8 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
       if (buys[i.name]) holdingBuys[i.name] = buys[i.name];
     }
   }
+
+  const savings = allSavings.filter((s) => s.archived_date == null);
 
   const paymentsByDebt: Record<number, Payment[]> = {};
   for (const p of payments) (paymentsByDebt[p.debt_id] ??= []).push(p);
@@ -1918,6 +1952,7 @@ export async function buildGoalWorld(investments: number): Promise<GoalWorld> {
     holdingBuys,
     plannedMonthly: planned,
     actualMonthly: monthlyOf(buys, FUND_PACE_WINDOW_MONTHS),
+    netWorthMonthly: netWorthMonthly(buys, holdingBuys, allSavings, FUND_PACE_WINDOW_MONTHS),
     rates: fx.rate,
     ratesAsOf: fx.asOf,
     ratesSource: fx.source,

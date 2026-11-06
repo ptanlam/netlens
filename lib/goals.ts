@@ -82,6 +82,11 @@ export interface GoalWorld {
   plannedMonthly: number;
   /** ₫/month you've actually bought into investments over the trailing window. */
   actualMonthly: number;
+  /** ₫/month of new money you actually put to work over the trailing window, as a net-worth
+   *  goal counts it: investment buys plus new deposit principal and top-ups, leaving out
+   *  whatever is earmarked for a fund (the goal leaves those out too). A rollover counts only
+   *  its fresh principal. This, not your recurring rules, is a net-worth goal's pace. */
+  netWorthMonthly: number;
   /** VND per one unit of each foreign currency, latest known. A goal denominated in one
    *  ("$100k") is converted through this on every projection, so the target tracks the
    *  rate instead of freezing at whatever it was the day you typed it. */
@@ -396,7 +401,9 @@ export function valueAt(
 /**
  * The pace to project at, in priority order:
  *  1. what you told the goal you'd put in (`monthly_plan`) — always wins;
- *  2. the higher of your active recurring rules and your trailing monthly average.
+ *  2. for a net-worth goal, your own history alone (`netWorthMonthly`): buys and new
+ *     deposits over the trailing window, never your recurring rules;
+ *  3. otherwise the higher of your active recurring rules and your trailing monthly average.
  *
  * The two are compared, not added: a rule materializes into real transactions, so the
  * average already contains every rule that has run. Taking the higher one credits buys you
@@ -418,6 +425,12 @@ export function resolvePace(g: Goal, w: GoalWorld): { pace: number; paceSource: 
     const rate = fundContributionRate(w, g);
     return rate > 0 ? { pace: rate, paceSource: "actual" } : { pace: 0, paceSource: "none" };
   }
+  if (g.metric === "net_worth")
+    // Measured on what you actually did, not what your rules promise: net worth grows by
+    // deposits as much as by buys, and a rule says nothing about either of those you make by hand.
+    return w.netWorthMonthly > 0
+      ? { pace: w.netWorthMonthly, paceSource: "actual" }
+      : { pace: 0, paceSource: "none" };
   if (w.actualMonthly > w.plannedMonthly) return { pace: w.actualMonthly, paceSource: "actual" };
   if (w.plannedMonthly > 0) return { pace: w.plannedMonthly, paceSource: "planned" };
   return { pace: 0, paceSource: "none" };
