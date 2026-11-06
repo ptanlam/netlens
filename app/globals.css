@@ -676,6 +676,40 @@ html[data-mask] :is([data-ts-key*="tick-label:number"], [data-ts-key^="legend-st
   .goal-fill {
     animation: liquid-pour 0.95s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
+
+  /* An on-track goal (`GoalBar live`): once the pour lands, a soft band of light sweeps
+     along the fill and rests before the next pass. The band is a share of the fill's own
+     width, so a 5% bar and a 95% bar take the same time to cross. The pseudo-element is
+     clipped to the fill, never the track, so the sheen stays inside the colour. */
+  .goal-fill-live {
+    position: relative;
+    overflow: hidden;
+  }
+  .goal-fill-live::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 40%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklch, white 45%, transparent),
+      transparent
+    );
+    transform: translateX(-100%);
+    animation: goal-sheen 3.6s cubic-bezier(0.45, 0, 0.25, 1) 1.1s infinite;
+  }
+}
+
+@keyframes goal-sheen {
+  0% {
+    transform: translateX(-100%);
+  }
+  55%,
+  100% {
+    /* 100% of the fill = 250% of a band 40% wide. */
+    transform: translateX(250%);
+  }
 }
 
 /* Horizontal bars grow out from their anchored edge (transform-origin set inline). */

@@ -31,20 +31,24 @@ const METRIC_FILL: Record<GoalMetric, string> = {
 };
 
 /** A sage track with a flat bar in it. `.goal-fill` (see globals.css) pours out to the
- *  target on load. */
+ *  target on load. `live` (an on-track goal) then keeps a slow sheen running along the fill:
+ *  the one bar on the page that is moving is the one that is going somewhere. Only on-track —
+ *  a hit goal has arrived, and animating a behind or stalled one would read as praise. */
 export function GoalBar({
   progress,
   muted,
   metric,
+  live,
 }: {
   progress: number;
   muted?: boolean;
   metric?: GoalMetric;
+  live?: boolean;
 }) {
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
       <div
-        className={cn("goal-fill h-full rounded-full", muted && "goal-fill-muted")}
+        className={cn("goal-fill h-full rounded-full", muted && "goal-fill-muted", live && !muted && "goal-fill-live")}
         style={
           {
             width: `${Math.round(progress * 100)}%`,
@@ -158,7 +162,7 @@ export function GoalStrip({ goals }: { goals: GoalView[] }) {
             </div>
 
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <GoalBar progress={proj.progress} muted={proj.status === "stalled"} metric={goal.metric} />
+              <GoalBar progress={proj.progress} muted={proj.status === "stalled"} metric={goal.metric} live={proj.status === "on_track"} />
               {/* A fixed slot: "0%" and "100%" must not move where the bar ends, or the
                   bars stop lining up down the column again. */}
               <span className="w-10 shrink-0 text-right font-mono text-body-sm font-semibold text-muted-foreground tabular-nums">

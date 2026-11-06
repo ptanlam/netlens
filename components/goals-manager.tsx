@@ -675,7 +675,12 @@ function GoalCard({
       </div>
 
       <div className="mt-3.5 flex items-center gap-3">
-        <GoalBar progress={proj.progress} muted={archived || proj.status === "stalled"} metric={goal.metric} />
+        <GoalBar
+          progress={proj.progress}
+          muted={archived || proj.status === "stalled"}
+          metric={goal.metric}
+          live={!archived && proj.status === "on_track"}
+        />
         <span className="shrink-0 font-mono text-caption text-muted-foreground tabular-nums">
           {Math.round(proj.progress * 100)}%
         </span>
