@@ -121,7 +121,7 @@ export type GoalLike = { metric: GoalMetric; id?: number };
 
 /** Where the projected pace came from — the UI says which, so the number is never a
  *  black box. `schedule` means the debt's own amortization is doing the work. */
-export type PaceSource = "goal" | "planned" | "actual" | "schedule" | "none";
+export type PaceSource = "goal" | "actual" | "schedule" | "none";
 
 export type GoalStatus = "hit" | "on_track" | "behind" | "open" | "stalled";
 
@@ -401,14 +401,10 @@ export function valueAt(
 /**
  * The pace to project at, in priority order:
  *  1. what you told the goal you'd put in (`monthly_plan`) — always wins;
- *  2. for a net-worth goal, your own history alone (`netWorthMonthly`): buys and new
- *     deposits over the trailing window, never your recurring rules;
- *  3. otherwise the higher of your active recurring rules and your trailing monthly average.
- *
- * The two are compared, not added: a rule materializes into real transactions, so the
- * average already contains every rule that has run. Taking the higher one credits buys you
- * make on top of your rules without counting a rule twice, and still gives a rule you only
- * just set up — no history yet — its full weight.
+ *  2. your own history over the trailing window, never your recurring rules — for a
+ *     net-worth goal buys plus new deposits (`netWorthMonthly`), for an investments goal
+ *     buys alone (`actualMonthly`). A rule that runs shows up there as the transactions it
+ *     books; one that hasn't run yet is a promise, and the projection only counts what you did.
  *
  * Debts default to their own repayment schedule, and term deposits to nothing at all,
  * because contributions from recurring rules flow into investments, not into either.
@@ -431,9 +427,11 @@ export function resolvePace(g: Goal, w: GoalWorld): { pace: number; paceSource: 
     return w.netWorthMonthly > 0
       ? { pace: w.netWorthMonthly, paceSource: "actual" }
       : { pace: 0, paceSource: "none" };
-  if (w.actualMonthly > w.plannedMonthly) return { pace: w.actualMonthly, paceSource: "actual" };
-  if (w.plannedMonthly > 0) return { pace: w.plannedMonthly, paceSource: "planned" };
-  return { pace: 0, paceSource: "none" };
+  // An investments goal reads your buys alone — earmarked holdings included, since they never
+  // left Investments and the goal's value still counts them.
+  return w.actualMonthly > 0
+    ? { pace: w.actualMonthly, paceSource: "actual" }
+    : { pace: 0, paceSource: "none" };
 }
 
 /** ₫/month put into this fund over the trailing window — cash you set aside, deposits you

@@ -56,7 +56,9 @@ assert.equal(lived.paceSource, "actual");
 assert.equal(lived.pace, 12_000_000);
 // A monthly plan still wins over both.
 assert.equal(project({ ...nw, monthly_plan: 3_000_000 }, world({ netWorthMonthly: 12_000_000 })).pace, 3_000_000);
-// An investments goal keeps the higher of rules and buys.
-assert.equal(project({ ...nw, metric: "investments" }, world({ plannedMonthly: 50_000_000 })).paceSource, "planned");
+// An investments goal paces on its buys alone, too.
+const inv = { ...nw, metric: "investments" };
+assert.equal(project(inv, world({ plannedMonthly: 50_000_000, actualMonthly: 0 })).paceSource, "none");
+assert.equal(project(inv, world({ plannedMonthly: 50_000_000 })).pace, 10_000_000);
 
 console.log("goals: ok");

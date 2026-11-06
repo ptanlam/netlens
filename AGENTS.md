@@ -127,11 +127,12 @@ A goal is a target on a metric (`lib/goals.ts`, `GOAL_METRICS`). Four metrics ar
 - **Holdings can be earmarked too** (`instruments.goal_id`, migration `0023`, set in the holding form on Investments). The whole holding fills the fund at **today's value, held flat** (0% return, like every projection), stays in Investments for net worth, and is left out of net-worth goals like the rest. Buys of it in the last 6 months feed the fund's pace (`GoalWorld.holdingBuys`). A price tick re-prices it with the total: re-project through `withLivePrices`, never by swapping `investments` alone.
 - **"Mark as bought"** drains the cash and *un-earmarks* the deposits and holdings — it never deletes or sells them. The bank still holds a deposit until you break it; delete it on the Savings page then. A holding you sell is a transaction you record.
 
-**A net-worth goal paces on your history, never on your recurring rules** (`resolvePace`,
+**Net-worth and investments goals pace on your history, never on your recurring rules** (`resolvePace`,
 `GoalWorld.netWorthMonthly`): the trailing 6-month average of investment buys plus new deposit
 principal and top-ups (rollovers count only `freshPrincipal`), leaving out anything earmarked
 for a fund. A `monthly_plan` still overrides it. No history means "No pace", not a fallback to
-the rules. Investments goals still take the higher of rules and buys.
+the rules. An investments goal is the same with buys alone (`actualMonthly`, earmarked holdings
+included, since they stay in Investments).
 
 ### An apartment you haven't priced yet
 

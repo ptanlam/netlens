@@ -42,7 +42,6 @@ const VISIBLE_CONTRIBUTIONS = 5;
 /** Where each pace figure came from, said plainly — the projection is never a black box. */
 const PACE_SOURCE_NOTE: Record<string, string> = {
   goal: "your monthly plan",
-  planned: "your active recurring rules",
   actual: "your 6-month average",
   schedule: "the repayment schedule",
   none: "nothing yet",
