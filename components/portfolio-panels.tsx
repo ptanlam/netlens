@@ -13,7 +13,7 @@ import { readMasked } from "@/lib/mask";
 import { sparkPaths } from "@/components/net-worth";
 import { EntityAvatar } from "@/components/entity-avatar";
 import { PanelHead } from "@/components/panel-head";
-import { shiftMonths } from "@/components/date-range";
+import { yearStart } from "@/components/date-range";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -318,21 +318,32 @@ export function HoldingsListCard({
   // Per-holding value history, keyed by name, for the row sparks. Built once for all rows
   // rather than re-scanned per row — the series is one pass over every day either way.
   //
-  // Only the last month: the same window as the date-range control's "1M" preset, counted
-  // back from the newest day the series has rather than from today, so a series that stopped
-  // last week still draws a month of data. Over the whole history every long-held position
-  // drew the same rising line, and the spark said nothing the gain figure beside it didn't.
+  // The year to date, one point per month: each month's close, opened by the close of last
+  // year so January's move is drawn too. The same window the date-range control opens on
+  // (YTD, counted from the newest day in the series) at the Monthly bucket the over-time
+  // charts open on — daily noise flattened into the shape of the year. A position bought
+  // this year starts at its first month instead.
   const sparks = React.useMemo(() => {
     const out = new Map<string, number[]>();
     if (!holdingSeries || holdingSeries.length === 0) return out;
-    const since = shiftMonths(holdingSeries[holdingSeries.length - 1].date, -1);
+    const since = yearStart(holdingSeries[holdingSeries.length - 1].date);
+    // Per holding: last year's close, then month → that month's latest value. The series
+    // is in date order, so overwriting leaves each month on its last day.
+    const opening = new Map<string, number>();
+    const months = new Map<string, Map<string, number>>();
     for (const day of holdingSeries) {
-      if (day.date < since) continue;
+      const before = day.date < since;
+      const month = day.date.slice(0, 7);
       for (const h of day.holdings) {
-        const arr = out.get(h.name);
-        if (arr) arr.push(h.value);
-        else out.set(h.name, [h.value]);
+        if (before) { opening.set(h.name, h.value); continue; }
+        let m = months.get(h.name);
+        if (!m) months.set(h.name, (m = new Map()));
+        m.set(month, h.value);
       }
+    }
+    for (const [name, m] of months) {
+      const open = opening.get(name);
+      out.set(name, [...(open != null ? [open] : []), ...m.values()]);
     }
     return out;
   }, [holdingSeries]);
@@ -357,7 +368,7 @@ export function HoldingsListCard({
     <div className="flex h-full flex-col card-surface panel-body">
       <PanelHead
         title="Top holdings"
-        info="Every position with a value or a realised move, largest first — four at a time. The full list, grouped by asset type, is below. The spark is that holding's value over the last month; the second figure is its total gain or loss against cost."
+        info="Every position with a value or a realised move, largest first — four at a time. The full list, grouped by asset type, is below. The spark is that holding's value this year, month by month; the second figure is its total gain or loss against cost."
         className="mb-3"
       />
 
@@ -409,8 +420,8 @@ export function HoldingsListCard({
           const neg = h.pnl < 0;
           const spark = sparks.get(h.name) ?? [];
           const paths = sparkPaths(spark);
-          // The spark is the month, so it takes the month's direction — a position up overall
-          // but down since last month draws a red line, which is what the line shows.
+          // The spark is the year, so it takes the year's direction — a position up overall
+          // but down this year draws a red line, which is what the line shows.
           const sparkNeg = spark.length > 1 && spark[spark.length - 1] < spark[0];
           return (
             <div key={h.name} className="flex items-center gap-3 border-t border-divider py-3 first:border-t-0">
