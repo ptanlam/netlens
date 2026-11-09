@@ -315,45 +315,37 @@ export function HoldingsListCard({
   const safePage = Math.min(page, pageCount - 1);
   const visible = rows.slice(safePage * HOLDINGS_PAGE_SIZE, (safePage + 1) * HOLDINGS_PAGE_SIZE);
 
-  // Per-holding value history, keyed by name, for the row sparks. Built once for all rows
-  // rather than re-scanned per row — the series is one pass over every day either way.
+  // Per-holding P&L for the row sparks, keyed by name. Built once for all rows rather than
+  // re-scanned per row — the series is one pass over every day either way.
   //
-  // The year to date, one point per month: each month's close, opened by the close of last
-  // year so January's move is drawn too. The same window the date-range control opens on
+  // The year to date, one point per month: the running sum of each day's P&L at every
+  // month's close, from zero on 1 January. The same window the date-range control opens on
   // (YTD, counted from the newest day in the series) at the Monthly bucket the over-time
-  // charts open on — daily noise flattened into the shape of the year. A position bought
-  // this year starts at its first month instead.
+  // charts open on.
   //
-  // Each spark also carries the year's P&L — the daily moves summed, net of what you put in —
-  // for its colour. The line's own ends can't decide that: value rises with every buy, so a
-  // position you keep adding to drew green however its price had done.
+  // P&L rather than value: value rises with every buy, so a position you kept adding to drew
+  // a rising line whatever its price did. `pnl` is each day's move net of what you put in,
+  // so the line climbs only on gains — and a position bought in March is flat until then.
   const sparks = React.useMemo(() => {
-    const out = new Map<string, { values: number[]; pnl: number }>();
+    const out = new Map<string, number[]>();
     if (!holdingSeries || holdingSeries.length === 0) return out;
     const since = yearStart(holdingSeries[holdingSeries.length - 1].date);
-    // Per holding: last year's close, then month → that month's latest value. The series
-    // is in date order, so overwriting leaves each month on its last day.
-    const opening = new Map<string, number>();
+    // Per holding: running P&L, and month → that running sum on the month's last day. The
+    // series is in date order, so overwriting leaves each month on its close.
+    const cum = new Map<string, number>();
     const months = new Map<string, Map<string, number>>();
-    const pnl = new Map<string, number>();
     for (const day of holdingSeries) {
-      const before = day.date < since;
+      if (day.date < since) continue;
       const month = day.date.slice(0, 7);
       for (const h of day.holdings) {
-        if (before) { opening.set(h.name, h.value); continue; }
+        const run = (cum.get(h.name) ?? 0) + h.pnl;
+        cum.set(h.name, run);
         let m = months.get(h.name);
         if (!m) months.set(h.name, (m = new Map()));
-        m.set(month, h.value);
-        pnl.set(h.name, (pnl.get(h.name) ?? 0) + h.pnl);
+        m.set(month, run);
       }
     }
-    for (const [name, m] of months) {
-      const open = opening.get(name);
-      out.set(name, {
-        values: [...(open != null ? [open] : []), ...m.values()],
-        pnl: pnl.get(name) ?? 0,
-      });
-    }
+    for (const [name, m] of months) out.set(name, [0, ...m.values()]);
     return out;
   }, [holdingSeries]);
 
@@ -377,7 +369,7 @@ export function HoldingsListCard({
     <div className="flex h-full flex-col card-surface panel-body">
       <PanelHead
         title="Top holdings"
-        info="Every position with a value or a realised move, largest first — four at a time. The full list, grouped by asset type, is below. The spark is that holding's value this year, month by month, red when its price lost money this year (buys don't count); the second figure is its total gain or loss against cost."
+        info="Every position with a value or a realised move, largest first — four at a time. The full list, grouped by asset type, is below. The spark is that holding's gain or loss this year, month by month (buys and sells don't move it); the second figure is its total gain or loss against cost."
         className="mb-3"
       />
 
@@ -427,10 +419,10 @@ export function HoldingsListCard({
           // A percentage only means something against real money still in the position.
           const pct = h.cost > 0 ? (h.pnl / h.cost) * 100 : null;
           const neg = h.pnl < 0;
-          const spark = sparks.get(h.name);
-          const paths = sparkPaths(spark?.values ?? []);
-          // Red when the year lost money on it, whatever buys did to the line's height.
-          const sparkNeg = (spark?.pnl ?? 0) < 0;
+          const spark = sparks.get(h.name) ?? [];
+          const paths = sparkPaths(spark);
+          // Red when the year so far is a loss — where the line ends against its zero start.
+          const sparkNeg = (spark[spark.length - 1] ?? 0) < 0;
           return (
             <div key={h.name} className="flex items-center gap-3 border-t border-divider py-3 first:border-t-0">
               <EntityAvatar name={h.name} color={typeColor(h.type)} logo={h.logo} size="lg" />
