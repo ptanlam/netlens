@@ -46,13 +46,42 @@ export const typeColor = (t: string) => TYPE_COLORS[t] ?? "var(--chart-5)";
 /** Sentinel for the Holdings filter's "no filter" option — Base UI's Select needs a real
  *  value, and "" is indistinguishable from a cleared selection. */
 const ALL_TYPES = "__all__";
-/** Rows per page in the Holdings panel. */
-const HOLDINGS_PAGE_SIZE = 4;
+/** The fewest rows per page in the Holdings panel — what it shows when nothing stretches it
+ *  (a phone, where it sits alone in its row). Beside Allocation it fits as many as its
+ *  height holds; see `useRowsThatFit`. */
+const HOLDINGS_MIN_ROWS = 4;
 
-/** Roughly one holdings row, in px — 24px of vertical padding around a 28px mark. Used only
- *  as a `min-height` for the list, so the panel keeps its size on a part-full last page or
- *  an empty search. Being a little off costs a few px of slack, never a clipped row. */
+/** Roughly one holdings row, in px — 24px of vertical padding around a 28px mark. Used as
+ *  the list's `min-height`, and as the row height until a real row has been measured. */
 const HOLDINGS_ROW_PX = 57;
+
+/**
+ * How many holdings rows fit in the list box, never fewer than `HOLDINGS_MIN_ROWS`.
+ *
+ * The box is `flex-1` in a card stretched to the height of Allocation beside it, and its rows
+ * are drawn absolutely inside it, so they never add to the height they're measured against —
+ * a page that grew the card would grow the row, which would fit another row, and so on. The
+ * row height is read off a rendered row (the first has no top border, so the tallest wins),
+ * falling back to `HOLDINGS_ROW_PX` while none is drawn.
+ */
+function useRowsThatFit(box: React.RefObject<HTMLDivElement | null>) {
+  const [rows, setRows] = React.useState(HOLDINGS_MIN_ROWS);
+  React.useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const kids = Array.from(el.querySelectorAll<HTMLElement>("[data-holding-row]"));
+      const rowPx = kids.reduce((m, k) => Math.max(m, k.offsetHeight), 0) || HOLDINGS_ROW_PX;
+      setRows(Math.max(HOLDINGS_MIN_ROWS, Math.floor(el.clientHeight / rowPx)));
+    };
+    // The observer reports the box's size once on `observe`, so this also takes the first
+    // measurement — no synchronous setState in the effect body.
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [box]);
+  return rows;
+}
 
 /** Holdings a slice's hover card names before it summarises the tail into one line. */
 const SLICE_TIP_ROWS = 6;
@@ -311,6 +340,8 @@ export function HoldingsListCard({
   const [query, setQuery] = React.useState("");
   const [type, setType] = React.useState<string>(ALL_TYPES);
   const [page, setPage] = React.useState(0);
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const pageSize = useRowsThatFit(listRef);
 
   const held = React.useMemo(
     () =>
@@ -337,18 +368,22 @@ export function HoldingsListCard({
     );
   }, [held, query, type]);
 
-  // Paged, at a fixed four rows. This was a "Show all 10" toggle, which grew the panel by
-  // six rows in place — and since it shares a row with Allocation and sits above the P&L
-  // calendar, everything below it jumped. Paging keeps the panel one size whatever you're
-  // looking at.
+  // Paged, at as many rows as the panel's height holds (at least four). This was a "Show
+  // all 10" toggle, which grew the panel by six rows in place — and since it shares a row
+  // with Allocation and sits above the P&L calendar, everything below it jumped. Paging
+  // keeps the panel one size whatever you're looking at; fitting the page to that size
+  // fills the space a fixed four left empty under a tall Allocation.
   //
   // The page is *clamped* rather than reset in an effect: filtering down to two holdings
   // while parked on page 3 has to land somewhere valid, and the React Compiler's
   // `set-state-in-effect` rule rightly refuses the useEffect version. The handlers below
   // still send you back to page 1 on a new search, which is the intent — this is the guard.
-  const pageCount = Math.max(1, Math.ceil(rows.length / HOLDINGS_PAGE_SIZE));
+  //
+  // A resize changes the page size under you, so the clamp covers that too: a wider window
+  // fitting fewer pages lands on the last one rather than past it.
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
-  const visible = rows.slice(safePage * HOLDINGS_PAGE_SIZE, (safePage + 1) * HOLDINGS_PAGE_SIZE);
+  const visible = rows.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
   // Per-holding P&L for the row sparks, keyed by name. Built once for all rows rather than
   // re-scanned per row — the series is one pass over every day either way.
@@ -404,7 +439,7 @@ export function HoldingsListCard({
     <div className="flex h-full flex-col card-surface panel-body">
       <PanelHead
         title="Top holdings"
-        info="Every position with a value or a realised move, largest first — four at a time. The full list, grouped by asset type, is below. The spark is that holding's gain or loss this year, month by month (buys and sells don't move it); the second figure is its total gain or loss against cost."
+        info="Every position with a value or a realised move, largest first — as many at a time as the panel has room for. The full list, grouped by asset type, is below. The spark is that holding's gain or loss this year, month by month (buys and sells don't move it); the second figure is its total gain or loss against cost."
         className="mb-3"
       />
 
@@ -439,54 +474,59 @@ export function HoldingsListCard({
         </Select>
       </div>
 
-      {/* Reserved to a full page's worth of rows, so a last page of one — or a search that
-          matches nothing — doesn't pull the panel's bottom up and shift the calendar below. */}
+      {/* Takes whatever height the card has left (`flex-1`), and at least four rows' worth, so
+          a last page of one — or a search that matches nothing — doesn't pull the panel's
+          bottom up and shift the calendar below. The rows sit absolutely inside it so they
+          can't push it taller than the space they're measured in. */}
       <div
-        className="flex flex-col"
-        style={{ minHeight: HOLDINGS_PAGE_SIZE * HOLDINGS_ROW_PX }}
+        ref={listRef}
+        className="relative flex-1"
+        style={{ minHeight: HOLDINGS_MIN_ROWS * HOLDINGS_ROW_PX }}
       >
-        {visible.length === 0 && (
-          <p className="py-6 text-center text-caption text-muted-foreground">
-            No holding matches that.
-          </p>
-        )}
-        {visible.map((h) => {
-          // A percentage only means something against real money still in the position.
-          const pct = h.cost > 0 ? (h.pnl / h.cost) * 100 : null;
-          const neg = h.pnl < 0;
-          const spark = sparks.get(h.name) ?? [];
-          const paths = sparkPaths(spark);
-          // Red when the year so far is a loss — where the line ends against its zero start.
-          const sparkNeg = (spark[spark.length - 1] ?? 0) < 0;
-          return (
-            <div key={h.name} className="flex items-center gap-3 border-t border-divider py-3 first:border-t-0">
-              <EntityAvatar name={h.name} color={typeColor(h.type)} logo={h.logo} size="lg" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-body-sm font-semibold" title={h.name}>{h.name}</div>
-                <div className="truncate text-caption text-faint">{h.type}</div>
-              </div>
-              {paths && (
-                <svg
-                  aria-hidden
-                  viewBox="0 0 1000 300"
-                  preserveAspectRatio="none"
-                  className={cn("h-6 w-[58px] shrink-0", sparkNeg ? "text-destructive" : "text-accent-brand")}
-                >
-                  <path d={paths.line} fill="none" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-                </svg>
-              )}
-              <div className="shrink-0 text-right">
-                <div data-amount className="font-mono text-caption tabular-nums">{fmtMilVND(h.value)}</div>
-                {h.pnl !== 0 && (
-                  <div className={cn("font-mono text-caption tabular-nums", neg ? "text-destructive" : "text-accent-brand")}>
-                    {neg ? "↘ " : "↗ "}
-                    {pct != null ? `${Math.abs(pct).toFixed(1)}%` : <Amt>{fmtSigned(h.pnl)}</Amt>}
-                  </div>
+        <div className="absolute inset-0 flex flex-col overflow-hidden">
+          {visible.length === 0 && (
+            <p className="py-6 text-center text-caption text-muted-foreground">
+              No holding matches that.
+            </p>
+          )}
+          {visible.map((h) => {
+            // A percentage only means something against real money still in the position.
+            const pct = h.cost > 0 ? (h.pnl / h.cost) * 100 : null;
+            const neg = h.pnl < 0;
+            const spark = sparks.get(h.name) ?? [];
+            const paths = sparkPaths(spark);
+            // Red when the year so far is a loss — where the line ends against its zero start.
+            const sparkNeg = (spark[spark.length - 1] ?? 0) < 0;
+            return (
+              <div key={h.name} data-holding-row className="flex items-center gap-3 border-t border-divider py-3 first:border-t-0">
+                <EntityAvatar name={h.name} color={typeColor(h.type)} logo={h.logo} size="lg" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-body-sm font-semibold" title={h.name}>{h.name}</div>
+                  <div className="truncate text-caption text-faint">{h.type}</div>
+                </div>
+                {paths && (
+                  <svg
+                    aria-hidden
+                    viewBox="0 0 1000 300"
+                    preserveAspectRatio="none"
+                    className={cn("h-6 w-[58px] shrink-0", sparkNeg ? "text-destructive" : "text-accent-brand")}
+                  >
+                    <path d={paths.line} fill="none" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
+                  </svg>
                 )}
+                <div className="shrink-0 text-right">
+                  <div data-amount className="font-mono text-caption tabular-nums">{fmtMilVND(h.value)}</div>
+                  {h.pnl !== 0 && (
+                    <div className={cn("font-mono text-caption tabular-nums", neg ? "text-destructive" : "text-accent-brand")}>
+                      {neg ? "↘ " : "↗ "}
+                      {pct != null ? `${Math.abs(pct).toFixed(1)}%` : <Amt>{fmtSigned(h.pnl)}</Amt>}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* Always drawn, even on a single page — a control that comes and goes as you type
