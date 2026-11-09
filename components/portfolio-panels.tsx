@@ -65,11 +65,30 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
   const total = payload.allocation.reduce((a, x) => a + x.value, 0) || 1;
   const rows = React.useMemo(() => {
     const sum = payload.allocation.reduce((a, x) => a + x.value, 0) || 1;
+    // Each type's P&L against what it cost, summed from its holdings — the same figure the
+    // Holdings groups below head each type with, as a percentage.
+    const money = new Map<string, { pnl: number; cost: number }>();
+    for (const p of payload.portfolio) {
+      const m = money.get(p.type) ?? { pnl: 0, cost: 0 };
+      m.pnl += p.pnl;
+      m.cost += p.cost;
+      money.set(p.type, m);
+    }
     return payload.allocation
       .slice()
       .sort((a, b) => b.value - a.value)
-      .map((a) => ({ ...a, pct: (a.value / sum) * 100, color: typeColor(a.type) }));
-  }, [payload.allocation]);
+      .map((a) => {
+        const m = money.get(a.type);
+        return {
+          ...a,
+          pct: (a.value / sum) * 100,
+          // Only against real money still in: a type you've sold more of than you put in has
+          // a net cost at or below zero, and a ratio to that means nothing.
+          pnlPct: m && m.cost > 0 ? (m.pnl / m.cost) * 100 : null,
+          color: typeColor(a.type),
+        };
+      });
+  }, [payload.allocation, payload.portfolio]);
 
   // The positions inside each slice, largest first. A slice is a sum, and the question it
   // always raises — *which* holdings is that? — is one hover away rather than a trip to the
@@ -169,7 +188,7 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
     <div className="relative flex h-full flex-col card-surface panel-body">
       <PanelHead
         title="Allocation"
-        info="Current value by asset type, across all years. Hover a slice for the holdings inside it."
+        info="Current value by asset type, with its share of the portfolio and its gain or loss against cost. Hover a slice for the holdings inside it."
         className="mb-5"
       />
       <div className="relative mb-[22px] flex justify-center">
@@ -207,7 +226,7 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
             key={r.type}
             type="button"
             className={cn(
-              "flex w-full items-center justify-between py-[9px] text-left transition-opacity",
+              "flex w-full items-center justify-between gap-3 py-[9px] text-left transition-opacity",
               i < rows.length - 1 && "border-b border-divider",
               active && active !== r.type && "opacity-45",
             )}
@@ -216,13 +235,29 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
             onFocus={() => setActive(r.type)}
             onBlur={() => setActive(null)}
           >
-            <span className="flex items-center gap-2.5">
-              <span className="size-[9px] rounded-[2px]" style={{ background: r.color }} />
-              <span className="text-body-sm">{r.type}</span>
+            {/* Laid out like a Top holdings row beside it: what it is over its share on the
+                left, what it's worth over how it has done on the right. */}
+            <span className="flex min-w-0 items-center gap-2.5">
+              <span className="size-[9px] shrink-0 rounded-[2px]" style={{ background: r.color }} />
+              <span className="min-w-0">
+                <span className="block truncate text-body-sm">{r.type}</span>
+                <span className="block font-mono text-caption tabular-nums text-faint">
+                  {r.pct.toFixed(1)}% of portfolio
+                </span>
+              </span>
             </span>
-            <span className="flex gap-3.5">
-              <span data-amount className="font-mono text-caption text-muted-foreground tabular-nums">{fmtMilVND(r.value)}</span>
-              <span className="w-[42px] text-right font-mono text-caption tabular-nums">{r.pct.toFixed(1)}%</span>
+            <span className="shrink-0 text-right">
+              <span data-amount className="block font-mono text-caption tabular-nums">{fmtMilVND(r.value)}</span>
+              {r.pnlPct != null && (
+                <span
+                  className={cn(
+                    "block font-mono text-caption tabular-nums",
+                    r.pnlPct < 0 ? "text-destructive" : "text-accent-brand",
+                  )}
+                >
+                  {r.pnlPct < 0 ? "↘ " : "↗ "}{Math.abs(r.pnlPct).toFixed(1)}%
+                </span>
+              )}
             </span>
           </button>
         ))}

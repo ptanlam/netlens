@@ -366,8 +366,8 @@ export function InvestmentManager({
         <div className="flex flex-col gap-4">
           {groups.map((group) => (
             <section key={group.type}>
-              {/* One line at any width: on a phone the count goes (the rows below say it) and
-                  the name truncates before the figures wrap. */}
+              {/* On a phone the count goes (the rows below say it) and the figures stack, value
+                  over P&L like the rows below, so the type's name keeps the room to be read. */}
               <div className="flex items-center justify-between gap-3 px-1 pb-2.5">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <span className="size-[9px] shrink-0 rounded-[2px]" style={{ background: typeColor(group.type) }} />
@@ -376,10 +376,12 @@ export function InvestmentManager({
                     {group.holdings.length} holding{group.holdings.length === 1 ? "" : "s"}
                   </span>
                 </div>
-                <div className="flex shrink-0 items-baseline gap-3 font-mono whitespace-nowrap tabular-nums">
+                <div className="flex shrink-0 items-baseline gap-3 font-mono whitespace-nowrap tabular-nums max-sm:flex-col max-sm:items-end max-sm:gap-0.5">
                   <span data-amount className="text-body-sm">{fmtVND(group.value)}</span>
-                  <span data-amount className={cn("text-caption", group.pnl >= 0 ? "text-accent-brand" : "text-destructive")}>
-                    {group.pnl >= 0 ? "+" : ""}{fmtVND(group.pnl)}
+                  <span className={cn("text-caption", group.pnl >= 0 ? "text-accent-brand" : "text-destructive")}>
+                    <Amt>{group.pnl >= 0 ? "+" : ""}{fmtVND(group.pnl)}</Amt>
+                    {/* Same rule as a holding's row: a percentage only against real money in. */}
+                    {group.cost > 0 && ` (${group.pnl >= 0 ? "+" : ""}${((group.pnl / group.cost) * 100).toFixed(1)}%)`}
                   </span>
                 </div>
               </div>
