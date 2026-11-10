@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Minus, Search, TrendingDown, TrendingUp } from "lucide-react";
 import { defineChart } from "@tanstack/charts";
 import { pie, polar, radialArc } from "@tanstack/charts/polar";
 import { Chart } from "@tanstack/charts/react";
@@ -85,6 +85,24 @@ function useRowsThatFit(box: React.RefObject<HTMLDivElement | null>) {
 
 /** Holdings a slice's hover card names before it summarises the tail into one line. */
 const SLICE_TIP_ROWS = 6;
+
+/** Which way a change reads once shown to one decimal: a move that prints as "0.0%" is
+ *  flat, not a gain — it used to get the green up-arrow. */
+type Direction = "up" | "down" | "flat";
+const direction = (pct: number): Direction =>
+  Math.abs(pct) < 0.05 ? "flat" : pct < 0 ? "down" : "up";
+const TREND_TONE: Record<Direction, string> = {
+  up: "text-accent-brand",
+  down: "text-destructive",
+  flat: "text-muted-foreground",
+};
+
+/** The direction mark beside a gain or loss — the same Lucide pair as the net-worth badge.
+ *  These were the `↗`/`↘` characters, which iOS draws as colour emoji in blue boxes. */
+function Trend({ dir }: { dir: Direction }) {
+  const Icon = dir === "up" ? TrendingUp : dir === "down" ? TrendingDown : Minus;
+  return <Icon aria-hidden className="size-3.5 shrink-0" strokeWidth={2.25} />;
+}
 
 /** Thickness of the allocation ring, in the donut's own pixels. */
 const RING = 26;
@@ -280,11 +298,12 @@ export function AllocationCard({ payload }: { payload: LivePayload }) {
               {r.pnlPct != null && (
                 <span
                   className={cn(
-                    "block font-mono text-caption tabular-nums",
-                    r.pnlPct < 0 ? "text-destructive" : "text-accent-brand",
+                    "flex items-center justify-end gap-1 font-mono text-caption tabular-nums",
+                    TREND_TONE[direction(r.pnlPct)],
                   )}
                 >
-                  {r.pnlPct < 0 ? "↘ " : "↗ "}{Math.abs(r.pnlPct).toFixed(1)}%
+                  <Trend dir={direction(r.pnlPct)} />
+                  {Math.abs(r.pnlPct).toFixed(1)}%
                 </span>
               )}
             </span>
@@ -492,7 +511,8 @@ export function HoldingsListCard({
           {visible.map((h) => {
             // A percentage only means something against real money still in the position.
             const pct = h.cost > 0 ? (h.pnl / h.cost) * 100 : null;
-            const neg = h.pnl < 0;
+            // Without a percentage, any nonzero P&L has a direction (zero is never drawn).
+            const dir: Direction = pct != null ? direction(pct) : h.pnl < 0 ? "down" : "up";
             const spark = sparks.get(h.name) ?? [];
             const paths = sparkPaths(spark);
             // Red when the year so far is a loss — where the line ends against its zero start.
@@ -517,8 +537,8 @@ export function HoldingsListCard({
                 <div className="shrink-0 text-right">
                   <div data-amount className="font-mono text-caption tabular-nums">{fmtMilVND(h.value)}</div>
                   {h.pnl !== 0 && (
-                    <div className={cn("font-mono text-caption tabular-nums", neg ? "text-destructive" : "text-accent-brand")}>
-                      {neg ? "↘ " : "↗ "}
+                    <div className={cn("flex items-center justify-end gap-1 font-mono text-caption tabular-nums", TREND_TONE[dir])}>
+                      <Trend dir={dir} />
                       {pct != null ? `${Math.abs(pct).toFixed(1)}%` : <Amt>{fmtSigned(h.pnl)}</Amt>}
                     </div>
                   )}
