@@ -149,9 +149,14 @@ function MonthColumn({
               {LEVER_LABELS[l]} <Amt>{fmtVND(m.levers[l])}</Amt>
             </span>
           ))}
+          {Math.round(m.withdrawn) !== 0 && (
+            <span className="mt-0.5 block font-mono text-caption tabular-nums opacity-70">
+              Less withdrawn from savings <Amt>{fmtVND(m.withdrawn)}</Amt>
+            </span>
+          )}
           {Math.round(m.reused) !== 0 && (
             <span className="mt-0.5 block font-mono text-caption tabular-nums opacity-70">
-              Not counted · reinvested from a sale or deposit <Amt>{fmtVND(m.reused)}</Amt>
+              Not counted · reinvested from a sale or withdrawal <Amt>{fmtVND(m.reused)}</Amt>
             </span>
           )}
         </span>
@@ -241,7 +246,8 @@ export function StreakCard({ streak }: { streak: Streak | null }) {
           <>
             Consecutive months you put in at least your monthly commitment. Two things count:
             what you bought into investments, and principal you put into a new term deposit.
-            Money from a sale or a withdrawn deposit that you put back to work the same month is
+            A withdrawal from savings comes off that month&apos;s deposits. Money from a sale, or a
+            withdrawal beyond the month&apos;s deposits, that you put back to work the same month is
             not counted again; kept as cash, it is not subtracted. Market movement is excluded —
             so a good month for prices is not a month you saved. A short month still counts if
             the 3-month average clears the bar.

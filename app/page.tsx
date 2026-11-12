@@ -85,7 +85,7 @@ export default async function Dashboard() {
   const streakView = streak({
     today: world.today,
     investedByMonth: trades.bought,
-    // A top-up is new deposit money too; a withdrawal on its own isn't subtracted, nor a sell.
+    // A top-up is new deposit money too; a withdrawal comes off the month's deposits.
     savings: [
       // A rollover counts only what you added on top of the old deposit's payout.
       ...savings.map((s) => ({
@@ -97,8 +97,10 @@ export default async function Dashboard() {
     // Money back out of a deposit or a sale, so putting it to work the same month isn't new
     // money. Sales are already bucketed by month, which is all `released` reads of a date.
     released: [
-      ...savings.flatMap((s) => releasedFrom(s, savings.find((r) => r.rolled_from === s.id))),
-      ...Object.entries(trades.sold).map(([month, amount]) => ({ date: `${month}-01`, amount })),
+      ...savings.flatMap((s) =>
+        releasedFrom(s, savings.find((r) => r.rolled_from === s.id)).map((r) => ({ ...r, from: "deposit" as const })),
+      ),
+      ...Object.entries(trades.sold).map(([month, amount]) => ({ date: `${month}-01`, amount, from: "sale" as const })),
     ],
     ...commitment(world.plannedMonthly, goalRows, commitmentSetting),
   });

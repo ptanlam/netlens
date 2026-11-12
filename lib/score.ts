@@ -34,10 +34,10 @@ export type MonthKey = string;
 
 /**
  * The two ways a month counts: money you put into investments, and principal you put into a
- * new term deposit. Neither can be negative — money out is not subtracted, it is simply not
- * counted in. The one exception is money coming back out — a deposit's payout, a sale's
- * proceeds — and going straight back in that month (`StreakWorld.released`): it counted once
- * already, when it first went in.
+ * new term deposit. Neither can be negative. Money taken back out of savings comes off that
+ * month's deposits (`StreakMonth.withdrawn`), and money coming back out — a sale's proceeds,
+ * a withdrawal larger than the month's deposits — and going straight back in that month
+ * (`StreakWorld.released`) doesn't count again: it counted once already, when it first went in.
  *
  * Fund cash and debt repayments used to be levers here too. They are deliberately out: a
  * repayment is mostly a promise being kept rather than a decision to save, and fund cash is
@@ -83,19 +83,21 @@ export interface StreakWorld {
   /** New deposits, by the month they started — the principal is the money you committed. */
   savings: Pick<Saving, "start_date" | "principal">[];
   /**
-   * Money that came back out: an archived deposit's payout, a withdrawal from one, a sale's
-   * proceeds — dated the day (for a sale, the month) it left. It counted when it went in, so
-   * whatever you put to work the same month (shares bought with it, a new deposit) is that
-   * money moving again, not new money, and doesn't count a second time. What isn't put to
-   * work that month is taken as spent or kept as cash and offsets nothing: a withdrawal or a
-   * sale on its own is not subtracted.
+   * Money that came back out: an archived deposit's payout, a withdrawal from one (`from`
+   * "deposit"), a sale's proceeds (`from` "sale") — dated the day (for a sale, the month) it
+   * left. Money out of savings first comes off that month's Deposited: a top-up you take
+   * back out was never saved. What is left of it, and a sale's proceeds, counted when it went
+   * in, so whatever you put to work the same month (shares bought with it, a new deposit) is
+   * that money moving again, not new money, and doesn't count a second time. What isn't put
+   * to work that month is taken as spent or kept as cash and offsets nothing: no month goes
+   * below zero.
    *
    * Same month only, because the app can't tell which buy a payout paid for. Reaching
    * further would let a deposit you withdrew for a car quietly cancel next month's salary
    * buys. A payout already rolled into a new deposit is left out by the caller — the new
    * deposit's `freshPrincipal` has taken it off once already.
    */
-  released: { date: string; amount: number }[];
+  released: { date: string; amount: number; from: "deposit" | "sale" }[];
   bar: number;
   barSource: BarSource;
 }
@@ -105,8 +107,12 @@ export interface StreakMonth {
   /** What the two levers came to. Neither can be negative, so nor can this. */
   total: number;
   levers: Record<Lever, number>;
-  /** What was put in this month from money that came back out of a deposit or a sale (see
-   *  `StreakWorld.released`) — already taken off `levers` and `total`. */
+  /** What was withdrawn from savings this month, taken off its Deposited (never below
+   *  zero) — already off `levers.deposit` and `total`. */
+  withdrawn: number;
+  /** What was put in this month from money that came back out of a sale, or a withdrawal
+   *  beyond the month's deposits (see `StreakWorld.released`) — already taken off `levers`
+   *  and `total`. */
   reused: number;
   status: MonthStatus;
   /** Set only on a `carried` month: the trailing average that rescued it. */
@@ -236,18 +242,29 @@ export function streak(w: StreakWorld): Streak | null {
   // backwards. The current month is always the last one shown.
   if (to < from) return null;
 
-  const releasedBy = new Map<MonthKey, number>();
-  for (const r of w.released)
-    if (r.amount > 0) releasedBy.set(monthOf(r.date), (releasedBy.get(monthOf(r.date)) ?? 0) + r.amount);
+  const outOfSavings = new Map<MonthKey, number>();
+  const outOfSales = new Map<MonthKey, number>();
+  for (const r of w.released) {
+    if (!(r.amount > 0)) continue;
+    const by = r.from === "deposit" ? outOfSavings : outOfSales;
+    by.set(monthOf(r.date), (by.get(monthOf(r.date)) ?? 0) + r.amount);
+  }
 
   const totals: number[] = [];
   const levers: Record<Lever, number>[] = [];
+  const withdrawn: number[] = [];
   const reused: number[] = [];
   for (let i = from; i <= to; i++) {
-    const row = { ...(byMonth.get(monthKey(i)) ?? emptyLevers()) };
+    const key = monthKey(i);
+    const row = { ...(byMonth.get(key) ?? emptyLevers()) };
     const gross = LEVERS.reduce((a, l) => a + row[l], 0);
-    const back = Math.min(gross, releasedBy.get(monthKey(i)) ?? 0);
-    // Off investments first — the usual place a payout goes — then off new deposits.
+    // Money out of savings comes off the month's deposits first: it nets against them.
+    const out = outOfSavings.get(key) ?? 0;
+    const off = Math.min(row.deposit, out);
+    row.deposit -= off;
+    // Whatever is left of it, and a sale's proceeds, cancel what went back to work.
+    const back = Math.min(gross - off, out - off + (outOfSales.get(key) ?? 0));
+    // Off investments first — the usual place proceeds go — then off new deposits.
     let left = back;
     for (const l of LEVERS) {
       const take = Math.min(row[l], left);
@@ -255,8 +272,9 @@ export function streak(w: StreakWorld): Streak | null {
       left -= take;
     }
     levers.push(row);
+    withdrawn.push(off);
     reused.push(back);
-    totals.push(gross - back);
+    totals.push(gross - off - back);
   }
 
   // The trailing window and its mean. Divided by how many months it actually spans, not by
@@ -269,7 +287,7 @@ export function streak(w: StreakWorld): Streak | null {
   const months: StreakMonth[] = totals.map((total, i) => {
     const month = monthKey(from + i);
     const row = levers[i];
-    const base = { month, total, levers: row, reused: reused[i] };
+    const base = { month, total, levers: row, withdrawn: withdrawn[i], reused: reused[i] };
     if (total >= w.bar) return { ...base, status: "met" };
     const avg = meanOf(windowAt(i));
     if (avg >= w.bar) return { ...base, status: "carried", carriedBy: avg };
