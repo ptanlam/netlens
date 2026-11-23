@@ -190,7 +190,7 @@ export interface RecurringRule {
   asset_type: string;
   amount: number;
   /** Weight bought per run (a metal, in `METAL_UNIT`), or null for an amount rule. Then
-   *  `amount` is the estimate at save time; each run is priced at the day's sell price. */
+   *  `amount` is an estimate, re-priced by each price refresh; each run is priced at the day's sell price. */
   quantity: number | null;
   freq: RecurringFreq | typeof CRON_FREQ;
   /** The 5-field expression when `freq` is `CRON_FREQ`: runs once on each matching day. */

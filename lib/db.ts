@@ -814,6 +814,13 @@ export async function listRecurring(): Promise<RecurringRule[]> {
   return q("SELECT * FROM recurring_rules ORDER BY active DESC, instrument").all<RecurringRule>();
 }
 
+/** Re-write the ₫ estimate of rules that buy by weight — `[id, amount]` pairs, one batch. */
+export async function setRecurringAmounts(rows: [number, number][]) {
+  if (!rows.length) return;
+  const stmt = q("UPDATE recurring_rules SET amount=? WHERE id=?");
+  await db().batch(rows.map(([id, amount]) => stmt.bound(Math.round(amount), id)));
+}
+
 export async function toggleRecurring(id: number) {
   await q("UPDATE recurring_rules SET active = 1 - active WHERE id=?").run(id);
 }

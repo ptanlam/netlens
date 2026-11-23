@@ -9,9 +9,9 @@
  * Failures are collected, never thrown, so one bad ticker can't break a refresh.
  */
 import {
-  deletePriceHistory, isDormant, listInstruments, listPriceSources, markPricesRefreshed,
-  APP_TIMEZONE, metaGet, metaSet, priceSchedulingState, setFxRates, syncFxTargets, todayIso, updatePrice,
-  upsertPriceHistory,
+  deletePriceHistory, isDormant, listInstruments, listPriceSources, listRecurring, markPricesRefreshed,
+  APP_TIMEZONE, metaGet, metaSet, priceSchedulingState, setFxRates, setRecurringAmounts, syncFxTargets,
+  todayIso, updatePrice, upsertPriceHistory,
 } from "./db";
 import type { Instrument, PriceSource } from "./types";
 import type { CorpEvents } from "./corporate-actions";
@@ -199,8 +199,61 @@ export async function listSourceSymbols(src: PriceSource): Promise<{ symbol: str
  *  `giaban`). `price_field` is the buy-back side, the value of metal you hold; a recurring
  *  rule buying by weight pays this one. Matched on the URL, so a copied source works too. */
 export async function sellPrices(src: PriceSource): Promise<Record<string, number>> {
-  if (!listsItsSymbols(src) || !src.url.includes("edge-api.pnj.io/")) return {};
-  return extractBatch({ ...src, price_field: "giaban" }, await callSource(src, { symbols: "" }));
+  if (!quotesSellSide(src)) return {};
+  return sellPricesIn(src, await callSource(src, { symbols: "" }));
+}
+
+function quotesSellSide(src: PriceSource): boolean {
+  return listsItsSymbols(src) && src.url.includes("edge-api.pnj.io/");
+}
+
+/** The sell side of a board answer already in hand — the same response the buy-back price
+ *  came from, so re-pricing the rules costs no second request. */
+function sellPricesIn(src: PriceSource, data: unknown): Record<string, number> {
+  return extractBatch({ ...src, price_field: "giaban" }, data);
+}
+
+/**
+ * Re-price every rule that buys by weight at today's sell price.
+ *
+ * Such a rule's `amount` is an estimate — weight × sell price — and was only ever worked out
+ * when the rule was saved, so the "≈ ₫" on /recurring, its monthly equivalent and the streak
+ * bar all sat at the save-day price however far gold moved. Each run was always priced on
+ * its own day; only the estimate went stale. Riding the price refresh keeps it on the same
+ * clock as everything else, and `boards` (the answers `refreshAll` already fetched) means a
+ * board is asked once a tick. A rule's holding with no units yet isn't refreshed — dormant —
+ * so its board is fetched here instead. Errors only: an estimate isn't a "price updated".
+ */
+async function refreshRuleEstimates(
+  instruments: Instrument[], sources: Map<string, PriceSource>, boards: Map<string, unknown>,
+): Promise<string[]> {
+  const rules = (await listRecurring()).filter((r) => r.quantity != null && r.quantity > 0);
+  if (!rules.length) return [];
+  const byName = new Map(instruments.map((i) => [i.name, i]));
+  const errors: string[] = [];
+  const sells = new Map<string, Record<string, number> | null>(); // per source key
+  const updates: [number, number][] = [];
+
+  for (const rule of rules) {
+    const inst = byName.get(rule.instrument);
+    const src = inst?.symbol ? sources.get(inst.price_source) : undefined;
+    if (!inst?.symbol || !src || !quotesSellSide(src)) continue;
+    if (!sells.has(src.key)) {
+      try {
+        const data = boards.has(src.key) ? boards.get(src.key) : await callSource(src, { symbols: "" });
+        sells.set(src.key, sellPricesIn(src, data));
+      } catch (e) {
+        sells.set(src.key, null);
+        errors.push(`${src.label} (sell side): ${(e as Error).message}`);
+      }
+    }
+    const sell = sells.get(src.key)?.[inst.symbol];
+    if (sell == null) continue; // no quote this tick: the last estimate stands
+    const amount = Math.round(rule.quantity! * sell);
+    if (amount !== rule.amount) updates.push([rule.id, amount]);
+  }
+  await setRecurringAmounts(updates);
+  return errors;
 }
 
 // ---------- exchange rates ----------
@@ -280,6 +333,8 @@ export async function refreshAll(): Promise<[number, string[]]> {
   const errors: string[] = [];
   const today = todayIso();
 
+  // Each batch source's answer, kept for `refreshRuleEstimates` to read the sell side from.
+  const boards = new Map<string, unknown>();
   const groups = new Map<string, Instrument[]>();
   for (const r of priced) {
     const g = groups.get(r.price_source);
@@ -300,6 +355,7 @@ export async function refreshAll(): Promise<[number, string[]]> {
       if (src.batch) {
         const symbols = [...new Set(rows.map((r) => r.symbol).filter(Boolean) as string[])].sort();
         const data = await callSource(src, { symbols: symbols.map(encodeURIComponent).join(",") });
+        boards.set(key, data);
         const prices = extractBatch(src, data);
         for (const r of rows) {
           const lookup = r.symbol ?? r.name;
@@ -330,6 +386,7 @@ export async function refreshAll(): Promise<[number, string[]]> {
   // Rides the same tick as the prices: a goal denominated in dollars is quoted by the same
   // act that quotes a holding, and there is no second mechanism to remember to run.
   errors.push(...(await refreshFxRates()));
+  errors.push(...(await refreshRuleEstimates(instruments, sources, boards)));
 
   // Stamped here, at the one place every refresh passes through — the cron, the header
   // button, the pull-to-refresh — so "when were these prices last pulled" has a single

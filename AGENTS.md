@@ -274,7 +274,8 @@ Gold is a holding like any other (`METALS` = "Precious Metals" in `lib/types.ts`
   *buy-back* price and invent metal. So a recurring rule buys a metal **by weight**
   (`recurring_rules.quantity`, migration `0020`): each run books that weight at the board's
   sell price (`giaban`, `sellPrices` in `lib/prices.ts`), fetched at run time; the rule's
-  `amount` is only the estimate at save time. No sell price, no run — it retries on the next load.
+  `amount` is only an estimate (weight × sell price), re-priced by every price refresh
+  (`refreshRuleEstimates`, from the same board response). No sell price, no run — it retries on the next load.
 
 The price is the seeded `pnj_gold` source (migration `0018`): PNJ's public board, one batch
 request, `masp` as the symbol (`SJC` bars, `N24K` 9999 rings), `giamua` × `price_multiplier`

@@ -122,7 +122,8 @@ export function usePriceRefreshCount() {
 
 /**
  * Routes that actually render something a price refresh can move: the dashboard, the
- * holdings themselves, and goals (whose progress is read off the investments total).
+ * holdings themselves, goals (whose progress is read off the investments total), and
+ * recurring (a rule that buys gold by weight shows its ₫ estimate at today's sell price).
  * Savings, debts and transactions display none of it — `/transactions` only redirects.
  *
  * It no longer gates *polling* — a status read is a single `meta` row, and the header
@@ -130,7 +131,7 @@ export function usePriceRefreshCount() {
  * `/savings`. What it gates is `router.refresh()`, which on the dashboard is ~19 D1
  * queries' worth of re-render.
  */
-const PRICED_ROUTES = ["/", "/investments", "/goals"];
+const PRICED_ROUTES = ["/", "/investments", "/goals", "/recurring"];
 
 function showsPrices(pathname: string): boolean {
   return PRICED_ROUTES.some((r) => (r === "/" ? pathname === "/" : pathname.startsWith(r)));
